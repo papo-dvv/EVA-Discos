@@ -1,0 +1,32 @@
+.claude
+node_modules
+
+# Build output (apps/api y apps/web ya tienen el suyo propio, esto cubre
+# cualquier otro workspace, ej. packages/shared)
+dist
+dist-ssr
+build
+coverage
+
+# Variables de entorno — nunca versionar secretos reales
+.env
+.env.*
+!.env.example
+
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editores
+.vscode/*
+!.vscode/extensions.json
+.idea
+
+# Temporales
+*.tmp
+.temp

@@ -1,0 +1,624 @@
+// EVA — de Línea 1 de Lima
+// Traducción 1:1 de /schema_eva.sql. Ver ese archivo para las notas de
+// negocio completas (sección 8) — acá solo se repiten las que afectan
+// directamente cómo se modeló algo en Prisma.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================================================
+// 1. TIPOS ENUMERADOS
+// ============================================================================
+
+enum ModeloTren {
+  ansaldo_mb300
+  alstom_metropolis9000
+}
+
+enum EstadoTren {
+  operativo
+  mantenimiento
+  baja
+}
+
+enum TipoCoche {
+  MA1
+  MB1
+  MB3
+  REM
+  MB2
+  MA2
+}
+
+enum LadoDisco {
+  izquierdo
+  derecho
+}
+
+enum RolUsuario {
+  administrador
+  supervisor
+  tecnico_medicion
+  tecnico_analisis
+  operador_almacen
+  auditor
+  solo_lectura
+}
+
+enum EstadoCuenta {
+  pendiente_aprobacion
+  activo
+  rechazado
+  bloqueado
+}
+
+enum TipoResetPassword {
+  admin_manual
+  temporal_por_email
+}
+
+enum EstadoArchivo {
+  pending
+  processing
+  review
+  // Confirmación en curso por lotes (ver MigrationCommitService): distinto de
+  // 'committed' para dejar claro que el proceso puede haber quedado a mitad
+  // de camino (ej. el servidor se cayó) y que un reintento de POST
+  // /migration/:fileId/commit debe RETOMAR desde el último lote exitoso, no
+  // reprocesar todo desde cero.
+  committing
+  committed
+  error
+}
+
+enum EstadoDisco {
+  OK
+  SEGUIMIENTO
+  CAMBIO
+  CRITICO
+}
+
+enum MetodoOutlier {
+  desviacion_estandar
+  iqr
+  umbral_fijo
+}
+
+enum TipoCargaArchivo {
+  csv_individual
+  migracion_masiva_excel
+}
+
+enum EtapaEdicion {
+  pre_commit
+  post_commit
+}
+
+enum TipoEventoCalendario {
+  cambio
+  reperfilado
+  revision
+}
+
+enum EstadoEventoCalendario {
+  programado
+  realizado
+  cancelado
+}
+
+enum SeveridadNotificacion {
+  info
+  advertencia
+  critico
+}
+
+enum TipoNotificacion {
+  disco_critico
+  solicitud_registro_pendiente
+  outlier_detectado
+  evento_calendario_proximo
+  password_temporal_generada
+  // Generada por SystemParamsService al aceptar un cambio de parámetro de
+  // percentil (Regla B, ver ConsensoValidationService): el extremo inferior
+  // de consenso de alguna combinación de scope daba <= 0.00 y se ajustó
+  // automáticamente a consenso_extremo_epsilon.
+  consenso_extremo_ajustado
+}
+
+enum FormatoReporte {
+  pdf
+  excel
+}
+
+// ============================================================================
+// 2. USUARIOS Y ACCESOS
+// ============================================================================
+
+model User {
+  id                     String       @id @default(uuid()) @db.Uuid
+  nombresCompletos       String       @map("nombres_completos") @db.VarChar(200)
+  dni                    String       @unique @db.VarChar(15)
+  fotoUrl                String?      @map("foto_url") @db.VarChar(500)
+  area                   String       @db.VarChar(150)
+  rol                    RolUsuario
+  empresa                String       @db.VarChar(200)
+  email                  String       @unique @db.VarChar(200)
+  passwordHash           String       @map("password_hash") @db.VarChar(255)
+  mfaEnabled             Boolean      @default(false) @map("mfa_enabled")
+  preguntaSeguridad      String?      @map("pregunta_seguridad") @db.VarChar(300)
+  respuestaSeguridadHash String?      @map("respuesta_seguridad_hash") @db.VarChar(255)
+  estadoCuenta           EstadoCuenta @default(pendiente_aprobacion) @map("estado_cuenta")
+  debeCambiarPassword    Boolean      @default(false) @map("debe_cambiar_password")
+  esUsuarioSistema       Boolean      @default(false) @map("es_usuario_sistema")
+  onboardingCompletado   Boolean      @default(false) @map("onboarding_completado")
+  onboardingModulo       String?      @map("onboarding_modulo") @db.VarChar(20)
+  createdAt              DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  registrationRequests          RegistrationRequest[] @relation("UserRegistrationRequest")
+  registrationRequestsRevisadas RegistrationRequest[] @relation("RegistrationRequestRevisadoPor")
+  passwordResets                PasswordReset[]       @relation("UserPasswordReset")
+  passwordResetsGenerados       PasswordReset[]       @relation("PasswordResetGeneradoPor")
+  providersRegistrados          Provider[]
+  uploadedFiles                 UploadedFile[]
+  scanEditLogs                  ScanEditLog[]
+  discComments                  DiscComment[]
+  calendarEventsAgendados       CalendarEvent[]       @relation("CalendarEventAgendadoPor")
+  calendarEventsResponsable     CalendarEvent[]       @relation("CalendarEventResponsableAsignado")
+  notifications                 Notification[]
+  reportRequests                ReportRequest[]
+  systemParamsActualizados      SystemParam[]
+  systemParamAudits             SystemParamAudit[]
+
+  @@index([rol], map: "idx_users_rol")
+  @@index([estadoCuenta], map: "idx_users_estado_cuenta")
+  @@map("users")
+}
+
+model RegistrationRequest {
+  id            String    @id @default(uuid()) @db.Uuid
+  userId        String    @map("user_id") @db.Uuid
+  estado        String    @default("pendiente") @db.VarChar(20)
+  revisadoPor   String?   @map("revisado_por") @db.Uuid
+  fechaRevision DateTime? @map("fecha_revision") @db.Timestamptz(6)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user            User  @relation("UserRegistrationRequest", fields: [userId], references: [id], onDelete: Cascade)
+  revisadoPorUser User? @relation("RegistrationRequestRevisadoPor", fields: [revisadoPor], references: [id])
+
+  @@index([estado], map: "idx_registration_requests_estado")
+  @@map("registration_requests")
+}
+
+model PasswordReset {
+  id          String            @id @default(uuid()) @db.Uuid
+  userId      String            @map("user_id") @db.Uuid
+  tipo        TipoResetPassword
+  tokenHash   String?           @map("token_hash") @db.VarChar(255)
+  expiraEn    DateTime?         @map("expira_en") @db.Timestamptz(6)
+  usado       Boolean           @default(false)
+  generadoPor String?           @map("generado_por") @db.Uuid
+  createdAt   DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user            User  @relation("UserPasswordReset", fields: [userId], references: [id], onDelete: Cascade)
+  generadoPorUser User? @relation("PasswordResetGeneradoPor", fields: [generadoPor], references: [id])
+
+  @@index([userId], map: "idx_password_resets_user")
+  @@map("password_resets")
+}
+
+// ============================================================================
+// 3. FLOTA: TRENES, COCHES, BOGIES, DISCOS
+// ============================================================================
+
+model Train {
+  id              String     @id @default(uuid()) @db.Uuid
+  numero          Int        @unique
+  modelo          ModeloTren
+  color           String     @db.VarChar(50)
+  velocidadMaxKmh Decimal?   @map("velocidad_max_kmh") @db.Decimal(5, 2)
+  estado          EstadoTren @default(operativo)
+  createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  wagonUnits     WagonUnit[]
+  calendarEvents CalendarEvent[]
+
+  // chk_train_numero (numero BETWEEN 1 AND 44) se agrega a mano en la migración
+  // (Prisma no soporta CHECK constraints en el schema) — ver prisma/migrations.
+  @@index([modelo], map: "idx_trains_modelo")
+  @@map("trains")
+}
+
+model BogieCatalog {
+  codigo      String  @id @db.VarChar(10)
+  descripcion String? @db.VarChar(150)
+
+  brakeDiscs BrakeDisc[]
+
+  @@map("bogie_catalog")
+}
+
+model Provider {
+  id            String   @id @default(uuid()) @db.Uuid
+  nombre        String   @db.VarChar(200)
+  contacto      String?  @db.VarChar(200)
+  telefono      String?  @db.VarChar(30)
+  email         String?  @db.VarChar(200)
+  registradoPor String   @map("registrado_por") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  registradoPorUser User        @relation(fields: [registradoPor], references: [id])
+  brakeDiscs        BrakeDisc[]
+
+  @@map("providers")
+}
+
+// Coches (vagones físicos). Los vagones NO son intercambiables entre trenes:
+// la relación con trains es fija.
+model WagonUnit {
+  id          String    @id @default(uuid()) @db.Uuid
+  numeroCoche Int       @unique @map("numero_coche")
+  tipoCoche   TipoCoche @map("tipo_coche")
+  trenId      String    @map("tren_id") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tren       Train       @relation(fields: [trenId], references: [id])
+  brakeDiscs BrakeDisc[]
+
+  @@index([trenId], map: "idx_wagon_units_tren")
+  @@map("wagon_units")
+}
+
+// Discos de freno físicos, identificados por coche + bogie + eje + lado.
+// "ruedaNumero" es la rueda asignada a ese disco (impar = izquierda, par =
+// derecha, según la convención de numeración de ruedas de la flota). Se
+// guarda como dato informativo/de referencia, no como llave: la llave física
+// real es (wagonUnitId, bogieCodigo, ejeNumero, lado).
+model BrakeDisc {
+  id               String    @id @default(uuid()) @db.Uuid
+  wagonUnitId      String    @map("wagon_unit_id") @db.Uuid
+  bogieCodigo      String    @map("bogie_codigo") @db.VarChar(10)
+  ejeNumero        Int       @map("eje_numero")
+  lado             LadoDisco
+  ruedaNumero      Int?      @map("rueda_numero")
+  proveedorId      String?   @map("proveedor_id") @db.Uuid
+  fechaInstalacion DateTime? @map("fecha_instalacion") @db.Date
+  activo           Boolean   @default(true)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  wagonUnit WagonUnit    @relation(fields: [wagonUnitId], references: [id])
+  bogie     BogieCatalog @relation(fields: [bogieCodigo], references: [codigo])
+  proveedor Provider?    @relation(fields: [proveedorId], references: [id])
+
+  scanRecords    ScanRecord[]
+  discComments   DiscComment[]
+  calendarEvents CalendarEvent[]
+  wearRatePairs  WearRatePair[]
+
+  @@unique([wagonUnitId, bogieCodigo, ejeNumero, lado])
+  @@index([wagonUnitId], map: "idx_brake_discs_wagon")
+  @@index([proveedorId], map: "idx_brake_discs_proveedor")
+  @@map("brake_discs")
+}
+
+// ============================================================================
+// 4. INGESTA DE CSV Y REGISTROS DE MEDICIÓN
+// ============================================================================
+
+model UploadedFile {
+  id           String           @id @default(uuid()) @db.Uuid
+  filename     String           @db.VarChar(300)
+  tipoCarga    TipoCargaArchivo @default(csv_individual) @map("tipo_carga")
+  uploadedBy   String           @map("uploaded_by") @db.Uuid
+  uploadedAt   DateTime         @default(now()) @map("uploaded_at") @db.Timestamptz(6)
+  status       EstadoArchivo    @default(pending)
+  totalRows    Int?             @map("total_rows")
+  validRows    Int?             @map("valid_rows")
+  invalidRows  Int?             @map("invalid_rows")
+  errorMessage String?          @map("error_message")
+
+  // Progreso de la confirmación por lotes (status = 'committing'). Se fija
+  // commitLotesTotal al iniciar el commit y commitLotesCompletados se
+  // incrementa dentro de la MISMA transacción corta de cada lote exitoso, así
+  // un reintento sabe exactamente dónde retomar. commitError guarda el
+  // detalle del último lote que falló, para reportarlo (hoy en la respuesta
+  // síncrona; a futuro también vía un GET .../commit-status de polling).
+  commitLotesTotal       Int?    @map("commit_lotes_total")
+  commitLotesCompletados Int     @default(0) @map("commit_lotes_completados")
+  commitError            String? @map("commit_error")
+
+  uploadedByUser User          @relation(fields: [uploadedBy], references: [id])
+  scanRecords    ScanRecord[]
+  scanEditLogs   ScanEditLog[]
+
+  @@index([status], map: "idx_uploaded_files_status")
+  @@index([tipoCarga], map: "idx_uploaded_files_tipo_carga")
+  @@map("uploaded_files")
+}
+
+// Registro de cada fila procesada del CSV. El estado se RECALCULA siempre por
+// el sistema a partir de Rd (estadoCalculado); lo que traía el Excel en su
+// columna "Comentario" (ej. "Cambio", "Reperfilado") se conserva aparte como
+// referencia, sin usarse para el cálculo — es el "estado sugerido" que traía
+// la planilla.
+model ScanRecord {
+  id                     String         @id @default(uuid()) @db.Uuid
+  fileId                 String         @map("file_id") @db.Uuid
+  discId                 String?        @map("disc_id") @db.Uuid
+  responsableNombre      String         @map("responsable_nombre") @db.VarChar(200)
+  trenNumero             Int            @map("tren_numero")
+  kilometraje            Decimal        @db.Decimal(12, 2)
+  fecha                  DateTime       @db.Date
+  motivo                 String         @db.VarChar(100)
+  tValue                 Decimal        @map("t_value") @db.Decimal(6, 3)
+  hValue                 Decimal        @map("h_value") @db.Decimal(6, 3)
+  // Campo Float NORMAL a propósito (no GENERATED en la base de datos): el
+  // backend siempre lo calcula y asigna al crear/actualizar el registro,
+  // nunca se confía en un valor "T-H" que venga del cliente/Excel.
+  rdValue                Float          @map("rd_value")
+  estadoCalculado        EstadoDisco?   @map("estado_calculado")
+  estadoSugeridoExcel    String?        @map("estado_sugerido_excel") @db.VarChar(50)
+  esOutlier              Boolean        @default(false) @map("es_outlier")
+  metodoOutlierAplicado  MetodoOutlier? @map("metodo_outlier_aplicado")
+  excluidoDeTrazabilidad Boolean        @default(false) @map("excluido_de_trazabilidad")
+  valido                 Boolean        @default(true)
+  motivoInvalidez        String?        @map("motivo_invalidez") @db.VarChar(300)
+
+  // Campos exclusivos de la migración masiva desde Excel (39 hojas T06-T44)
+  hojaExcelOrigen         String? @map("hoja_excel_origen") @db.VarChar(10)
+  trenOriginalExcel       Int?    @map("tren_original_excel")
+  corregidoPorHoja        Boolean @default(false) @map("corregido_por_hoja")
+  discrepanciaEstadoExcel Boolean @default(false) @map("discrepancia_estado_excel")
+
+  // Identidad cruda del disco tal como vino del Excel (Coche, N° Coche, Bogie,
+  // Eje, Ubicación, Rueda). Se guardan sin normalizar en el borrador de la
+  // migración porque disc_id todavía no está resuelto: la resolución del disco
+  // físico (y por ende disc_id) ocurre recién al confirmar la carga.
+  cocheExcel       String? @map("coche_excel") @db.VarChar(10)
+  numeroCocheExcel Int?    @map("numero_coche_excel")
+  bogieExcel       String? @map("bogie_excel") @db.VarChar(10)
+  ejeExcel         Int?    @map("eje_excel")
+  // El Excel real trae ubicaciones como "disco_freno_10_izquierdo" (hasta ~24
+  // chars), no solo "izquierdo/derecho": VarChar(20) las truncaba (error 22001).
+  ubicacionExcel   String? @map("ubicacion_excel") @db.VarChar(50)
+  ruedaExcel       Int?    @map("rueda_excel")
+
+  // Orden FÍSICO real de coche+bogie+eje+lado (nunca alfabético) — precalculado
+  // por calcularOrdenFisico (ver common/orden-fisico.ts) al insertar la fila
+  // (parser) o al editar su identidad (MigrationPreviewService.editarFila).
+  // trenNumero se ordena aparte (columna simple ASC): ver scan-record-query.ts.
+  ordenFisico Int @default(0) @map("orden_fisico")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  file                      UploadedFile   @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  disc                      BrakeDisc?     @relation(fields: [discId], references: [id])
+  scanEditLogs              ScanEditLog[]
+  // Un ScanRecord puede ser el extremo "anterior" y/o "nuevo" de pares
+  // distintos de wear_rate_pairs a lo largo de la cadena de mediciones de su
+  // disco (ver WearRateModule).
+  wearRatePairsComoAnterior WearRatePair[] @relation("WearRatePairScanRecord1")
+  wearRatePairsComoNuevo    WearRatePair[] @relation("WearRatePairScanRecord2")
+
+  @@index([fileId], map: "idx_scan_records_file")
+  @@index([discId], map: "idx_scan_records_disc")
+  @@index([fecha], map: "idx_scan_records_fecha")
+  @@index([estadoCalculado], map: "idx_scan_records_estado")
+  @@index([discId, fecha], map: "idx_scan_records_disc_fecha")
+  @@index([trenNumero, ordenFisico], map: "idx_scan_records_orden_fisico")
+  @@map("scan_records")
+}
+
+// Auditoría de ediciones CRUD, tanto en la vista previa (preCommit) como
+// sobre datos ya guardados en la base de datos (postCommit). Las
+// correcciones automáticas del sistema (ej. corrección de Tren según la
+// hoja de origen) también quedan acá, usando el usuario reservado
+// "esUsuarioSistema = true".
+model ScanEditLog {
+  id            String       @id @default(uuid()) @db.Uuid
+  // Nullable — igual que en schema_eva.sql: una edición puede no estar
+  // atada a un archivo (ej. ediciones post-commit hechas fuera del flujo
+  // de carga).
+  fileId        String?      @map("file_id") @db.Uuid
+  scanRecordId  String?      @map("scan_record_id") @db.Uuid
+  etapa         EtapaEdicion @default(pre_commit)
+  campoEditado  String       @map("campo_editado") @db.VarChar(100)
+  valorAnterior String?      @map("valor_anterior")
+  valorNuevo    String?      @map("valor_nuevo")
+  usuarioId     String       @map("usuario_id") @db.Uuid
+  timestamp     DateTime     @default(now()) @db.Timestamptz(6)
+
+  file       UploadedFile? @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  scanRecord ScanRecord?   @relation(fields: [scanRecordId], references: [id], onDelete: SetNull)
+  usuario    User          @relation(fields: [usuarioId], references: [id])
+
+  @@index([fileId], map: "idx_scan_edit_log_file")
+  @@index([scanRecordId], map: "idx_scan_edit_log_record")
+  @@index([etapa], map: "idx_scan_edit_log_etapa")
+  @@map("scan_edit_log")
+}
+
+// Tabla precomputada de tasa de desgaste: un par = dos mediciones
+// CONSECUTIVAS (fecha_1 = n, fecha_2 = n+1) del MISMO disco físico
+// (disc_id), nunca calculada on-the-fly en el request (ver WearRateModule).
+// motivo_2/km_mensual_usado quedan como snapshot del momento del cálculo:
+// si el motivo de fecha_2 cambia después o el parámetro km_mensual se edita,
+// esta fila NO se recalcula retroactivamente.
+model WearRatePair {
+  id             String   @id @default(uuid()) @db.Uuid
+  discId         String   @map("disc_id") @db.Uuid
+  scanRecordId1  String   @map("scan_record_id_1") @db.Uuid
+  scanRecordId2  String   @map("scan_record_id_2") @db.Uuid
+  trenNumero     Int      @map("tren_numero")
+  fecha1         DateTime @map("fecha_1") @db.Date
+  km1            Decimal  @map("km_1") @db.Decimal(12, 2)
+  rd1            Float    @map("rd_1")
+  fecha2         DateTime @map("fecha_2") @db.Date
+  km2            Decimal  @map("km_2") @db.Decimal(12, 2)
+  rd2            Float    @map("rd_2")
+  motivo2        String   @map("motivo_2") @db.VarChar(100)
+  diferenciaKm   Decimal  @map("diferencia_km") @db.Decimal(12, 2)
+  diferenciaRd   Float    @map("diferencia_rd")
+  // Alta precisión a propósito (20,12): con diferencias de Rd pequeñas sobre
+  // recorridos largos, una tasa por km puede quedar con varios ceros
+  // decimales antes del primer dígito significativo — ver formatearTasa().
+  tasa           Decimal  @db.Decimal(20, 12)
+  kmMensualUsado Decimal  @map("km_mensual_usado") @db.Decimal(12, 2)
+  tasaMensual    Decimal  @map("tasa_mensual") @db.Decimal(20, 12)
+  comentario     String   @db.Text
+  esValido       Boolean  @map("es_valido")
+
+  // Denormalizado desde brake_discs/wagon_units al momento de insertar el par
+  // (mismo criterio ya usado en otras tablas para evitar joins costosos en
+  // listados grandes — ver ScanRecord.cocheExcel/bogieExcel/ejeExcel). Se
+  // resuelve UNA vez por disco en WearRateService.recalcularDisco, no por
+  // request de lectura ni por fila.
+  tipoCoche   TipoCoche @map("tipo_coche")
+  numeroCoche Int       @map("numero_coche")
+  bogieCodigo String    @map("bogie_codigo") @db.VarChar(10)
+  ejeNumero   Int       @map("eje_numero")
+  lado        LadoDisco
+
+  // Orden FÍSICO real de tipoCoche+bogieCodigo+ejeNumero+lado (nunca
+  // alfabético) — precalculado por calcularOrdenFisico (ver
+  // common/orden-fisico.ts) junto con el resto de identidadDisco en
+  // WearRateService.recalcularDisco. trenNumero se ordena aparte (columna
+  // simple ASC).
+  ordenFisico Int @default(0) @map("orden_fisico")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  disc        BrakeDisc  @relation(fields: [discId], references: [id])
+  // onDelete: Cascade en ambos extremos: si se elimina un ScanRecord ya
+  // confirmado (ScanRecordsService.eliminar), el/los pares que lo usaban
+  // como extremo dejan de tener sentido y se eliminan con él, en vez de
+  // bloquear el borrado con una violación de FK.
+  scanRecord1 ScanRecord @relation("WearRatePairScanRecord1", fields: [scanRecordId1], references: [id], onDelete: Cascade)
+  scanRecord2 ScanRecord @relation("WearRatePairScanRecord2", fields: [scanRecordId2], references: [id], onDelete: Cascade)
+
+  // Único: el recálculo incremental usa esto (skipDuplicates) para no
+  // reinsertar un par ya existente.
+  @@unique([scanRecordId1, scanRecordId2])
+  @@index([discId, fecha1], map: "idx_wear_rate_pairs_disc_fecha1")
+  @@index([trenNumero], map: "idx_wear_rate_pairs_tren")
+  @@index([trenNumero, bogieCodigo], map: "idx_wear_rate_pairs_tren_bogie")
+  @@index([ejeNumero], map: "idx_wear_rate_pairs_eje")
+  @@index([trenNumero, ordenFisico], map: "idx_wear_rate_pairs_orden_fisico")
+  @@map("wear_rate_pairs")
+}
+
+// ============================================================================
+// 5. OPERACIONES Y CALENDARIO
+// ============================================================================
+
+model DiscComment {
+  id             String   @id @default(uuid()) @db.Uuid
+  discId         String   @map("disc_id") @db.Uuid
+  usuarioId      String   @map("usuario_id") @db.Uuid
+  comentario     String
+  accionSugerida String?  @map("accion_sugerida") @db.VarChar(200)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  disc    BrakeDisc @relation(fields: [discId], references: [id], onDelete: Cascade)
+  usuario User      @relation(fields: [usuarioId], references: [id])
+
+  @@index([discId], map: "idx_disc_comments_disc")
+  @@map("disc_comments")
+}
+
+model CalendarEvent {
+  id                  String                 @id @default(uuid()) @db.Uuid
+  discId              String?                @map("disc_id") @db.Uuid
+  trenId              String?                @map("tren_id") @db.Uuid
+  tipo                TipoEventoCalendario
+  fechaProgramada     DateTime               @map("fecha_programada") @db.Date
+  sugeridoPorSistema  Boolean                @default(false) @map("sugerido_por_sistema")
+  agendadoPor         String                 @map("agendado_por") @db.Uuid
+  responsableAsignado String?                @map("responsable_asignado") @db.Uuid
+  motivo              String?
+  estado              EstadoEventoCalendario @default(programado)
+  createdAt           DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  disc                    BrakeDisc? @relation(fields: [discId], references: [id])
+  tren                    Train?     @relation(fields: [trenId], references: [id])
+  agendadoPorUser         User       @relation("CalendarEventAgendadoPor", fields: [agendadoPor], references: [id])
+  responsableAsignadoUser User?      @relation("CalendarEventResponsableAsignado", fields: [responsableAsignado], references: [id])
+
+  @@index([fechaProgramada], map: "idx_calendar_events_fecha")
+  @@index([discId], map: "idx_calendar_events_disc")
+  @@map("calendar_events")
+}
+
+// ============================================================================
+// 6. NOTIFICACIONES, REPORTES Y PARÁMETROS
+// ============================================================================
+
+model Notification {
+  id          String                @id @default(uuid()) @db.Uuid
+  userId      String?               @map("user_id") @db.Uuid
+  rolDestino  RolUsuario?           @map("rol_destino")
+  tipo        TipoNotificacion
+  severidad   SeveridadNotificacion
+  mensaje     String
+  enviarEmail Boolean               @default(false) @map("enviar_email")
+  leido       Boolean               @default(false)
+  createdAt   DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([userId], map: "idx_notifications_user")
+  @@index([leido], map: "idx_notifications_leido")
+  @@map("notifications")
+}
+
+model ReportRequest {
+  id          String         @id @default(uuid()) @db.Uuid
+  usuarioId   String         @map("usuario_id") @db.Uuid
+  tipoReporte String         @map("tipo_reporte") @db.VarChar(100)
+  filtros     Json?          @db.JsonB
+  formato     FormatoReporte
+  generadoEn  DateTime       @default(now()) @map("generado_en") @db.Timestamptz(6)
+  urlArchivo  String?        @map("url_archivo") @db.VarChar(500)
+
+  usuario User @relation(fields: [usuarioId], references: [id])
+
+  @@index([usuarioId], map: "idx_report_requests_usuario")
+  @@map("report_requests")
+}
+
+model SystemParam {
+  clave          String   @id @db.VarChar(100)
+  valor          String   @db.VarChar(300)
+  descripcion    String?  @db.VarChar(500)
+  actualizadoPor String?  @map("actualizado_por") @db.Uuid
+  actualizadoEn  DateTime @default(now()) @map("actualizado_en") @db.Timestamptz(6)
+
+  actualizadoPorUser User? @relation(fields: [actualizadoPor], references: [id])
+
+  @@map("system_params")
+}
+
+// Auditoría de cambios de parámetros del sistema. Tabla propia (NO se reusa
+// scan_edit_log) porque un cambio de parámetro pertenece a otro dominio: no
+// tiene file_id/scan_record_id ni la noción de etapa pre_commit/post_commit,
+// y mezclarlo ensuciaría las consultas de auditoría de la migración. Guarda el
+// valor anterior y el nuevo, quién lo cambió y cuándo.
+model SystemParamAudit {
+  id            String   @id @default(uuid()) @db.Uuid
+  clave         String   @db.VarChar(100)
+  valorAnterior String?  @map("valor_anterior") @db.VarChar(300)
+  valorNuevo    String   @map("valor_nuevo") @db.VarChar(300)
+  usuarioId     String   @map("usuario_id") @db.Uuid
+  timestamp     DateTime @default(now()) @db.Timestamptz(6)
+
+  usuario User @relation(fields: [usuarioId], references: [id])
+
+  @@index([clave], map: "idx_system_param_audit_clave")
+  @@map("system_param_audit")
+}

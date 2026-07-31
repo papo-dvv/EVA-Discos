@@ -1,0 +1,664 @@
+/* Sistema de Diseño — UNNA Trazabilidad (EVA)
+   Ver /styles.md en la raíz del repo para la especificación completa. */
+
+:root {
+  /* Dominantes — identidad del tren */
+  --color-verde-institucional: #1B8A56;
+  --color-verde-oscuro: #0F5C39;
+  --color-verde-claro: #DCEFE2;
+  --color-blanco: #FFFFFF;
+
+  /* Apoyo — la tierra de origen */
+  --color-arena: #E7DDC9;
+  --color-arena-suave: #F3EEE2;
+  --color-gris-concreto: #8C897F;
+  --color-gris-concreto-oscuro: #55524A;
+
+  /* Semánticos — subordinados al verde, no compiten con él */
+  --color-estado-ok: #1B8A56;
+  --color-estado-seguimiento: #C79A3E;
+  --color-estado-cambio: #C2703C;
+  --color-estado-critico: #B33B3B;
+
+  /* Superficies */
+  --color-fondo-app: var(--color-arena);
+  --color-texto-principal: var(--color-gris-concreto-oscuro);
+  --color-texto-invertido: #FFFFFF;
+
+  /* Tipografía */
+  --font-display: 'General Sans', 'Space Grotesk', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+  --font-data: 'IBM Plex Mono', 'JetBrains Mono', monospace;
+
+  /* Movimiento (§5) */
+  --ease-apple: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-apple-rebote: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --duracion-rapida: 180ms;
+  --duracion-base: 320ms;
+  --duracion-lenta: 520ms;
+
+  /* Liquid glass (§4) — burbuja MARCADA con textura, no panel opaco */
+  --glass-bg: rgba(255, 255, 255, 0.20);
+  --glass-bg-strong: rgba(255, 255, 255, 0.36);
+  --glass-border: rgba(255, 255, 255, 0.60);
+  --glass-border-inner: rgba(27, 138, 86, 0.12);
+  --glass-blur: 34px;
+  --glass-blur-strong: 48px;
+  --glass-saturate: 200%;
+  --glass-brightness: 1.07;
+  --glass-shadow-ambient: 0 44px 96px -26px rgba(15, 92, 57, 0.18);
+  --glass-shadow-contact: 0 12px 28px rgba(85, 82, 74, 0.12);
+  --glass-highlight-top: rgba(255, 255, 255, 0.95);
+  --glass-highlight-bottom: rgba(255, 255, 255, 0.42);
+  /* Radios squircle — esquinas continuas, más generosas (widgets Apple) */
+  --glass-radius: 34px;
+  --glass-radius-lg: 44px;
+  --glass-radius-sm: 26px;
+
+  /* Textura de vidrio esmerilado (grano). Tileado, se mezcla con soft-light
+     sobre el fondo translúcido para dar la textura de burbuja "marcada". */
+  --glass-grano: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)' opacity='0.55'/%3E%3C/svg%3E");
+  --glass-grano-size: 140px;
+  --glass-grano-blend: soft-light;
+
+  /* Menisco curvo del borde de la burbuja (inset) + iridiscencia jabón */
+  --glass-menisco: inset 0 0 20px 2px rgba(255, 255, 255, 0.28), inset 0 -8px 18px -6px rgba(15, 92, 57, 0.10);
+  --glass-iridiscencia: conic-gradient(
+    from 200deg at 50% 50%,
+    color-mix(in srgb, var(--color-verde-claro) 40%, transparent) 0%,
+    transparent 22%,
+    rgba(255, 255, 255, 0.22) 40%,
+    transparent 58%,
+    color-mix(in srgb, var(--color-verde-institucional) 22%, transparent) 76%,
+    transparent 100%
+  );
+
+  /* Tilt 3D reactivo de widgets hero (§4.1) — press estilo Apple */
+  --tilt-perspectiva: 900px;
+  --tilt-max: 9deg;
+
+  /* Tabla de mediciones (§6.1) — alto contraste, anula los semánticos §6 dentro de la tabla */
+  --tabla-estado-ok-bg: #1B8A56;
+  --tabla-estado-ok-text: #FFFFFF;
+  --tabla-estado-seguimiento-bg: #E3A518;
+  --tabla-estado-seguimiento-text: #3A2A00;
+  --tabla-estado-cambio-bg: #F2C90E;
+  --tabla-estado-cambio-text: #3A2E00;
+  --tabla-estado-critico-bg: #D62828;
+  --tabla-estado-critico-text: #FFFFFF;
+  --tabla-accion-reperfilado-bg: #B23E96;
+  --tabla-accion-reperfilado-text: #FFFFFF;
+}
+
+body {
+  background: var(--color-fondo-app);
+  color: var(--color-texto-principal);
+  font-family: var(--font-body);
+}
+
+/* --- Liquid glass (§4) --- */
+
+.glass-surface {
+  position: relative;
+  overflow: hidden;
+  /* Fondo translúcido + grano esmerilado mezclado con soft-light = textura */
+  background-color: var(--glass-bg);
+  background-image: var(--glass-grano);
+  background-size: var(--glass-grano-size) var(--glass-grano-size);
+  background-blend-mode: var(--glass-grano-blend);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius);
+  box-shadow:
+    var(--glass-shadow-ambient),
+    var(--glass-shadow-contact),
+    var(--glass-menisco),
+    inset 0 1px 0 var(--glass-highlight-top),
+    inset 0 -1px 0 var(--glass-highlight-bottom);
+  transition: transform var(--duracion-base) var(--ease-apple), box-shadow var(--duracion-base) var(--ease-apple);
+}
+
+/* Doble brillo especular tipo burbuja: superior-izquierda (luz) + inferior-derecha (rim).
+   Más intenso que un panel: la curvatura de la burbuja se lee en estos dos focos. */
+.glass-surface::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(135% 100% at 14% -8%, rgba(255, 255, 255, 0.80) 0%, rgba(255, 255, 255, 0) 46%),
+    radial-gradient(95% 75% at 90% 112%, rgba(255, 255, 255, 0.42) 0%, rgba(255, 255, 255, 0) 52%);
+}
+
+/* El contenido va por encima de los brillos/grano */
+.glass-surface > * {
+  position: relative;
+  z-index: 1;
+}
+
+.glass-surface--strong {
+  background-color: var(--glass-bg-strong);
+  backdrop-filter: blur(var(--glass-blur-strong)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
+  -webkit-backdrop-filter: blur(var(--glass-blur-strong)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
+}
+
+/* Iridiscencia jabón (opt-in) — brillo cónico tenue sobre los focos especulares */
+.glass-surface--iris::before {
+  background:
+    radial-gradient(135% 100% at 14% -8%, rgba(255, 255, 255, 0.80) 0%, rgba(255, 255, 255, 0) 46%),
+    radial-gradient(95% 75% at 90% 112%, rgba(255, 255, 255, 0.42) 0%, rgba(255, 255, 255, 0) 52%),
+    var(--glass-iridiscencia);
+}
+
+.glass-card--estado-ok { border-color: rgba(27, 138, 86, 0.35); box-shadow: var(--glass-shadow-ambient), 0 0 0 1px rgba(27, 138, 86, 0.15); }
+.glass-card--estado-seguim { border-color: rgba(199, 154, 62, 0.35); box-shadow: var(--glass-shadow-ambient), 0 0 0 1px rgba(199, 154, 62, 0.15); }
+.glass-card--estado-cambio { border-color: rgba(194, 112, 60, 0.35); box-shadow: var(--glass-shadow-ambient), 0 0 0 1px rgba(194, 112, 60, 0.15); }
+.glass-card--estado-critico { border-color: rgba(179, 59, 59, 0.35); box-shadow: var(--glass-shadow-ambient), 0 0 0 1px rgba(179, 59, 59, 0.15); }
+
+/* Borde animado, opt-in — 1-2 piezas hero, nunca en grillas repetidas */
+@property --eva-angulo-borde {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+.glass-surface--vivo { position: relative; }
+
+.glass-surface--vivo::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: conic-gradient(
+    from var(--eva-angulo-borde),
+    rgba(255, 255, 255, 0.05),
+    rgba(255, 255, 255, 0.85),
+    color-mix(in srgb, var(--color-verde-claro) 55%, white 45%),
+    rgba(255, 255, 255, 0.05)
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+  animation: eva-borde-girar 14s linear infinite;
+}
+
+@keyframes eva-borde-girar { to { --eva-angulo-borde: 360deg; } }
+
+.glass-button-primary {
+  background: linear-gradient(180deg, #22A363 0%, #1B8A56 100%);
+  color: var(--color-texto-invertido);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 999px;
+  box-shadow:
+    0 8px 24px rgba(27, 138, 86, 0.30),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  transition: transform var(--duracion-base) var(--ease-apple), box-shadow var(--duracion-base) var(--ease-apple);
+}
+.glass-button-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(27, 138, 86, 0.40), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+.glass-button-primary:active {
+  transform: scale(0.97);
+  transition-duration: var(--duracion-rapida);
+  transition-timing-function: var(--ease-apple-rebote);
+}
+
+.glass-button-secondary {
+  border-radius: 999px;
+  transition: transform var(--duracion-base) var(--ease-apple), background var(--duracion-base) var(--ease-apple);
+}
+.glass-button-secondary:hover {
+  transform: translateY(-2px);
+}
+.glass-button-secondary:active {
+  transform: scale(0.97);
+  transition-duration: var(--duracion-rapida);
+  transition-timing-function: var(--ease-apple-rebote);
+}
+
+.glass-chip {
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px) saturate(var(--glass-saturate));
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  transition: background var(--duracion-base) var(--ease-apple);
+}
+.glass-chip[data-active="true"] {
+  background: var(--color-verde-claro);
+  border-color: rgba(27, 138, 86, 0.4);
+  color: var(--color-verde-oscuro);
+}
+
+/* --- Widgets estilo Apple (§4.1) --- */
+
+/* Tile de composición primaria. Siempre glass; el tamaño controla radio,
+   padding y el cuerpo del valor grande. Se combina con .glass-surface. */
+.eva-widget {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 22px;
+  border-radius: var(--glass-radius);
+}
+.eva-widget--s { padding: 18px; border-radius: var(--glass-radius-sm); gap: 10px; }
+.eva-widget--m { padding: 24px; }
+.eva-widget--l { padding: 30px; border-radius: var(--glass-radius-lg); gap: 18px; }
+
+.eva-widget__cabecera {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--color-gris-concreto);
+}
+.eva-widget__glifo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-verde-claro) 70%, transparent);
+  color: var(--color-verde-oscuro);
+}
+.eva-widget__valor {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 0.95;
+  color: var(--color-gris-concreto-oscuro);
+  font-size: 40px;
+}
+.eva-widget--s .eva-widget__valor { font-size: 32px; }
+.eva-widget--l .eva-widget__valor { font-size: 72px; }
+.eva-widget__pie {
+  margin-top: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--color-gris-concreto);
+}
+
+/* --- Tilt 3D reactivo (§4.1) — press estilo Apple, motion reactivo --- */
+.eva-tilt {
+  transform: perspective(var(--tilt-perspectiva)) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)) translateZ(0);
+  transition: transform var(--duracion-base) var(--ease-apple);
+  will-change: transform;
+}
+.eva-tilt[data-activo="true"] {
+  transition: transform var(--duracion-rapida) linear;
+}
+
+/* --- Campo de formulario sobre glass (§9) --- */
+.glass-field {
+  width: 100%;
+  padding: 12px 16px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid var(--glass-border);
+  font-family: var(--font-body);
+  font-size: 15px;
+  color: var(--color-gris-concreto-oscuro);
+  box-shadow: inset 0 1px 2px rgba(85, 82, 74, 0.08);
+  transition: border-color var(--duracion-base) var(--ease-apple), box-shadow var(--duracion-base) var(--ease-apple), background var(--duracion-base) var(--ease-apple);
+}
+.glass-field::placeholder { color: color-mix(in srgb, var(--color-gris-concreto) 85%, transparent); }
+.glass-field:focus {
+  outline: none;
+  background: rgba(255, 255, 255, 0.75);
+  border-color: rgba(27, 138, 86, 0.55);
+  box-shadow: inset 0 1px 2px rgba(85, 82, 74, 0.06), 0 0 0 3px rgba(27, 138, 86, 0.16);
+}
+
+/* --- Tabla híbrida sutil (§6.1): tinte glass MUY tenue en la fila, sin
+       glass real ni motion nuevo. Los chips de estado siguen sólidos. --- */
+.tabla-fila--glass {
+  transition: background-color var(--duracion-rapida) var(--ease-apple);
+}
+.tabla-fila--glass:hover {
+  background-color: color-mix(in srgb, var(--color-blanco) 55%, transparent);
+}
+
+/* Chip de la tabla de mediciones (§6.1) — fondo sólido saturado, cero glass */
+.tabla-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 12px;
+}
+.tabla-chip--ok { background: var(--tabla-estado-ok-bg); color: var(--tabla-estado-ok-text); }
+.tabla-chip--seguimiento { background: var(--tabla-estado-seguimiento-bg); color: var(--tabla-estado-seguimiento-text); }
+.tabla-chip--cambio { background: var(--tabla-estado-cambio-bg); color: var(--tabla-estado-cambio-text); }
+.tabla-chip--critico { background: var(--tabla-estado-critico-bg); color: var(--tabla-estado-critico-text); }
+.tabla-chip--reperfilado { background: var(--tabla-accion-reperfilado-bg); color: var(--tabla-accion-reperfilado-text); }
+
+/* --- Scrollbar propio (reemplaza el nativo en listas largas) ---
+   Estética styles.md §6: thumb en verde institucional translúcido, track en
+   arena suave, delgado tipo iOS, aparece solo en hover/scroll activo y hace
+   fade out al quedar inactivo. Lo usa <ScrollArea>/<VirtualList>. */
+.eva-scroll-area {
+  position: relative;
+}
+.eva-scroll-viewport {
+  /* El alto/max-alto lo define el consumidor (viewportClassName); acá solo se
+     habilita el scroll y se oculta el scrollbar nativo. */
+  overflow: auto;
+  scrollbar-width: none; /* Firefox: se oculta el nativo, va el propio */
+  -ms-overflow-style: none;
+}
+.eva-scroll-viewport::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+.eva-scroll-bar {
+  position: absolute;
+  z-index: 4;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--duracion-base) var(--ease-apple);
+}
+/* Visible en hover del área o mientras se hace scroll (data-activo) */
+.eva-scroll-area:hover .eva-scroll-bar,
+.eva-scroll-area[data-activo='true'] .eva-scroll-bar {
+  opacity: 1;
+}
+.eva-scroll-bar--v {
+  top: 3px;
+  bottom: 3px;
+  right: 2px;
+  width: 10px;
+}
+.eva-scroll-bar--h {
+  left: 3px;
+  right: 3px;
+  bottom: 2px;
+  height: 10px;
+}
+.eva-scroll-track {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-arena) 60%, transparent);
+}
+.eva-scroll-thumb {
+  position: absolute;
+  border-radius: 999px;
+  pointer-events: auto;
+  cursor: grab;
+  background: color-mix(in srgb, var(--color-verde-institucional) 38%, transparent);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  transition: background var(--duracion-rapida) var(--ease-apple);
+}
+.eva-scroll-bar--v .eva-scroll-thumb {
+  left: 1px;
+  right: 1px;
+}
+.eva-scroll-bar--h .eva-scroll-thumb {
+  top: 1px;
+  bottom: 1px;
+}
+.eva-scroll-thumb:hover {
+  background: color-mix(in srgb, var(--color-verde-institucional) 58%, transparent);
+}
+.eva-scroll-thumb:active {
+  cursor: grabbing;
+  background: color-mix(in srgb, var(--color-verde-institucional) 68%, transparent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .eva-scroll-bar {
+    transition: none;
+  }
+}
+
+/* --- Switch (toggle) glass reutilizable --- */
+.eva-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 2.75rem;
+  height: 1.5625rem;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid var(--glass-border);
+  box-shadow: inset 0 1px 2px rgba(85, 82, 74, 0.12);
+  transition: background var(--duracion-base) var(--ease-apple), border-color var(--duracion-base) var(--ease-apple);
+  cursor: pointer;
+}
+.eva-switch[data-on='true'] {
+  background: linear-gradient(180deg, #22a363 0%, #1b8a56 100%);
+  border-color: rgba(27, 138, 86, 0.5);
+}
+.eva-switch__perilla {
+  position: absolute;
+  left: 0.125rem;
+  width: 1.1875rem;
+  height: 1.1875rem;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(85, 82, 74, 0.35);
+  transition: transform var(--duracion-base) var(--ease-apple-rebote);
+}
+.eva-switch[data-on='true'] .eva-switch__perilla {
+  transform: translateX(1.1875rem);
+}
+.eva-switch:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* --- Segmentado (AND / OR) --- */
+.eva-segmento {
+  display: inline-flex;
+  padding: 0.1875rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.45);
+  border: 1px solid var(--glass-border);
+  box-shadow: inset 0 1px 2px rgba(85, 82, 74, 0.1);
+}
+.eva-segmento__opcion {
+  padding: 0.3125rem 1rem;
+  border-radius: 999px;
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-gris-concreto);
+  transition: background var(--duracion-base) var(--ease-apple), color var(--duracion-base) var(--ease-apple);
+  cursor: pointer;
+}
+.eva-segmento__opcion[data-active='true'] {
+  background: var(--color-verde-claro);
+  color: var(--color-verde-oscuro);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+/* --- Botón de página numérica (paginación §6 tarea) --- */
+.eva-pagina {
+  min-width: 2.125rem;
+  height: 2.125rem;
+  padding: 0 0.5rem;
+  border-radius: 999px;
+  font-family: var(--font-data);
+  font-size: 0.8125rem;
+  color: var(--color-gris-concreto-oscuro);
+  background: rgba(255, 255, 255, 0.45);
+  border: 1px solid var(--glass-border);
+  transition: background var(--duracion-rapida) var(--ease-apple), transform var(--duracion-rapida) var(--ease-apple);
+  cursor: pointer;
+}
+.eva-pagina:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.7);
+}
+.eva-pagina[data-active='true'] {
+  background: var(--color-verde-claro);
+  border-color: rgba(27, 138, 86, 0.4);
+  color: var(--color-verde-oscuro);
+  font-weight: 600;
+}
+.eva-pagina:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.eva-pagina--elipsis {
+  border: none;
+  background: none;
+  cursor: default;
+  pointer-events: none;
+}
+
+/* --- Movimiento (§5) --- */
+
+.eva-elevar {
+  transition: transform var(--duracion-base) var(--ease-apple), box-shadow var(--duracion-base) var(--ease-apple);
+}
+.eva-elevar:hover {
+  transform: translateY(-6px) scale(1.015);
+  box-shadow: var(--glass-shadow-ambient), 0 18px 36px rgba(85, 82, 74, 0.16);
+}
+
+.eva-brillo { position: relative; overflow: hidden; }
+.eva-brillo__barrido {
+  position: absolute;
+  inset: -50%;
+  background: linear-gradient(115deg, transparent 40%, rgba(255, 255, 255, 0.55) 50%, transparent 60%);
+  transform: translateX(-120%);
+  transition: transform var(--duracion-lenta) var(--ease-apple);
+  pointer-events: none;
+}
+.eva-brillo:hover .eva-brillo__barrido { transform: translateX(120%); }
+
+@keyframes eva-flotar {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+.eva-anim-flotar { animation: eva-flotar 6s var(--ease-apple) infinite; }
+
+@keyframes eva-pulso {
+  0%, 100% { box-shadow: var(--glass-shadow-ambient), 0 0 0 0 rgba(179, 59, 59, 0.35); }
+  50% { box-shadow: var(--glass-shadow-ambient), 0 0 0 8px rgba(179, 59, 59, 0); }
+}
+.eva-anim-pulso { animation: eva-pulso 2.4s ease-out infinite; }
+
+.eva-revelar {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity var(--duracion-lenta) var(--ease-apple), transform var(--duracion-lenta) var(--ease-apple);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+.eva-revelar.is-visible { opacity: 1; transform: translateY(0); }
+.eva-revelar--derecha { transform: translateX(32px); }
+.eva-revelar--derecha.is-visible { transform: translateX(0); }
+
+@media (prefers-reduced-motion: reduce) {
+  .glass-surface--vivo::after { animation: none; }
+  .eva-elevar, .eva-elevar:hover { transition: none; transform: none; }
+  .eva-brillo__barrido { transition: none; display: none; }
+  .eva-anim-flotar, .eva-anim-pulso { animation: none; }
+  .eva-tilt, .eva-tilt[data-activo="true"] { transform: none; transition: none; }
+  .eva-revelar, .eva-revelar--derecha {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}
+
+/* --- Fondo, cuadrícula y degradado (§7) --- */
+
+.bg-cuadricula {
+  background-image:
+    linear-gradient(rgba(140, 137, 127, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(140, 137, 127, 0.08) 1px, transparent 1px);
+  background-size: 64px 64px;
+}
+
+.bg-textura-concreto {
+  background-image: radial-gradient(rgba(140, 137, 127, 0.15) 1px, transparent 1px);
+  background-size: 6px 6px;
+}
+
+.bg-degradado-transformacion {
+  background: linear-gradient(
+    135deg,
+    var(--color-arena) 0%,
+    var(--color-arena-suave) 30%,
+    color-mix(in srgb, var(--color-arena-suave) 50%, var(--color-verde-claro) 50%) 55%,
+    var(--color-verde-claro) 75%,
+    color-mix(in srgb, var(--color-verde-claro) 45%, var(--color-verde-institucional) 55%) 90%,
+    var(--color-verde-institucional) 100%
+  );
+}
+
+.bg-aura {
+  background:
+    radial-gradient(55% 40% at 15% 0%, color-mix(in srgb, var(--color-verde-claro) 65%, transparent) 0%, transparent 60%),
+    radial-gradient(50% 45% at 100% 15%, color-mix(in srgb, var(--color-verde-institucional) 16%, transparent) 0%, transparent 65%),
+    radial-gradient(60% 55% at 45% 100%, color-mix(in srgb, var(--color-arena) 70%, transparent) 0%, transparent 70%),
+    var(--color-arena-suave);
+}
+
+.bg-difuminado-inferior {
+  -webkit-mask-image: linear-gradient(to bottom, #000 70%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 70%, transparent 100%);
+}
+
+/* --- 7.1 Fondo animado de engranajes — pantallas de solo aviso --- */
+
+@keyframes eva-engranaje-caer {
+  from { top: -12%; left: -12%; }
+  to { top: 112%; left: 112%; }
+}
+
+@keyframes eva-engranaje-girar {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.bg-engranajes-cayendo {
+  position: relative;
+  overflow: hidden;
+  background: var(--color-arena-suave);
+}
+
+.bg-engranajes-cayendo .engranaje {
+  position: absolute;
+  width: var(--size, 32px);
+  height: var(--size, 32px);
+  color: var(--color-gris-concreto);
+  opacity: var(--opacidad, 0.14);
+  animation:
+    eva-engranaje-caer var(--duracion, 26s) linear infinite,
+    eva-engranaje-girar var(--giro, 9s) linear infinite;
+  animation-delay: var(--retraso, 0s), 0s;
+}
+.bg-engranajes-cayendo .engranaje svg {
+  display: block;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bg-engranajes-cayendo .engranaje {
+    animation: none;
+  }
+}

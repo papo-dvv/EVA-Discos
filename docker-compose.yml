@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: eva-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: "123456789"
+      POSTGRES_DB: eva
+    ports:
+      - "5432:5432"
+    volumes:
+      - eva-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d eva"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  eva-postgres-data:

@@ -1,0 +1,52 @@
+// Tipos EXCLUSIVOS de la migración masiva (subir Excel, resumen de la carga).
+// Los contratos compartidos con la vista permanente de confirmados
+// (fila/preview/stats/filtros/paginación) viven en features/scan-records/types
+// y se reexportan acá para no romper los imports ya existentes en este feature.
+
+export type {
+  AccionRecomendada,
+  AlcanceScanRecords,
+  CambiosFila,
+  ColumnaOrdenable,
+  ConteoPorEstado,
+  EstadoDisco,
+  LadoAfectado,
+  OpcionesFiltro,
+  PreviewParams,
+  PreviewResult,
+  PreviewRow,
+  ResumenTren,
+  StatsScanRecords as StatsMigracion,
+} from '../scan-records/types'
+
+export interface Discrepancia {
+  hoja: string
+  filaExcel: number
+  tipo: 'tren' | 'estado'
+  valorExcel: string | number | null
+  valorSistema: string | number
+}
+
+export interface FilaInvalida {
+  hoja: string
+  fila: number
+  motivo: string
+}
+
+export interface HojaConError {
+  hoja: string
+  motivo: string
+}
+
+export interface ResumenMigracion {
+  fileId: string
+  totalHojasProcesadas: number
+  totalFilasLeidas: number
+  filasVaciasOmitidas: number
+  filasValidas: number
+  filasInvalidas: FilaInvalida[]
+  filasConAdvertencia: number
+  hojasFaltantes: string[]
+  hojasConError: HojaConError[]
+  detalleDiscrepancias: Discrepancia[]
+}
