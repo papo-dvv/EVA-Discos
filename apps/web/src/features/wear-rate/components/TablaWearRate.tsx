@@ -7,8 +7,16 @@ import {
   type SortingState,
 } from '@tanstack/react-table'
 import { useMemo, useState, type CSSProperties } from 'react'
+import {
+  calcularInfoPinPosicion,
+  columnaIdentidadToggle,
+  COLUMNAS_MONO_POSICION,
+  estiloBodyPinPosicion,
+  estiloHeaderPinPosicion,
+} from '../../../components/columnaPosicion'
 import { GlassSurface } from '../../../components/GlassSurface'
 import { ScrollArea } from '../../../components/ScrollArea'
+import { WarningTooltip } from '../../../components/WarningTooltip'
 import type { FilaWearRate } from '../types'
 
 // Columnas cuyos valores son numéricos → tipografía mono, alineados a la
@@ -28,57 +36,8 @@ const COLUMNAS_MONO = new Set([
   'tasa',
   'kmMensualUsado',
   'tasaMensual',
-  'identidadCoche',
-  'identidadNumeroCoche',
-  'identidadBogie',
-  'identidadEje',
-  'identidadLado',
+  ...COLUMNAS_MONO_POSICION,
 ])
-
-// --- Columna/panel pinneado a la izquierda: identidad física del disco ---
-// No existe un patrón de columna fija reutilizable en la tabla de mediciones
-// (ver TablaScanRecords) — se construye acá desde cero con `position:
-// sticky` + un offset horizontal acumulado por columna. Colapsada, solo
-// queda visible el botón de alternar (ancho mínimo); expandida, se suman las
-// 5 columnas de identidad antes que el resto de la tabla. Coche (tipo) y
-// número de coche van separados: son dos campos distintos de WagonUnit
-// (tipoCoche = modelo, numeroCoche = identificador físico único de flota).
-const ANCHO_TOGGLE = 32
-const ANCHO_COCHE = 56
-const ANCHO_NUMERO_COCHE = 84
-const ANCHO_BOGIE = 72
-const ANCHO_EJE = 52
-const ANCHO_LADO = 92
-
-const ORDEN_PIN = [
-  'identidadToggle',
-  'identidadCoche',
-  'identidadNumeroCoche',
-  'identidadBogie',
-  'identidadEje',
-  'identidadLado',
-] as const
-type IdPin = (typeof ORDEN_PIN)[number]
-
-const ANCHOS_PIN: Record<IdPin, number> = {
-  identidadToggle: ANCHO_TOGGLE,
-  identidadCoche: ANCHO_COCHE,
-  identidadNumeroCoche: ANCHO_NUMERO_COCHE,
-  identidadBogie: ANCHO_BOGIE,
-  identidadEje: ANCHO_EJE,
-  identidadLado: ANCHO_LADO,
-}
-
-function calcularInfoPin(abierta: boolean) {
-  const ids: readonly IdPin[] = abierta ? ORDEN_PIN : ['identidadToggle']
-  const infos = new Map<string, { left: number; ancho: number }>()
-  let left = 0
-  for (const id of ids) {
-    infos.set(id, { left, ancho: ANCHOS_PIN[id] })
-    left += ANCHOS_PIN[id]
-  }
-  return { infos, ultimo: ids[ids.length - 1] as string }
-}
 
 type Props = {
   rows: FilaWearRate[]
@@ -89,34 +48,14 @@ type Props = {
 
 export function TablaWearRate({ rows, sorting, onSortingChange, mostrarColumnaTren }: Props) {
   const [identidadAbierta, setIdentidadAbierta] = useState(false)
-  const { infos: pinInfo, ultimo: ultimoPin } = useMemo(() => calcularInfoPin(identidadAbierta), [identidadAbierta])
-
-  function estiloHeaderPin(id: string): CSSProperties | undefined {
-    const info = pinInfo.get(id)
-    if (!info) return undefined
-    return {
-      position: 'sticky',
-      left: info.left,
-      width: info.ancho,
-      minWidth: info.ancho,
-      zIndex: 3,
-      boxShadow: id === ultimoPin ? '4px 0 8px -4px rgba(85, 82, 74, 0.25)' : undefined,
-    }
-  }
-
-  function estiloBodyPin(id: string): CSSProperties | undefined {
-    const info = pinInfo.get(id)
-    if (!info) return undefined
-    return {
-      position: 'sticky',
-      left: info.left,
-      width: info.ancho,
-      minWidth: info.ancho,
-      zIndex: 2,
-      background: 'rgba(255, 255, 255, 0.94)',
-      boxShadow: id === ultimoPin ? '4px 0 8px -4px rgba(85, 82, 74, 0.18)' : undefined,
-    }
-  }
+  const { infos: pinInfo, ultimo: ultimoPin } = useMemo(
+    () => calcularInfoPinPosicion(identidadAbierta),
+    [identidadAbierta],
+  )
+  const estiloHeaderPin = (id: string): CSSProperties | undefined =>
+    estiloHeaderPinPosicion(pinInfo, ultimoPin, id)
+  const estiloBodyPin = (id: string): CSSProperties | undefined =>
+    estiloBodyPinPosicion(pinInfo, ultimoPin, id)
 
   const columns = useMemo(
     () => construirColumnas(identidadAbierta, () => setIdentidadAbierta((a) => !a)),
@@ -212,22 +151,7 @@ const columnHelper = createColumnHelper<FilaWearRate>()
 
 function construirColumnas(identidadAbierta: boolean, alternarIdentidad: () => void) {
   return [
-    columnHelper.display({
-      id: 'identidadToggle',
-      header: () => (
-        <button
-          type="button"
-          onClick={alternarIdentidad}
-          aria-label={identidadAbierta ? 'Ocultar identidad del disco' : 'Mostrar identidad del disco'}
-          title={identidadAbierta ? 'Ocultar identidad del disco' : 'Mostrar identidad del disco'}
-          className="flex h-6 w-6 items-center justify-center rounded-full text-concreto-oscuro transition-colors hover:bg-white/60"
-        >
-          {identidadAbierta ? '◂' : '▸'}
-        </button>
-      ),
-      cell: () => null,
-      enableSorting: false,
-    }),
+    columnaIdentidadToggle(columnHelper, identidadAbierta, alternarIdentidad),
     columnHelper.accessor('tipoCoche', { id: 'identidadCoche', header: 'Coche', enableSorting: false }),
     columnHelper.accessor('numeroCoche', {
       id: 'identidadNumeroCoche',
@@ -302,8 +226,8 @@ function EstadoValidezChip({ esValido, comentario }: { esValido: boolean; coment
     return <span className="tabla-chip tabla-chip--ok">Válido</span>
   }
   return (
-    <span className="tabla-chip tabla-chip--seguimiento" title={comentario}>
-      {comentario}
-    </span>
+    <WarningTooltip texto={comentario}>
+      <span className="tabla-chip tabla-chip--seguimiento">{comentario}</span>
+    </WarningTooltip>
   )
 }

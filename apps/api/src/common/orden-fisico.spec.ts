@@ -5,7 +5,7 @@ function orden(overrides: Partial<IdentidadFisica>): number {
     tipoCoche: 'MA1',
     bogieCodigo: 'PB3',
     ejeNumero: 1,
-    lado: 'derecho',
+    ruedaNumero: 1,
     ...overrides,
   });
 }
@@ -58,10 +58,10 @@ describe('calcularOrdenFisico', () => {
     expect(eje1).toBeLessThan(eje2);
   });
 
-  it('lado: derecho antes que izquierdo (orden real del Excel)', () => {
-    const derecho = orden({ lado: 'derecho' });
-    const izquierdo = orden({ lado: 'izquierdo' });
-    expect(derecho).toBeLessThan(izquierdo);
+  it('rueda ASC dentro del mismo coche+bogie+eje', () => {
+    const rueda1 = orden({ ruedaNumero: 1 });
+    const rueda2 = orden({ ruedaNumero: 2 });
+    expect(rueda1).toBeLessThan(rueda2);
   });
 
   it('coche desconocido cae al final, después de cualquier coche real', () => {
@@ -93,10 +93,10 @@ describe('calcularOrdenFisico', () => {
     expect(nulo).toBeGreaterThan(conocido);
   });
 
-  it('lado null (indeterminado, ver resolverLado) cae al final dentro de su eje', () => {
-    const nulo = orden({ lado: null });
-    const izquierdo = orden({ lado: 'izquierdo' });
-    expect(nulo).toBeGreaterThan(izquierdo);
+  it('rueda null cae al final dentro de su eje', () => {
+    const nulo = orden({ ruedaNumero: null });
+    const conocida = orden({ ruedaNumero: 48 });
+    expect(nulo).toBeGreaterThan(conocida);
   });
 
   it('es insensible a mayúsculas/minúsculas y espacios en coche/bogie', () => {
@@ -105,20 +105,20 @@ describe('calcularOrdenFisico', () => {
     );
   });
 
-  it('coche siempre pesa más que bogie, que siempre pesa más que eje, que siempre pesa más que lado', () => {
-    // El PEOR caso dentro de un coche (último bogie/eje/lado) debe seguir
+  it('coche siempre pesa más que bogie, que siempre pesa más que eje, que siempre pesa más que rueda', () => {
+    // El PEOR caso dentro de un coche (último bogie/eje/rueda) debe seguir
     // siendo MENOR que el MEJOR caso del siguiente coche.
     const peorDeMA1 = orden({
       tipoCoche: 'MA1',
       bogieCodigo: 'PB4',
       ejeNumero: 99,
-      lado: 'izquierdo',
+      ruedaNumero: 48,
     });
     const mejorDeMB1 = orden({
       tipoCoche: 'MB1',
       bogieCodigo: 'PB6',
       ejeNumero: 0,
-      lado: 'derecho',
+      ruedaNumero: 1,
     });
     expect(peorDeMA1).toBeLessThan(mejorDeMB1);
   });

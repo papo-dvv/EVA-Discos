@@ -1,5 +1,3 @@
-import type { LadoDisco } from '../../generated/prisma';
-
 // Orden físico REAL de los coches en el tren (ver enunciado) — nunca
 // alfabético (el alfabético daría MA1,MA2,MB1,MB2,MB3,REM, que no es la
 // disposición real del convoy).
@@ -30,29 +28,31 @@ const ORDEN_BOGIE_POR_COCHE: Readonly<Record<string, readonly string[]>> = {
 // de coche/bogie que sí es estricto.
 const BASE_BOGIE = 3; // 2 posiciones conocidas + 1 "sin resolver"
 const BASE_EJE = 100;
-const BASE_LADO = 3; // derecho, izquierdo, sin resolver
+// Margen amplio (ruedas reales son 1-48) para que un dato inesperadamente
+// grande no rompa el orden de coche/bogie/eje que sí es estricto.
+const BASE_RUEDA = 50;
 
 const SIN_RESOLVER_COCHE = ORDEN_COCHE.length; // cae al final
 const SIN_RESOLVER_BOGIE = 2; // cae al final DENTRO de su coche
 const SIN_RESOLVER_EJE = BASE_EJE - 1;
-const SIN_RESOLVER_LADO = 2;
+const SIN_RESOLVER_RUEDA = BASE_RUEDA - 1;
 
 export interface IdentidadFisica {
   tipoCoche: string | null;
   bogieCodigo: string | null;
   ejeNumero: number | null;
-  lado: LadoDisco | null;
+  ruedaNumero: number | null;
 }
 
-// Número que ordena coche+bogie+eje+lado según la disposición FÍSICA real
+// Número que ordena coche+bogie+eje+rueda según la disposición FÍSICA real
 // del tren (nunca alfabética) — cuanto menor, más "primero" en el recorrido
 // físico. trenNumero NO entra acá a propósito: es una columna simple (ASC)
 // que se ordena aparte, independiente de esto — ver scan-record-query.ts y
 // wear-rate.service.ts.
 //
-// Identidad no resuelta (coche/bogie desconocidos o no numéricos, o lado
-// indeterminado — ver resolverLado en migration-excel.parser.ts) cae SIEMPRE
-// al final de su nivel; nunca revienta ni se confunde con un valor real.
+// Identidad no resuelta (coche/bogie desconocidos o no numéricos, eje o
+// rueda ausentes/fuera de rango) cae SIEMPRE al final de su nivel; nunca
+// revienta ni se confunde con un valor real.
 export function calcularOrdenFisico(identidad: IdentidadFisica): number {
   const coche = identidad.tipoCoche?.trim().toUpperCase() ?? '';
   const idxCoche = ORDEN_COCHE.indexOf(coche);
@@ -69,18 +69,22 @@ export function calcularOrdenFisico(identidad: IdentidadFisica): number {
       ? eje
       : SIN_RESOLVER_EJE;
 
-  // derecho ANTES que izquierdo — mismo orden del Excel real (ver enunciado).
-  const ordenLado =
-    identidad.lado === 'derecho'
-      ? 0
-      : identidad.lado === 'izquierdo'
-        ? 1
-        : SIN_RESOLVER_LADO;
+  // rueda ASC (1, 2, 3... 48) — reemplaza al viejo criterio de "lado" por
+  // texto de Ubicación (ver enunciado): más preciso, no depende de que la
+  // columna Ubicación del Excel esté bien escrita.
+  const rueda = identidad.ruedaNumero;
+  const ordenRueda =
+    rueda !== null &&
+    Number.isInteger(rueda) &&
+    rueda >= 0 &&
+    rueda < SIN_RESOLVER_RUEDA
+      ? rueda
+      : SIN_RESOLVER_RUEDA;
 
   return (
-    ordenCoche * (BASE_BOGIE * BASE_EJE * BASE_LADO) +
-    ordenBogie * (BASE_EJE * BASE_LADO) +
-    ordenEje * BASE_LADO +
-    ordenLado
+    ordenCoche * (BASE_BOGIE * BASE_EJE * BASE_RUEDA) +
+    ordenBogie * (BASE_EJE * BASE_RUEDA) +
+    ordenEje * BASE_RUEDA +
+    ordenRueda
   );
 }

@@ -7,8 +7,9 @@ import {
   obtenerPreviewConfirmado,
   obtenerResumenPorTrenConfirmado,
   obtenerStatsConfirmado,
+  obtenerValoresDistintosConfirmado,
 } from './api'
-import type { AlcanceScanRecords, CambiosFila, PreviewParams } from './types'
+import type { AlcanceScanRecords, CambiosFila, CampoValoresDistintos, PreviewParams } from './types'
 
 // Familia de hooks "mode-aware": deciden internamente si pegan a
 // /migration/:fileId/... (modo borrador, alcance.fileId presente) o a
@@ -29,6 +30,10 @@ const claves = {
       : (['scan-records', 'stats', params] as const),
   filtros: (a: AlcanceScanRecords) =>
     a.fileId ? (['migration', a.fileId, 'filtros'] as const) : (['scan-records', 'filtros'] as const),
+  valoresDistintos: (a: AlcanceScanRecords, campo: CampoValoresDistintos) =>
+    a.fileId
+      ? (['migration', a.fileId, 'valores-distintos', campo] as const)
+      : (['scan-records', 'valores-distintos', campo] as const),
   raiz: (a: AlcanceScanRecords) => (a.fileId ? (['migration', a.fileId] as const) : (['scan-records'] as const)),
 }
 
@@ -71,6 +76,23 @@ export function useScanRecordsOpcionesFiltro(alcance: AlcanceScanRecords) {
       alcance.fileId
         ? migracionApi.obtenerOpcionesFiltro(alcance.fileId)
         : obtenerOpcionesFiltroConfirmado(),
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
+// Valores distintos para poblar los dropdowns de Motivo/Responsable (ver
+// PanelFiltros) — estables durante la sesión, igual criterio que
+// useScanRecordsOpcionesFiltro.
+export function useScanRecordsValoresDistintos(
+  alcance: AlcanceScanRecords,
+  campo: CampoValoresDistintos,
+) {
+  return useQuery({
+    queryKey: claves.valoresDistintos(alcance, campo),
+    queryFn: () =>
+      alcance.fileId
+        ? migracionApi.obtenerValoresDistintos(alcance.fileId, campo)
+        : obtenerValoresDistintosConfirmado(campo),
     staleTime: 5 * 60 * 1000,
   })
 }

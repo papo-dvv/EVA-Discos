@@ -7,16 +7,13 @@ import { Prisma, type ScanRecord } from '../../generated/prisma';
 import { BrakeDiscRulesService } from '../brake-disc-rules/brake-disc-rules.service';
 import type { PreviewQueryDto } from '../migration/dto/preview-query.dto';
 import { PrismaService } from '../prisma/prisma.service';
-import {
-  enriquecerAccionRecomendadaConfirmado,
-  paginarFiltrandoPorAccion,
-} from './accion-recomendada.query';
+import type { CampoValoresDistintos } from './dto/valores-distintos-query.dto';
 import type { UpdateScanRecordDto } from './dto/update-scan-record.dto';
 import {
   buscarScanRecordsPaginado,
-  buscarScanRecordsSinPaginar,
   obtenerEstadisticasScanRecords,
   obtenerResumenPorTrenScanRecord,
+  obtenerValoresDistintosScanRecord,
   type EstadisticasScanRecords,
   type PreviewResult,
   type ResumenTren,
@@ -47,50 +44,11 @@ export class ScanRecordsService {
   // --- Vista permanente de mediciones confirmadas (sin scope de archivo) ---
 
   async buscar(q: PreviewQueryDto): Promise<PreviewResult> {
-    const evaluador = await this.brakeDiscRules.obtenerEvaluador();
-
-    // Ver el mismo comentario en MigrationPreviewService.obtenerPreview:
-    // accionRecomendada no es una columna, así que con ese filtro activo hay
-    // que enriquecer y filtrar TODO el conjunto antes de paginar.
-    if (q.accionRecomendada?.length) {
-      const filas = await buscarScanRecordsSinPaginar(
-        this.prisma,
-        SOLO_CONFIRMADOS,
-        q,
-      );
-      const enriquecidas = await enriquecerAccionRecomendadaConfirmado(
-        this.prisma,
-        filas,
-        evaluador,
-      );
-      const { rows, total, totalPages } = paginarFiltrandoPorAccion(
-        enriquecidas,
-        (f) => f.accionRecomendada,
-        q.accionRecomendada,
-        q.page,
-        q.pageSize,
-      );
-      return {
-        rows,
-        page: q.page,
-        pageSize: q.pageSize,
-        total,
-        totalPages,
-        totalPaginas: totalPages,
-      };
-    }
-
-    const resultado = await buscarScanRecordsPaginado(
-      this.prisma,
-      SOLO_CONFIRMADOS,
-      q,
-    );
-    resultado.rows = await enriquecerAccionRecomendadaConfirmado(
-      this.prisma,
-      resultado.rows,
-      evaluador,
-    );
-    return resultado;
+    // accionRecomendada/ladoAfectado dejaron de calcularse en esta vista (ver
+    // el mismo comentario en MigrationPreviewService.obtenerPreview) — se
+    // deja de invocar evaluarAccionRecomendada por inestabilidad. Si
+    // q.accionRecomendada viene en el query, se ignora en silencio.
+    return buscarScanRecordsPaginado(this.prisma, SOLO_CONFIRMADOS, q);
   }
 
   async obtenerStats(q: PreviewQueryDto): Promise<EstadisticasScanRecords> {
@@ -134,6 +92,19 @@ export class ScanRecordsService {
     };
   }
 
+  // Valores distintos de motivo/responsable ENTRE LOS CONFIRMADOS, para
+  // poblar dinámicamente el dropdown del filtro correspondiente (ver
+  // ValoresDistintosQueryDto — solo estos 2 campos están soportados).
+  async obtenerValoresDistintos(
+    campo: CampoValoresDistintos,
+  ): Promise<string[]> {
+    return obtenerValoresDistintosScanRecord(
+      this.prisma,
+      SOLO_CONFIRMADOS,
+      campo,
+    );
+  }
+
   // Edición sobre un registro YA confirmado (post-commit). Registra cada campo
   // que cambió en scan_edit_log con etapa 'post_commit'. Recalcula rd/estado si
   // cambian H o T.
@@ -159,7 +130,7 @@ export class ScanRecordsService {
       const evaluador = await this.brakeDiscRules.obtenerEvaluador();
       const rd = evaluador.calcularRd(t, h);
       cambios.rdValue = rd;
-      cambios.estadoCalculado = evaluador.clasificarEstado(rd);
+      cambios.estadoCalculado = evaluador.clasificarEstadoConReperfilado(rd, h);
     }
 
     const entradas = this.entradasDeEdicion(original, cambios, usuarioId);

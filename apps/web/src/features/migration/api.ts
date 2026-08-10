@@ -1,6 +1,7 @@
 import { apiClient } from '../../lib/apiClient'
 import type {
   CambiosFila,
+  CampoValoresDistintos,
   OpcionesFiltro,
   PreviewParams,
   PreviewResult,
@@ -46,6 +47,16 @@ export async function obtenerStats(
 
 export async function obtenerOpcionesFiltro(fileId: string): Promise<OpcionesFiltro> {
   const { data } = await apiClient.get<OpcionesFiltro>(`/migration/${fileId}/filtros`)
+  return data
+}
+
+export async function obtenerValoresDistintos(
+  fileId: string,
+  campo: CampoValoresDistintos,
+): Promise<string[]> {
+  const { data } = await apiClient.get<string[]>(`/migration/${fileId}/valores-distintos`, {
+    params: { campo },
+  })
   return data
 }
 

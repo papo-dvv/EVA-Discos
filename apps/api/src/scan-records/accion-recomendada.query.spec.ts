@@ -1,4 +1,7 @@
-import { BrakeDiscRulesEngine } from '../brake-disc-rules/brake-disc-rules.engine';
+import {
+  BrakeDiscRulesEngine,
+  type AccionRecomendada,
+} from '../brake-disc-rules/brake-disc-rules.engine';
 import { UMBRALES_POR_DEFECTO } from '../brake-disc-rules/umbrales';
 import type { PrismaService } from '../prisma/prisma.service';
 import {
@@ -463,7 +466,7 @@ describe('enriquecerAccionRecomendadaConfirmado', () => {
 });
 
 describe('paginarFiltrandoPorAccion', () => {
-  function filaConAccion(id: string, accion: PreviewRow['accionRecomendada']) {
+  function filaConAccion(id: string, accion: AccionRecomendada | null) {
     return { id, accionRecomendada: accion };
   }
   const obtenerAccion = (f: ReturnType<typeof filaConAccion>) =>

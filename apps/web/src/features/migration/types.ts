@@ -4,19 +4,20 @@
 // y se reexportan acá para no romper los imports ya existentes en este feature.
 
 export type {
-  AccionRecomendada,
   AlcanceScanRecords,
   CambiosFila,
+  CampoValoresDistintos,
   ColumnaOrdenable,
   ConteoPorEstado,
   EstadoDisco,
-  LadoAfectado,
+  LadoDisco,
   OpcionesFiltro,
   PreviewParams,
   PreviewResult,
   PreviewRow,
   ResumenTren,
   StatsScanRecords as StatsMigracion,
+  VistaFecha,
 } from '../scan-records/types'
 
 export interface Discrepancia {

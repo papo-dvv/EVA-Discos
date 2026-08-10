@@ -9,7 +9,8 @@ import {
 import { useMemo } from 'react'
 import { GlassSurface } from '../../../components/GlassSurface'
 import { ScrollArea } from '../../../components/ScrollArea'
-import type { AccionRecomendada, LadoAfectado, PreviewRow } from '../types'
+import { WarningTooltip } from '../../../components/WarningTooltip'
+import type { PreviewRow } from '../types'
 
 // Columnas cuyos valores son numéricos → tipografía mono, alineados a la
 // derecha (styles.md §6.1: los datos de medición se leen como instrumento).
@@ -145,11 +146,7 @@ function construirColumnas(
       enableSorting: false,
       cell: ({ row }) => {
         const texto = textoAdvertencia(row.original)
-        return texto ? (
-          <span title={texto} className="cursor-help">
-            ⚠️
-          </span>
-        ) : null
+        return texto ? <WarningTooltip texto={texto}>⚠️</WarningTooltip> : null
       },
     }),
     // Columna Tren — solo visible en "Todos" (columnVisibility). No ordenable:
@@ -161,13 +158,26 @@ function construirColumnas(
     }),
     columnHelper.accessor('responsableNombre', { id: 'responsable', header: 'Responsable' }),
     columnHelper.accessor('kilometraje', { id: 'kilometraje', header: 'Kilometraje' }),
-    columnHelper.accessor('fecha', { id: 'fecha', header: 'Fecha' }),
     columnHelper.accessor('motivo', { id: 'motivo', header: 'Motivo' }),
     columnHelper.accessor('cocheExcel', { id: 'coche', header: 'Coche' }),
     columnHelper.accessor('numeroCocheExcel', { id: 'numeroCoche', header: 'N° Coche' }),
     columnHelper.accessor('bogieExcel', { id: 'bogie', header: 'Bogie' }),
     columnHelper.accessor('ejeExcel', { id: 'eje', header: 'Eje' }),
     columnHelper.accessor('ruedaExcel', { id: 'rueda', header: 'Rueda' }),
+    // No ordenable ni del backend: cálculo puro por paridad del número de
+    // rueda (impar = izquierdo, par = derecho) — no existe como sortBy en
+    // ColumnaOrdenable ni depende de ningún campo nuevo de PreviewRow.
+    columnHelper.display({
+      id: 'lado',
+      header: 'Lado',
+      enableSorting: false,
+      cell: ({ row }) => ladoPorRueda(row.original.ruedaExcel),
+    }),
+    // Después de Lado, no de Kilometraje: refleja el orden jerárquico del
+    // backend (tren→coche→bogie→eje→rueda→fecha, ver ORDEN_FISICO_DEFECTO en
+    // scan-record-query.ts), donde fecha es el desempate final entre filas
+    // del mismo eje+rueda.
+    columnHelper.accessor('fecha', { id: 'fecha', header: 'Fecha' }),
     columnHelper.accessor('hValue', { id: 'h', header: 'H' }),
     columnHelper.accessor('tValue', { id: 't', header: 'T' }),
     columnHelper.accessor('rdValue', {
@@ -179,17 +189,6 @@ function construirColumnas(
       id: 'estado',
       header: 'Estado',
       cell: ({ getValue }) => <EstadoChip estado={getValue()} />,
-    }),
-    // No ordenable: es una propiedad DEL EJE calculada por el backend
-    // cruzando ambos lados (accion-recomendada.query.ts), no una columna de
-    // scan_records — no existe como sortBy en ColumnaOrdenable.
-    columnHelper.display({
-      id: 'accionRecomendada',
-      header: 'Acción recomendada',
-      enableSorting: false,
-      cell: ({ row }) => (
-        <AccionChip accion={row.original.accionRecomendada} lado={row.original.ladoAfectado} />
-      ),
     }),
   ]
 
@@ -230,12 +229,15 @@ function construirColumnas(
   return columnas
 }
 
-// Chip de estado de alto contraste (§6.1) — sólido, nunca glass.
+// Chip de estado de alto contraste (§6.1) — sólido, nunca glass. REPERFILADO
+// reutiliza el magenta ya definido en styles.md (antes era una etiqueta de
+// acción aparte; ahora es un quinto valor más del propio chip de Estado).
 const CLASE_CHIP_ESTADO: Record<string, string> = {
   OK: 'tabla-chip--ok',
   SEGUIMIENTO: 'tabla-chip--seguimiento',
   CAMBIO: 'tabla-chip--cambio',
   CRITICO: 'tabla-chip--critico',
+  REPERFILADO: 'tabla-chip--reperfilado',
 }
 
 function EstadoChip({ estado }: { estado: string | null }) {
@@ -243,33 +245,10 @@ function EstadoChip({ estado }: { estado: string | null }) {
   return <span className={`tabla-chip ${CLASE_CHIP_ESTADO[estado] ?? ''}`}>{estado}</span>
 }
 
-// Etiqueta de acción/motivo (styles.md §6.1) — NO reemplaza al chip de
-// estado, se muestran ambos si corresponde (ej. estado "Seguimiento" +
-// acción "Reperfilado" tras la intervención). Cambio/Crítico reutilizan el
-// mismo color sólido que su chip de estado homónimo; Reperfilado usa el
-// magenta dedicado (para no confundirse con Cambio).
-const CLASE_CHIP_ACCION: Record<Exclude<AccionRecomendada, 'NINGUNA'>, string> = {
-  REPERFILADO: 'tabla-chip--reperfilado',
-  CAMBIO: 'tabla-chip--cambio',
-  CRITICO: 'tabla-chip--critico',
-}
-const ETIQUETA_ACCION: Record<Exclude<AccionRecomendada, 'NINGUNA'>, string> = {
-  REPERFILADO: 'Reperfilado',
-  CAMBIO: 'Cambio',
-  CRITICO: 'Crítico',
-}
-const ETIQUETA_LADO: Record<Exclude<LadoAfectado, null>, string> = {
-  izquierdo: 'izq.',
-  derecho: 'der.',
-  ambos: 'ambos lados',
-}
-
-function AccionChip({ accion, lado }: { accion: AccionRecomendada | null; lado: LadoAfectado }) {
-  if (!accion || accion === 'NINGUNA') return null
-  return (
-    <span className={`tabla-chip ${CLASE_CHIP_ACCION[accion]}`}>
-      {ETIQUETA_ACCION[accion]}
-      {lado && ` · ${ETIQUETA_LADO[lado]}`}
-    </span>
-  )
+// Cálculo puro en frontend, sin campo propio en PreviewRow: impar =
+// izquierdo, par = derecho (convención física del eje, ver ubicación en el
+// Excel origen). null si la rueda no se resolvió.
+function ladoPorRueda(rueda: number | null): string | null {
+  if (rueda === null) return null
+  return rueda % 2 === 1 ? 'Izquierdo' : 'Derecho'
 }

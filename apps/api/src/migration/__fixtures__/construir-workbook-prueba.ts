@@ -76,7 +76,10 @@ function fila(d: DatosFila): unknown[] {
 
 // Filas de T06 (tren de hoja = 6). Ver aserciones en migration-excel.parser.spec.ts.
 const FILAS_T06: DatosFila[] = [
-  // OK, tren coincide, comentario coincide -> sin advertencia
+  // REPERFILADO (rd=8.6, h=3.8>=1.6 y (8.6-0.8)=7.8>0.4 -> H manda sobre lo
+  // que Rd solo habría dado, OK). Comentario deliberadamente NO reconocible
+  // por comentarioAEstado (que solo mapea OK/SEGUIMIENTO/CAMBIO/CRITICO, no
+  // REPERFILADO) -> sin advertencia de discrepancia, tren coincide.
   {
     responsable: 'Juan Pérez',
     tren: 6,
@@ -91,9 +94,10 @@ const FILAS_T06: DatosFila[] = [
     rueda: 1,
     h: 3.8,
     t: 12.4,
-    comentario: 'OK',
+    comentario: 'Reperfilado',
   },
-  // SEGUIMIENTO (rd=0.7)
+  // SEGUIMIENTO (rd=0.7). h=1.0 < 1.6 (h_umbral_reperfilado) a propósito: no
+  // activa la regla de reperfilado, clasifica por Rd puro.
   {
     responsable: 'Ana Torres',
     tren: 6,
@@ -106,8 +110,8 @@ const FILAS_T06: DatosFila[] = [
     eje: 1,
     ubicacion: 'derecho',
     rueda: 2,
-    h: 5.0,
-    t: 5.7,
+    h: 1.0,
+    t: 1.7,
     comentario: 'Seguimiento',
   },
   // CAMBIO (rd=0.2)
@@ -144,7 +148,8 @@ const FILAS_T06: DatosFila[] = [
     t: 3.0,
     comentario: 'Crítico',
   },
-  // Discrepancia de ESTADO: calcula OK (rd=8.6) pero la planilla dice "Cambio"
+  // Discrepancia de ESTADO: calcula OK (rd=11.4, h=1.0<1.6 no activa
+  // reperfilado) pero la planilla dice "Cambio"
   {
     responsable: 'Luis Ríos',
     tren: 6,
@@ -157,7 +162,7 @@ const FILAS_T06: DatosFila[] = [
     eje: 1,
     ubicacion: 'izquierdo',
     rueda: 5,
-    h: 3.8,
+    h: 1.0,
     t: 12.4,
     comentario: 'Cambio',
   },
@@ -174,7 +179,7 @@ const FILAS_T06: DatosFila[] = [
     eje: 1,
     ubicacion: 'derecho',
     rueda: 6,
-    h: 3.8,
+    h: 1.0,
     t: 12.4,
     comentario: 'OK',
   },
@@ -182,7 +187,7 @@ const FILAS_T06: DatosFila[] = [
 
 // Filas de T07 (tren de hoja = 7).
 const FILAS_T07: DatosFila[] = [
-  // OK, tren coincide
+  // OK, tren coincide. h=1.0 < 1.6 a propósito (no activa reperfilado).
   {
     responsable: 'Pedro Gómez',
     tren: 7,
@@ -195,7 +200,7 @@ const FILAS_T07: DatosFila[] = [
     eje: 3,
     ubicacion: 'izquierdo',
     rueda: 7,
-    h: 2.0,
+    h: 1.0,
     t: 4.0,
     comentario: 'OK',
   },

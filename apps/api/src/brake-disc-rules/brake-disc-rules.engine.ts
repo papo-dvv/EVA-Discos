@@ -2,6 +2,11 @@ import type { Umbrales } from './umbrales';
 
 export type EstadoDiscoCalculado = 'OK' | 'SEGUIMIENTO' | 'CAMBIO' | 'CRITICO';
 
+// Quinto estado posible, exclusivo de clasificarEstadoConReperfilado — NUNCA
+// lo devuelve clasificarEstado (rd puro, 4 estados). Ver el comentario de esa
+// función más abajo para la prioridad exacta.
+export type EstadoDiscoAmpliado = EstadoDiscoCalculado | 'REPERFILADO';
+
 export type AccionRecomendada =
   'CRITICO' | 'CAMBIO' | 'REPERFILADO' | 'NINGUNA';
 export type LadoAfectado = 'izquierdo' | 'derecho' | 'ambos' | null;
@@ -38,12 +43,48 @@ export class BrakeDiscRulesEngine {
   }
 
   clasificarEstado(rd: number): EstadoDiscoCalculado {
-    const { rdUmbralOk, rdUmbralSeguimiento } = this.umbrales;
+    const { rdUmbralOk, rdUmbralSeguimiento, rdUmbralCritico } = this.umbrales;
 
-    if (rd <= 0) return 'CRITICO';
+    if (rd <= rdUmbralCritico) return 'CRITICO';
     if (rd <= rdUmbralSeguimiento) return 'CAMBIO';
     if (rd < rdUmbralOk) return 'SEGUIMIENTO';
     return 'OK';
+  }
+
+  // Extiende clasificarEstado con REPERFILADO, cruzando Rd con H — usada SOLO
+  // por Migración (preview) y Mediciones confirmadas (ver estado_calculado en
+  // MigrationExcelParser/MigrationPreviewService/ScanRecordsService); Tasa de
+  // Desgaste y Trazabilidad siguen usando clasificarEstado puro (no tienen H
+  // por fila). Prioridad estricta, evaluada en este orden:
+  //   a. rd <= rd_umbral_critico -> CRITICO, incondicional (ni mira H).
+  //   b. rd > rd_umbral_critico y H >= h_umbral_reperfilado y
+  //      (rd - reperfilado_descuento_rd) > rd_umbral_seguimiento (el
+  //      resultado post-reperfilado NO cae en zona de Cambio) -> REPERFILADO.
+  //      Sobreescribe lo que rd solo habría dado (ej. rd=1.5/h=1.8 da
+  //      REPERFILADO, no OK: H manda).
+  //   c. rd > rd_umbral_critico y H >= h_umbral_reperfilado y
+  //      (rd - reperfilado_descuento_rd) <= rd_umbral_seguimiento -> CAMBIO
+  //      (el reperfilado no es viable, se degrada). Límite exacto:
+  //      rd=1.20/h=1.8 con los defaults da CAMBIO, no REPERFILADO —
+  //      (1.20-0.80)=0.40 no es > 0.40 (comparación estricta).
+  //   d. Si nada de lo anterior aplica -> clasificarEstado(rd) puro.
+  clasificarEstadoConReperfilado(rd: number, h: number): EstadoDiscoAmpliado {
+    const {
+      rdUmbralCritico,
+      rdUmbralSeguimiento,
+      hUmbralReperfilado,
+      reperfiladoDescuentoRd,
+    } = this.umbrales;
+
+    if (rd <= rdUmbralCritico) return 'CRITICO';
+
+    if (h >= hUmbralReperfilado) {
+      return rd - reperfiladoDescuentoRd > rdUmbralSeguimiento
+        ? 'REPERFILADO'
+        : 'CAMBIO';
+    }
+
+    return this.clasificarEstado(rd);
   }
 
   evaluarAccionRecomendada(

@@ -3,13 +3,30 @@
 // mediciones confirmadas (este feature, sin fileId) — mismo shape de
 // respuesta en ambos modos, espejo de apps/api/src/scan-records/scan-record-query.ts.
 
-export type EstadoDisco = 'OK' | 'SEGUIMIENTO' | 'CAMBIO' | 'CRITICO'
+// REPERFILADO: quinto estado posible (espejo de EstadoDiscoAmpliado en
+// apps/api/src/brake-disc-rules/brake-disc-rules.engine.ts) — Rd manda salvo
+// que H llegue al umbral de reperfilado y el resultado post-descuento siga
+// fuera de zona de Cambio. Es un valor más del chip de Estado, no una
+// etiqueta aparte.
+export type EstadoDisco = 'OK' | 'SEGUIMIENTO' | 'CAMBIO' | 'CRITICO' | 'REPERFILADO'
 
-// Espejo de AccionRecomendada/LadoAfectado (apps/api/src/brake-disc-rules/brake-disc-rules.engine.ts).
-// Es una propiedad DEL EJE (coche+bogie+eje), calculada por el backend
-// cruzando la medición más reciente de ambos lados — nunca se recalcula acá.
+// Espejo de LadoDisco (generated/prisma) y de VistaFecha/VISTAS_FECHA
+// (apps/api/src/migration/dto/preview-query.dto.ts).
+export type LadoDisco = 'izquierdo' | 'derecho'
+
+export const VISTAS_FECHA = ['todas', 'ultima', 'primera'] as const
+export type VistaFecha = (typeof VISTAS_FECHA)[number]
+
+// Campos soportados por GET .../valores-distintos?campo= (ver
+// CAMPOS_VALORES_DISTINTOS en el backend) — únicos 2 por ahora.
+export const CAMPOS_VALORES_DISTINTOS = ['motivo', 'responsable'] as const
+export type CampoValoresDistintos = (typeof CAMPOS_VALORES_DISTINTOS)[number]
+
+// Espejo de AccionRecomendada (apps/api/src/brake-disc-rules/brake-disc-rules.engine.ts).
+// Ya NO aplica a Migración/Mediciones (ver PreviewRow) — sigue en uso
+// exclusivo de Tasa de Desgaste (features/wear-rate), que cruza ambos lados
+// del eje de forma independiente.
 export type AccionRecomendada = 'CRITICO' | 'CAMBIO' | 'REPERFILADO' | 'NINGUNA'
-export type LadoAfectado = 'izquierdo' | 'derecho' | 'ambos' | null
 
 export interface PreviewRow {
   id: string
@@ -33,8 +50,9 @@ export interface PreviewRow {
   trenOriginalExcel: number | null
   discrepanciaEstadoExcel: boolean
   hojaExcelOrigen: string | null
-  accionRecomendada: AccionRecomendada | null
-  ladoAfectado: LadoAfectado
+  // Exclusivo de features/new-measurement (ficha de medición individual) —
+  // null en filas de migración/confirmados normales.
+  observacion: string | null
 }
 
 export interface PreviewResult {
@@ -54,6 +72,7 @@ export interface ConteoPorEstado {
   seguimiento: number
   cambio: number
   critico: number
+  reperfilado: number
 }
 
 export interface StatsScanRecords {
@@ -107,7 +126,6 @@ export interface PreviewParams {
   tipoCoche?: string[]
   bogieCodigo?: string[]
   estado?: EstadoDisco[]
-  accionRecomendada?: AccionRecomendada[]
   // true = corregido por hoja O con discrepancia; false = sin ninguno.
   corregidoOAdvertencia?: boolean
   fechaDesde?: string
@@ -124,6 +142,14 @@ export interface PreviewParams {
   ejeMax?: number
   ruedaMin?: number
   ruedaMax?: number
+  // 'todas' (default) = sin colapsar. 'ultima'/'primera' devuelven una sola
+  // fila por disco físico (la de fecha más reciente o más antigua de ese disco).
+  vistaFecha?: VistaFecha
+  // Poblados dinámicamente desde GET .../valores-distintos — no hay una lista
+  // fija en el backend (motivo/responsable son texto libre del Excel).
+  motivo?: string[]
+  responsable?: string[]
+  lado?: LadoDisco[]
 }
 
 // Campos editables de una fila (subconjunto de PreviewRow). trenNumero solo

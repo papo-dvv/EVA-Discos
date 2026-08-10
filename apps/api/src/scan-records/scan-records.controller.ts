@@ -16,6 +16,7 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import type { AuthenticatedUser } from '../auth/interfaces/jwt-payload.interface';
 import { PreviewQueryDto } from '../migration/dto/preview-query.dto';
 import { UpdateScanRecordDto } from './dto/update-scan-record.dto';
+import { ValoresDistintosQueryDto } from './dto/valores-distintos-query.dto';
 import { ScanRecordsService } from './scan-records.service';
 
 // Vista permanente de mediciones confirmadas + edición/eliminación post-commit.
@@ -45,6 +46,11 @@ export class ScanRecordsController {
   @Get('filtros')
   filtros() {
     return this.scanRecords.obtenerOpcionesFiltro();
+  }
+
+  @Get('valores-distintos')
+  valoresDistintos(@Query() query: ValoresDistintosQueryDto) {
+    return this.scanRecords.obtenerValoresDistintos(query.campo);
   }
 
   @Patch(':id')

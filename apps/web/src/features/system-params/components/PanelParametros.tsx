@@ -45,8 +45,11 @@ export function PanelParametros() {
     useConfirmacionParametro()
 
   // Solo los numéricos editables (outlier_metodo es enum, no input numérico).
+  // measurement_gap_umbral_meses tampoco entra acá: tiene su propio control
+  // dedicado (rango 1-6) dentro de la card de brecha de fechas — ver
+  // TarjetaBrechaFechas, mismo criterio de exclusión que outlier_metodo.
   const editables = (params.data ?? []).filter(
-    (p) => p.editable && p.clave !== 'outlier_metodo',
+    (p) => p.editable && p.clave !== 'outlier_metodo' && p.clave !== 'measurement_gap_umbral_meses',
   )
   // Umbrales de Rd agrupados y en orden fijo (ok, seguimiento, cambio — este
   // último aparece automáticamente en cuanto el backend lo devuelva); el resto

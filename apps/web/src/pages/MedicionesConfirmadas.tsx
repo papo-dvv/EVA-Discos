@@ -5,12 +5,15 @@ import { ConfirmDialog } from '../components/ConfirmDialog'
 import { GlassField } from '../components/GlassField'
 import { GlassSurface } from '../components/GlassSurface'
 import { PantallaFondo } from '../components/PantallaFondo'
+import { TarjetaDatosFaltantes } from '../features/fleet-completeness/components/TarjetaDatosFaltantes'
+import { TarjetaBrechaFechas } from '../features/measurement-gap/components/TarjetaBrechaFechas'
 import { ModalEditarFila } from '../features/scan-records/components/ModalEditarFila'
 import { PaginacionNumerica } from '../features/scan-records/components/PaginacionNumerica'
 import { PanelEstados } from '../features/scan-records/components/PanelEstados'
 import { PanelFiltros } from '../features/scan-records/components/PanelFiltros'
 import { SidebarTrenes } from '../features/scan-records/components/SidebarTrenes'
 import { TablaScanRecords } from '../features/scan-records/components/TablaScanRecords'
+import { TarjetaUltimaMedicion } from '../features/scan-records/components/TarjetaUltimaMedicion'
 import {
   FILTROS_VACIOS,
   aplicarFiltros,
@@ -140,6 +143,14 @@ export function MedicionesConfirmadas() {
             </Link>
           </GlassSurface>
 
+          {/* Estado de la flota física completa (ver TarjetaUltimaMedicion) —
+              reusa trenSeleccionado como el toggle General/Por tren. */}
+          <div className="mt-4 space-y-3">
+            <TarjetaDatosFaltantes />
+            <TarjetaUltimaMedicion trenSeleccionado={trenSeleccionado} />
+            <TarjetaBrechaFechas />
+          </div>
+
           {/* Panel de estados arriba de la tabla en pantallas sin columna derecha */}
           <div className="mt-4 xl:hidden">
             <PanelEstados stats={stats.data} hayFiltro={hayFiltro} etiquetaTotal="mediciones confirmadas" />
@@ -178,6 +189,7 @@ export function MedicionesConfirmadas() {
                 onCambiar={cambiarFiltros}
                 onLimpiar={limpiarFiltros}
                 opciones={opciones.data}
+                alcance={ALCANCE_CONFIRMADOS}
               />
             </GlassSurface>
           )}

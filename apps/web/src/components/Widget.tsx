@@ -4,13 +4,14 @@ import { GlassSurface } from './GlassSurface'
 // Widget estilo Apple (styles.md §4.1): tile glass texturado con cabecera
 // (glifo + etiqueta), valor grande protagonista y pie opcional. Es la unidad
 // de composición primaria del dashboard (grilla bento).
-type Estado = 'ok' | 'seguimiento' | 'cambio' | 'critico'
+type Estado = 'ok' | 'seguimiento' | 'cambio' | 'critico' | 'reperfilado'
 
 const CLASE_ESTADO: Record<Estado, string> = {
   ok: 'glass-card--estado-ok',
   seguimiento: 'glass-card--estado-seguim',
   cambio: 'glass-card--estado-cambio',
   critico: 'glass-card--estado-critico',
+  reperfilado: 'glass-card--estado-reperfilado',
 }
 
 type WidgetProps = {

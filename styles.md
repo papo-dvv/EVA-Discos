@@ -168,6 +168,7 @@ Regla dura: **cuanto más transparente, más blur y saturate hacen falta para co
 .glass-card--estado-seguim   { border-color: rgba(199, 154, 62, 0.35); box-shadow: var(--glass-shadow-ambient), 0 0 0 1px rgba(199, 154, 62, 0.15); }
 .glass-card--estado-cambio   { border-color: rgba(194, 112, 60, 0.35); box-shadow: var(--glass-shadow-ambient), 0 0 0 1px rgba(194, 112, 60, 0.15); }
 .glass-card--estado-critico  { border-color: rgba(179, 59, 59, 0.35); box-shadow: var(--glass-shadow-ambient), 0 0 0 1px rgba(179, 59, 59, 0.15); }
+.glass-card--estado-reperfilado { border-color: rgba(142, 94, 120, 0.35); box-shadow: var(--glass-shadow-ambient), 0 0 0 1px rgba(142, 94, 120, 0.15); }
 ```
 
 **Borde animado — modificador opt-in `.glass-surface--vivo`.** Un anillo de gradiente cónico que gira lentamente, reservado para **1-2 piezas hero como mucho** (nunca en tarjetas repetidas de una grilla — ahí se vuelve ruido, no foco):
@@ -438,6 +439,7 @@ Dos colores dominantes (verde y blanco), dos de apoyo (arena y gris). Los semán
   --color-estado-seguimiento:   #C79A3E; /* ámbar tierra, no amarillo puro */
   --color-estado-cambio:        #C2703C; /* naranja terracota, cercano a la arena */
   --color-estado-critico:       #B33B3B; /* rojo apagado, no saturado */
+  --color-estado-reperfilado:   #8E5E78; /* mauve tierra, versión desaturada del magenta de tabla (§6.1) */
 
   /* Superficies */
   --color-fondo-app:            var(--color-arena);
@@ -476,7 +478,7 @@ La tabla de mediciones es la superficie de trabajo diaria de técnicos y supervi
   --tabla-estado-critico-bg:       #D62828; /* rojo saturado, más intenso que el "rojo apagado" de §6 */
   --tabla-estado-critico-text:     #FFFFFF;
 
-  /* Etiqueta de acción (no es un estado, es un motivo/anotación) — separada para no confundirse con Cambio */
+  /* Quinto estado de disco (Migración/Mediciones): Rd manda salvo que H llegue al umbral de reperfilado */
   --tabla-accion-reperfilado-bg:   #B23E96; /* magenta, equivalente de alto contraste al rosado nativo del Excel */
   --tabla-accion-reperfilado-text: #FFFFFF;
 }
@@ -501,7 +503,7 @@ La tabla de mediciones es la superficie de trabajo diaria de técnicos y supervi
 **Dónde sí y dónde no aplican estos colores:**
 - **Sí:** chip de estado en cada fila de la tabla, fila resaltada de fondo muy sutil (`color-mix(in srgb, var(--tabla-estado-X-bg) 8%, var(--color-arena-suave))` como fondo de fila completa, opcional, para escanear la tabla aún más rápido), tarjetas del drawer de detalle, celdas de estado en el Excel exportado.
 - **No:** tarjetas KPI del dashboard, bordes-glow de tarjetas fuera de la tabla, badges de navegación — ahí sigue mandando la paleta "tierra" de §6, para no romper la identidad general de la app fuera del contexto de trabajo con datos.
-- El chip `reperfilado` es una **etiqueta de acción/motivo**, no reemplaza al chip de estado — en la fila de un disco reperfilado se muestran ambos si corresponde (ej. estado "Seguimiento" + etiqueta "Reperfilado" si fue reperfilado y quedó en seguimiento tras la intervención).
+- El chip `reperfilado` es un **quinto valor del chip de Estado** (Migración/Mediciones): Rd manda salvo que H llegue al umbral de reperfilado y el resultado post-descuento no caiga en zona de Cambio, en cuyo caso reemplaza a OK/Seguimiento en ese mismo chip — no se muestra junto a otro chip aparte.
 
 ---
 
@@ -543,15 +545,49 @@ La tabla de mediciones es la superficie de trabajo diaria de técnicos y supervi
 }
 ```
 
-**Aura de fondo** (base recomendada para el fondo de app completo, en vez de arena plana):
+**Aura de fondo** (base recomendada para el fondo de app completo, en vez de arena plana). Las 2 manchas verdes "respiran" — crecen/encogen y aclaran/oscurecen en bucle, cada una en su propio pseudo-elemento para poder desfasarlas entre sí (si no, "respirar" las dos exactamente igual se ve mecánico, no orgánico); la mancha de arena y el color base quedan estáticos:
 
 ```css
 .bg-aura {
+  position: relative;
+  overflow: hidden;
   background:
-    radial-gradient(55% 40% at 15% 0%, color-mix(in srgb, var(--color-verde-claro) 65%, transparent) 0%, transparent 60%),
-    radial-gradient(50% 45% at 100% 15%, color-mix(in srgb, var(--color-verde-institucional) 16%, transparent) 0%, transparent 65%),
     radial-gradient(60% 55% at 45% 100%, color-mix(in srgb, var(--color-arena) 70%, transparent) 0%, transparent 70%),
     var(--color-arena-suave);
+}
+
+.bg-aura::before,
+.bg-aura::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  animation: eva-aura-respirar var(--duracion, 8s) ease-in-out infinite;
+}
+
+.bg-aura::before {
+  background: radial-gradient(55% 40% at 15% 0%, color-mix(in srgb, var(--color-verde-claro) 65%, transparent) 0%, transparent 60%);
+  transform-origin: 15% 0%;
+}
+
+.bg-aura::after {
+  background: radial-gradient(50% 45% at 100% 15%, color-mix(in srgb, var(--color-verde-institucional) 16%, transparent) 0%, transparent 65%);
+  transform-origin: 100% 15%;
+  /* Duración propia (no un simple delay a mitad de ciclo de la de arriba):
+     las 2 manchas se desfasan y además derivan de fase con el tiempo, en vez
+     de repetir siempre la misma oposición — se ve orgánico, no mecánico. */
+  --duracion: 9.5s;
+  animation-delay: -2.5s;
+}
+
+@keyframes eva-aura-respirar {
+  0%, 100% { transform: scale(0.95); opacity: 0.7; }
+  50%      { transform: scale(1.05); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bg-aura::before, .bg-aura::after { animation: none; transform: none; opacity: 1; }
 }
 ```
 
@@ -572,21 +608,27 @@ Combinación recomendada para pantallas de portada y para el fondo general de la
 
 ### 7.1 Fondo animado — pantallas de solo aviso
 
-Cuando una pantalla completa **no tiene más contenido que un aviso** (mensaje del sistema, estado vacío, pantalla de mantenimiento, error, "no tienes accesos", confirmación a pantalla completa, etc.), el fondo estático se reemplaza por un **fondo animado de engranajes cayendo de esquina a esquina** (superior izquierda → inferior derecha).
+Cuando una pantalla completa **no tiene más contenido que un aviso** (mensaje del sistema, estado vacío, pantalla de mantenimiento, error, "no tienes accesos", confirmación a pantalla completa, etc.), el fondo estático se reemplaza por un **fondo animado de engranajes cayendo en lluvia** — varios carriles diagonales en paralelo (superior izquierda → inferior derecha), no uno solo.
 
 **Reglas:**
 - Uso **exclusivo** de pantallas que solo muestran un aviso — nunca en dashboards, tablas o pantallas con datos.
 - Los engranajes van en `--color-gris-concreto`, nunca en verde institucional.
-- **Densidad alta:** 24–36 instancias, repartidas en todo el ancho superior.
+- **Densidad alta:** 24–36 instancias, repartidas en **5-8 carriles paralelos** a lo ancho (misma diagonal de esquina a esquina, desplazada por carril en el eje perpendicular) — nunca todas por la misma línea.
 - A mayor densidad, opacidad más baja por instancia (0.08–0.16).
-- Tamaños variados (al menos 3 rangos: chico/mediano/grande) para dar profundidad.
+- Tamaños en **3 categorías reconocibles** (no ruido continuo): pequeña (~60-75%), mediana (~85-105%) y grande (~120-140%) de un tamaño base — la categoría de cada instancia también sale del PRNG con semilla.
+- Velocidad de caída variada por instancia (3-7s por trayecto) y con retraso de inicio propio (no sincronizadas) — carril, categoría de tamaño y velocidad/retraso salen de un PRNG con semilla fija (mulberry32 o similar, sin dependencias externas): reproducible entre recargas, no aleatoriedad real del navegador.
 - El aviso en sí siempre va dentro de una `.glass-surface--strong` centrada (puede llevar `--vivo` — cuenta como la única pieza hero de esa pantalla).
 - Respetar `prefers-reduced-motion`.
 
 ```css
+/* `left` viaja de -12% a 112% (misma diagonal de siempre) + el offset propio
+   de --carril: si `left` no incluyera --carril, la animación pisaría
+   cualquier posición inicial fijada por style inline y todas las instancias
+   caerían por la MISMA línea (con --carril, cada carril recorre una
+   diagonal paralela desplazada). */
 @keyframes eva-engranaje-caer {
-  from { top: -12%; left: -12%; }
-  to   { top: 112%; left: 112%; }
+  from { top: -12%; left: calc(-12% + var(--carril, 0%)); }
+  to   { top: 112%; left: calc(112% + var(--carril, 0%)); }
 }
 
 @keyframes eva-engranaje-girar {
@@ -607,7 +649,7 @@ Cuando una pantalla completa **no tiene más contenido que un aviso** (mensaje d
   color: var(--color-gris-concreto);
   opacity: var(--opacidad, 0.14);
   animation:
-    eva-engranaje-caer var(--duracion, 26s) linear infinite,
+    eva-engranaje-caer var(--duracion, 5s) linear infinite, /* fallback; cada instancia trae la suya vía --duracion */
     eva-engranaje-girar var(--giro, 9s) linear infinite;
   animation-delay: var(--retraso, 0s), 0s;
 }
@@ -619,7 +661,9 @@ Cuando una pantalla completa **no tiene más contenido que un aviso** (mensaje d
 }
 ```
 
-Cada `.engranaje` es una instancia del ícono de engranaje (símbolo `#gear-icon` en `icons.svg`) con `--size`, `--opacidad`, `--duracion`, `--giro`, `--retraso` y un `left` inicial distintos por elemento, repartido entre -12% y ~110% para cubrir toda la pantalla.
+Cada `.engranaje` es una instancia del ícono de engranaje (símbolo `#gear-icon` en `icons.svg`) con `--size`, `--opacidad`, `--duracion`, `--giro` y `--retraso` propios (PRNG con semilla fija, ver `FondoEngranajes.tsx`), más `--carril` — el offset perpendicular a la diagonal que separa cada una de las 5-8 líneas paralelas, con jitter propio para que no se vea una grilla perfectamente equiespaciada.
+
+> **Catálogo (`/design-system`):** cada muestra de fondo/textura de §7 y §7.1 es clicable y abre un `<GlassModal>` con la misma estética a **tamaño real (1:1)**, en un cuadro cuadrado centrado — útil para inspeccionar la densidad real de un patrón sin la escala reducida del catálogo (ver nota de §9 sobre `data-densidad="compacta"`). Cierra con Escape, clic fuera o el botón ✕. No es un patrón a replicar en pantallas reales, es una herramienta del propio catálogo.
 
 ---
 
@@ -684,7 +728,7 @@ export default {
 | Componente | Tratamiento |
 |---|---|
 | Fondo de app | `.bg-aura` + `.bg-cuadricula` al 100% |
-| Nav flotante (persistente) | `.glass-surface` sticky, wordmark condensado (§1.1), sin `--vivo` (no es la pieza hero) |
+| Nav flotante (persistente) | `.glass-surface` sticky, wordmark condensado (§1.1), sin `--vivo` (no es la pieza hero). En `/design-system` además se auto-oculta con `transform` al bajar y reaparece de inmediato al subir (ver nota abajo) |
 | Login / Onboarding | `.bg-degradado-transformacion` + `.bg-difuminado-inferior` sobre `.bg-aura` + `.glass-surface--strong` (`--vivo` opcional) para el formulario |
 | Dashboard / Inicio | Grilla bento de **widgets** (§4.1): `.glass-surface .eva-widget --s/m/l`; el hero puede sumar `.eva-tilt` (+ `--vivo`) |
 | Widgets KPI | `.glass-surface .eva-widget` + `.eva-elevar` + borde-glow semántico si aplica |
@@ -705,6 +749,10 @@ export default {
 | Campo de contraseña | `<GlassField type="password">` (§4.2) — ícono ojo mostrar/ocultar integrado, mismo componente que cualquier otro campo |
 | Diálogo de confirmación (guardar parámetro, cancelar/confirmar migración, eliminar fila/tren) | `<ConfirmDialog>` sobre `<GlassModal>` (§4.3) — variante `default`/`danger`, botón con estado de carga, progreso opcional |
 | Modal de edición con formulario propio (ej. editar fila) | `<GlassModal>` (§4.3) directo — `<ConfirmDialog>` es solo para confirmar/cancelar, no para formularios con campos propios |
+
+> **Exclusivo de `/design-system` (no son reglas del sistema para el resto de la app):**
+> - **Nav auto-hide** — `NavGaleria.tsx` oculta el nav con `translateY` al detectar scroll hacia abajo y lo muestra ante cualquier movimiento hacia arriba (throttle vía `requestAnimationFrame`); nunca cambia `height`/`display`, así el contenido de abajo no salta. El resto de la app usa un nav sin este comportamiento.
+> - **Densidad compacta (`§0`)** — el contenedor raíz de `Galeria.tsx` lleva `data-densidad="compacta"`, que activa overrides *scoped* en `tokens.css` (`[data-densidad="compacta"] .eva-widget`, `.glass-chip`, `.tabla-chip`, ~20% más chicos) más clases Tailwind reducidas directamente en el propio JSX del catálogo. Es solo para que quepan más componentes en la demo — la definición base de estos componentes (la que usa el resto de la app) no cambia. Nunca usa `transform: scale()` ni reduce el `font-size` raíz.
 
 ---
 

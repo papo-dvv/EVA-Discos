@@ -35,6 +35,11 @@ export class UmbralesProviderService {
         CLAVES_UMBRALES.rdUmbralSeguimiento,
         UMBRALES_POR_DEFECTO.rdUmbralSeguimiento,
       ),
+      rdUmbralCritico: this.leerNumero(
+        valoresPorClave,
+        CLAVES_UMBRALES.rdUmbralCritico,
+        UMBRALES_POR_DEFECTO.rdUmbralCritico,
+      ),
       hUmbralReperfilado: this.leerNumero(
         valoresPorClave,
         CLAVES_UMBRALES.hUmbralReperfilado,

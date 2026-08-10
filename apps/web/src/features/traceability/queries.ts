@@ -1,10 +1,11 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import { obtenerTraceabilitySeries, obtenerTraceabilitySummary } from './api'
+import { obtenerPromedioPorTren, obtenerTraceabilitySeries, obtenerTraceabilitySummary } from './api'
 import type { TraceabilityScopeParams, TraceabilitySeriesParams } from './types'
 
 const claves = {
   summary: (scope: TraceabilityScopeParams) => ['traceability', 'summary', scope] as const,
   series: (params: TraceabilitySeriesParams) => ['traceability', 'series', params] as const,
+  promedioPorTren: (tren?: number) => ['traceability', 'promedio-por-tren', tren ?? 'flota'] as const,
 }
 
 // El scope (tren/tipoCoche/bogieCodigo) SÍ recalcula todo en el backend
@@ -28,5 +29,16 @@ export function useTraceabilitySeries(params: TraceabilitySeriesParams) {
     queryKey: claves.series(params),
     queryFn: () => obtenerTraceabilitySeries(params),
     placeholderData: keepPreviousData,
+  })
+}
+
+// Sin tren -> toda la flota. Nunca depende del scope de tipoCoche/bogieCodigo
+// ni de filtrarPorRangoKm (ver TraceabilityService.obtenerPromedioPorTren en
+// el backend) — por eso es un query independiente, con su propia clave, en
+// vez de colgar del mismo `scope` que summary/series.
+export function usePromedioPorTren(tren?: number) {
+  return useQuery({
+    queryKey: claves.promedioPorTren(tren),
+    queryFn: () => obtenerPromedioPorTren(tren),
   })
 }

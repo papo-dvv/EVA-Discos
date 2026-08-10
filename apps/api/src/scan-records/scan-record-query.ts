@@ -1,17 +1,16 @@
 import {
   Prisma,
   type EstadoDisco,
+  type LadoDisco,
   type ScanRecord,
 } from '../../generated/prisma';
-import type {
-  AccionRecomendada,
-  LadoAfectado,
-} from '../brake-disc-rules/brake-disc-rules.engine';
+import { resolverLado } from '../migration/migration-excel.parser';
 import type { PrismaService } from '../prisma/prisma.service';
 import type {
   ColumnaOrdenable,
   PreviewQueryDto,
 } from '../migration/dto/preview-query.dto';
+import type { CampoValoresDistintos } from './dto/valores-distintos-query.dto';
 
 // Construcción de WHERE, paginación, conteo por estado y resumen por tren de
 // ScanRecord — compartido entre la vista previa de una migración en curso
@@ -22,7 +21,13 @@ import type {
 // el resto de los filtros del PreviewQueryDto se combinan igual en ambos casos.
 
 // Estados posibles de un disco, en el orden en que se reportan en las stats.
-const ESTADOS: EstadoDisco[] = ['OK', 'SEGUIMIENTO', 'CAMBIO', 'CRITICO'];
+const ESTADOS: EstadoDisco[] = [
+  'OK',
+  'SEGUIMIENTO',
+  'CAMBIO',
+  'CRITICO',
+  'REPERFILADO',
+];
 
 // Columna pública (frontend) -> campo real de ScanRecord en Prisma.
 const CAMPO_ORDEN: Record<ColumnaOrdenable, keyof ScanRecord> = {
@@ -67,12 +72,17 @@ export interface PreviewRow {
   trenOriginalExcel: number | null;
   discrepanciaEstadoExcel: boolean;
   hojaExcelOrigen: string | null;
-  // Placeholders acá (aPreviewRow es sync y no tiene el contexto del resto de
-  // filas del archivo/disco): se completan por enriquecerAccionRecomendadaDraft
-  // / enriquecerAccionRecomendadaConfirmado en MigrationPreviewService.obtenerPreview
-  // y ScanRecordsService.buscar respectivamente.
-  accionRecomendada: AccionRecomendada | null;
-  ladoAfectado: LadoAfectado;
+  // Exclusivo de NewMeasurementModule (ver comentario en ScanRecord.observacion
+  // del schema) — null en filas de migración/confirmados normales.
+  observacion: string | null;
+  // Flags de validación cruzada automática — exclusivos de NewMeasurementModule
+  // (ver ScanRecord.kmInvalido/etc. y NewMeasurementValidationService), siempre
+  // false en filas de migración/confirmados normales.
+  kmInvalido: boolean;
+  fechaInvalido: boolean;
+  tInvalido: boolean;
+  rdInvalido: boolean;
+  excluidaDelCommit: boolean;
 }
 
 export interface PreviewResult {
@@ -92,12 +102,14 @@ export interface ResumenTren {
   filasConAdvertencia: number;
 }
 
-// Conteo por estado (OK/Seguimiento/Cambio/Crítico) de un subconjunto de filas.
+// Conteo por estado (OK/Seguimiento/Cambio/Crítico/Reperfilado) de un
+// subconjunto de filas.
 export interface ConteoPorEstado {
   ok: number;
   seguimiento: number;
   cambio: number;
   critico: number;
+  reperfilado: number;
 }
 
 export interface EstadisticasScanRecords {
@@ -171,6 +183,33 @@ export function construirWhereScanRecord(
   empujarRango(condiciones, 'ejeExcel', q.ejeMin, q.ejeMax);
   empujarRango(condiciones, 'ruedaExcel', q.ruedaMin, q.ruedaMax);
 
+  // motivo/responsable: texto libre, insensible a mayúsculas — los valores
+  // que ofrece el dropdown (GET .../valores-distintos) ya vienen deduplicados
+  // por capitalización (ver obtenerValoresDistintos), así que el filtro tiene
+  // que matchear cualquier variante de mayúsculas guardada en la fila, no
+  // solo la forma canónica que se muestra en la opción.
+  if (q.motivo?.length) {
+    condiciones.push({ motivo: { in: q.motivo, mode: 'insensitive' } });
+  }
+  if (q.responsable?.length) {
+    condiciones.push({
+      responsableNombre: { in: q.responsable, mode: 'insensitive' },
+    });
+  }
+
+  // lado: ScanRecord no tiene columna propia (ver PreviewQueryDto.lado) — se
+  // deriva de ubicacionExcel con el mismo criterio laxo que resolverLado
+  // (contains 'izq'/'der', no el texto completo: tolera variantes/typos como
+  // "disco_freno_13_izquiero" del Excel real). Sin fallback de paridad de
+  // rueda acá (Prisma no expresa aritmética modular en un WHERE) — una fila
+  // con ubicacionExcel ausente o irreconocible simplemente no matchea ningún
+  // lado, igual que quedaría sin lado resuelto en resolverLado().
+  if (q.lado?.length) {
+    condiciones.push({
+      OR: q.lado.map((lado) => condicionUbicacionPorLado(lado)),
+    });
+  }
+
   if (condiciones.length === 0) return base;
 
   return q.modoCombinacion === 'OR'
@@ -178,14 +217,27 @@ export function construirWhereScanRecord(
     : { ...base, AND: condiciones };
 }
 
+// 'izq'/'der' como substring, NO la palabra completa — mismo criterio laxo
+// que resolverLado (ver migration-excel.parser.ts) para tolerar variantes de
+// Ubicación como "disco_freno_N_izquierdo"/"...derecho" e incluso typos.
+function condicionUbicacionPorLado(
+  lado: LadoDisco,
+): Prisma.ScanRecordWhereInput {
+  const fragmento = lado === 'izquierdo' ? 'izq' : 'der';
+  return { ubicacionExcel: { contains: fragmento, mode: 'insensitive' } };
+}
+
 // Orden DEFAULT (sin sortBy explícito del frontend): tren ASC, luego la
-// disposición física real de coche/bogie/eje/lado dentro de ese tren (ver
-// common/orden-fisico.ts) — nunca alfabético. Un sortBy/sortDir explícito
+// disposición física real de coche/bogie/eje/rueda dentro de ese tren (ver
+// common/orden-fisico.ts) — nunca alfabético — y por último fecha ASC como
+// desempate cuando dos filas comparten exactamente la misma identidad física
+// (mismo disco, mediciones en fechas distintas). Un sortBy/sortDir explícito
 // tiene prioridad y reemplaza esto por completo (ver más abajo).
 const ORDEN_FISICO_DEFECTO: Prisma.ScanRecordOrderByWithRelationInput[] = [
   { trenNumero: 'asc' },
   { ordenFisico: 'asc' },
-  { id: 'asc' }, // desempate estable
+  { fecha: 'asc' },
+  { id: 'asc' }, // desempate final, estable
 ];
 
 function construirOrderByScanRecord(
@@ -203,6 +255,29 @@ export async function buscarScanRecordsPaginado(
 ): Promise<PreviewResult> {
   const where = construirWhereScanRecord(base, q);
   const orderBy = construirOrderByScanRecord(q);
+
+  // vistaFecha != 'todas' colapsa a 1 fila por disco físico ANTES de paginar
+  // (ver colapsarPorVistaFecha) — no es expresable como WHERE/LIMIT de SQL,
+  // así que hace falta traer TODO el conjunto filtrado (sin paginar en la
+  // base), colapsar en memoria y recién ahí paginar. Mismo patrón que
+  // paginarFiltrandoPorAccion (accion-recomendada.query.ts) para
+  // accionRecomendada: un cálculo que cruza filas no puede paginarse en SQL.
+  if (q.vistaFecha && q.vistaFecha !== 'todas') {
+    const todas = await prisma.scanRecord.findMany({ where, orderBy });
+    const colapsadas = colapsarPorVistaFecha(todas, q.vistaFecha);
+
+    const total = colapsadas.length;
+    const totalPages = Math.max(1, Math.ceil(total / q.pageSize));
+    const inicio = (q.page - 1) * q.pageSize;
+    return {
+      rows: colapsadas.slice(inicio, inicio + q.pageSize).map(aPreviewRow),
+      page: q.page,
+      pageSize: q.pageSize,
+      total,
+      totalPages,
+      totalPaginas: totalPages,
+    };
+  }
 
   const [total, records] = await prisma.$transaction([
     prisma.scanRecord.count({ where }),
@@ -223,6 +298,120 @@ export async function buscarScanRecordsPaginado(
     totalPages,
     totalPaginas: totalPages,
   };
+}
+
+// Identidad de disco físico de una fila: discId si ya está resuelto
+// (confirmado), o si no la clave cruda pre-commit (numeroCocheExcel + bogie +
+// eje + lado derivado de ubicacionExcel/ruedaExcel — mismo criterio que
+// claveEjeDraft en accion-recomendada.query.ts, pero incluyendo el lado
+// porque acá interesa el DISCO, no el eje completo). null = sin identidad
+// física resoluble -> la fila se excluye del colapso (no se puede garantizar
+// que sea 1-por-disco si ni siquiera se sabe de qué disco es).
+function claveDisco(
+  r: Pick<
+    ScanRecord,
+    | 'discId'
+    | 'numeroCocheExcel'
+    | 'bogieExcel'
+    | 'ejeExcel'
+    | 'ubicacionExcel'
+    | 'ruedaExcel'
+  >,
+): string | null {
+  if (r.discId) return `d:${r.discId}`;
+  const bogie = r.bogieExcel?.trim();
+  if (r.numeroCocheExcel === null || !bogie || r.ejeExcel === null) {
+    return null;
+  }
+  const lado = resolverLado(r.ubicacionExcel, r.ruedaExcel);
+  if (!lado) return null;
+  return `x:${r.numeroCocheExcel}|${bogie}|${r.ejeExcel}|${lado}`;
+}
+
+// true si `candidato` debe reemplazar a `actual` como representante de su
+// disco: fecha más reciente/antigua según vistaFecha, y ante un empate de
+// fecha, mismo desempate que ORDEN_MAS_RECIENTE (kilometraje, luego id) para
+// que el resultado sea determinístico.
+function ganaPorVistaFecha(
+  candidato: ScanRecord,
+  actual: ScanRecord,
+  vistaFecha: 'ultima' | 'primera',
+): boolean {
+  const fc = candidato.fecha.getTime();
+  const fa = actual.fecha.getTime();
+  if (fc !== fa) return vistaFecha === 'ultima' ? fc > fa : fc < fa;
+
+  const kc = Number(candidato.kilometraje);
+  const ka = Number(actual.kilometraje);
+  if (kc !== ka) return vistaFecha === 'ultima' ? kc > ka : kc < ka;
+
+  return candidato.id > actual.id;
+}
+
+// Colapsa `records` a 1 fila por disco físico (ver claveDisco), quedándose
+// con la de fecha más reciente ('ultima') o más antigua ('primera') de cada
+// uno. El orden relativo del resultado es el de la PRIMERA aparición de cada
+// disco en `records` — si `records` ya viene ordenado (por construirOrderByScanRecord),
+// el resultado colapsado conserva ese mismo orden físico/columna elegido.
+function colapsarPorVistaFecha(
+  records: ScanRecord[],
+  vistaFecha: 'ultima' | 'primera',
+): ScanRecord[] {
+  const porDisco = new Map<string, ScanRecord>();
+  for (const r of records) {
+    const clave = claveDisco(r);
+    if (clave === null) continue;
+
+    const actual = porDisco.get(clave);
+    if (!actual || ganaPorVistaFecha(r, actual, vistaFecha)) {
+      porDisco.set(clave, r);
+    }
+  }
+  return [...porDisco.values()];
+}
+
+// Valores distintos de un campo de texto libre (motivo | responsable) dentro
+// de `base`, para poblar dropdowns de filtro dinámicamente (ver
+// GET /scan-records/valores-distintos y GET /migration/:fileId/valores-distintos).
+// Deduplica SIN distinguir mayúsculas/minúsculas — dos filas "Medición" y
+// "medición" son el mismo valor para el filtro (ver motivo/responsable en
+// construirWhereScanRecord, que matchea con mode:'insensitive' contra
+// cualquiera de las dos) — y se queda con la variante lexicográficamente
+// menor como forma canónica a mostrar: determinístico, sin inventar un
+// "title case" que no necesariamente sea el real.
+//
+// Selecciona motivo Y responsableNombre siempre (en vez de una key dinámica
+// en `select`): con una key computada de tipo unión, la inferencia de
+// retorno de Prisma.findMany se rompe (cae a un tipo demasiado amplio, sin
+// relación real con ScanRecord). Seleccionar ambos campos fijos es trivial en
+// costo (2 columnas de texto) y mantiene el tipo de fila totalmente estático.
+export async function obtenerValoresDistintosScanRecord(
+  prisma: PrismaService,
+  base: Prisma.ScanRecordWhereInput,
+  campo: CampoValoresDistintos,
+): Promise<string[]> {
+  const filtroNoVacio =
+    campo === 'motivo'
+      ? { motivo: { not: '' } }
+      : { responsableNombre: { not: '' } };
+
+  const filas = await prisma.scanRecord.findMany({
+    where: { ...base, ...filtroNoVacio },
+    select: { motivo: true, responsableNombre: true },
+  });
+
+  const porClave = new Map<string, string>();
+  for (const fila of filas) {
+    const valor = (
+      campo === 'motivo' ? fila.motivo : fila.responsableNombre
+    ).trim();
+    if (!valor) continue;
+    const clave = valor.toLowerCase();
+    const actual = porClave.get(clave);
+    if (actual === undefined || valor < actual) porClave.set(clave, valor);
+  }
+
+  return [...porClave.values()].sort((a, b) => a.localeCompare(b));
 }
 
 // Variante SIN paginar: todas las filas que matchean el resto de filtros, en
@@ -317,6 +506,7 @@ async function contarPorEstado(
     seguimiento: porEstado.get('SEGUIMIENTO') ?? 0,
     cambio: porEstado.get('CAMBIO') ?? 0,
     critico: porEstado.get('CRITICO') ?? 0,
+    reperfilado: porEstado.get('REPERFILADO') ?? 0,
   };
 }
 
@@ -377,7 +567,11 @@ export function aPreviewRow(r: ScanRecord): PreviewRow {
     trenOriginalExcel: r.trenOriginalExcel,
     discrepanciaEstadoExcel: r.discrepanciaEstadoExcel,
     hojaExcelOrigen: r.hojaExcelOrigen,
-    accionRecomendada: null,
-    ladoAfectado: null,
+    observacion: r.observacion,
+    kmInvalido: r.kmInvalido,
+    fechaInvalido: r.fechaInvalido,
+    tInvalido: r.tInvalido,
+    rdInvalido: r.rdInvalido,
+    excluidaDelCommit: r.excluidaDelCommit,
   };
 }

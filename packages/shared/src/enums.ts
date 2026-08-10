@@ -35,7 +35,7 @@ export type TipoResetPassword = (typeof TIPO_RESET_PASSWORD)[number]
 export const ESTADO_ARCHIVO = ['pending', 'processing', 'review', 'committed', 'error'] as const
 export type EstadoArchivo = (typeof ESTADO_ARCHIVO)[number]
 
-export const ESTADO_DISCO = ['OK', 'SEGUIMIENTO', 'CAMBIO', 'CRITICO'] as const
+export const ESTADO_DISCO = ['OK', 'SEGUIMIENTO', 'CAMBIO', 'CRITICO', 'REPERFILADO'] as const
 export type EstadoDisco = (typeof ESTADO_DISCO)[number]
 
 export const METODO_OUTLIER = ['desviacion_estandar', 'iqr', 'umbral_fijo'] as const

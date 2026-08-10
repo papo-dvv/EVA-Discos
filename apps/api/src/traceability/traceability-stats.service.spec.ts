@@ -1,10 +1,12 @@
 import {
   aplicarPisoExtremoInferior,
+  calcularAsimetria,
   calcularConsenso,
   calcularEstadisticasGenerales,
   calcularLimitesGauss,
   calcularLimitesPercentiles,
   calcularLimitesTukey,
+  clasificarAsimetria,
   clasificarYLimpiarSerie,
   type ConsensoLimites,
   type LimitesMetodo,
@@ -260,5 +262,62 @@ describe('calcularEstadisticasGenerales', () => {
       0.71231, 0.71234, 0.71229, 5.5, 9.9,
     ]);
     expect(resultado.moda).toBeCloseTo(0.7123, 9);
+  });
+});
+
+describe('calcularAsimetria', () => {
+  it('dataset simétrico (1..20, simétrico alrededor de la media) -> coeficiente 0 (SIMETRICA)', () => {
+    // Distribución perfectamente simétrica: cada desviación por debajo de la
+    // media tiene su espejo exacto por encima -> Σ(xi-media)^3 = 0.
+    expect(calcularAsimetria(VALORES_1_A_20)).toBeCloseTo(0, 9);
+  });
+
+  it('dataset con cola larga a la derecha -> coeficiente positivo', () => {
+    // [1,2,3,4] agrupados cerca de la media, 20 muy por encima -> cola a la
+    // derecha. Valor de referencia calculado aparte con la misma fórmula
+    // (G1 de Fisher-Pearson ajustado, la de Excel SKEW()):
+    // media=6, s=√62.5, momento3=504, factor=√20/3 -> G1≈1.5205624222635519.
+    const resultado = calcularAsimetria([1, 2, 3, 4, 20]);
+    expect(resultado).not.toBeNull();
+    expect(resultado).toBeGreaterThan(0);
+    expect(resultado).toBeCloseTo(1.5205624222635519, 9);
+  });
+
+  it('dataset con cola larga a la izquierda -> coeficiente negativo (espejo del caso anterior)', () => {
+    const resultado = calcularAsimetria([1, 17, 18, 19, 20]);
+    expect(resultado).not.toBeNull();
+    expect(resultado).toBeLessThan(0);
+    expect(resultado).toBeCloseTo(-1.5205624222635519, 9);
+  });
+
+  it('n < 3 -> null, sin lanzar error (no debería pasar dado CONTEO_MINIMO=20, pero se cubre igual)', () => {
+    expect(calcularAsimetria([])).toBeNull();
+    expect(calcularAsimetria([1])).toBeNull();
+    expect(calcularAsimetria([1, 2])).toBeNull();
+  });
+});
+
+describe('clasificarAsimetria', () => {
+  it('|coeficiente| < umbral -> SIMETRICA', () => {
+    expect(clasificarAsimetria(0.3, 0.5)).toBe('SIMETRICA');
+    expect(clasificarAsimetria(-0.3, 0.5)).toBe('SIMETRICA');
+  });
+
+  it('coeficiente >= umbral -> SESGO_POSITIVO', () => {
+    expect(clasificarAsimetria(0.5, 0.5)).toBe('SESGO_POSITIVO'); // borde inclusivo
+    expect(clasificarAsimetria(1.52, 0.5)).toBe('SESGO_POSITIVO');
+  });
+
+  it('coeficiente <= -umbral -> SESGO_NEGATIVO', () => {
+    expect(clasificarAsimetria(-0.5, 0.5)).toBe('SESGO_NEGATIVO'); // borde inclusivo
+    expect(clasificarAsimetria(-1.52, 0.5)).toBe('SESGO_NEGATIVO');
+  });
+
+  it('cambiar el umbral configurable mueve el límite de clasificación', () => {
+    const coeficiente = 1.5205624222635519; // dataset de cola derecha de arriba
+    expect(clasificarAsimetria(coeficiente, 0.5)).toBe('SESGO_POSITIVO');
+    // Con un umbral más alto que el coeficiente, el mismo valor pasa a
+    // considerarse SIMETRICA -> el umbral es lo único que decide el corte.
+    expect(clasificarAsimetria(coeficiente, 2)).toBe('SIMETRICA');
   });
 });

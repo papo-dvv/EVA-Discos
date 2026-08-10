@@ -2,6 +2,7 @@ import { Prisma, type BrakeDisc, type LadoDisco } from '../../generated/prisma';
 import type {
   AccionRecomendada,
   BrakeDiscRulesEngine,
+  LadoAfectado,
   MedicionDisco,
   ResultadoAccionRecomendada,
 } from '../brake-disc-rules/brake-disc-rules.engine';
@@ -24,15 +25,29 @@ import type { PreviewRow } from './scan-record-query';
 // kilometraje desc (un odómetro mayor es fisicamente posterior aunque la
 // fecha coincida) y por último id desc, solo para que el resultado sea
 // determinístico ante un triple empate.
-const ORDEN_MAS_RECIENTE: Prisma.ScanRecordOrderByWithRelationInput[] = [
+// Exportada: Proyección (ProyeccionCalculatorService) también necesita "la
+// medición confirmada más reciente de un disco", el mismo criterio exacto
+// que ya usa resolverAccionPorDiscId más abajo.
+export const ORDEN_MAS_RECIENTE: Prisma.ScanRecordOrderByWithRelationInput[] = [
   { fecha: 'desc' },
   { kilometraje: 'desc' },
   { id: 'desc' },
 ];
 
+// PreviewRow ya NO expone accionRecomendada/ladoAfectado (se quitaron de la
+// serialización de Migración preview y Mediciones confirmadas — ver
+// MigrationPreviewService.obtenerPreview / ScanRecordsService.buscar): este
+// tipo propio reemplaza al viejo Pick<PreviewRow, ...> para que estas
+// funciones (sin llamadores hoy, conservadas por si se recalibran) sigan
+// compilando sin depender de esos 2 campos.
+export interface FilaConAccionRecomendada {
+  accionRecomendada: AccionRecomendada | null;
+  ladoAfectado: LadoAfectado;
+}
+
 function accionOrNull(
   resultado: ResultadoAccionRecomendada | null | undefined,
-): Pick<PreviewRow, 'accionRecomendada' | 'ladoAfectado'> {
+): FilaConAccionRecomendada {
   return {
     accionRecomendada: resultado?.accion ?? null,
     ladoAfectado: resultado?.ladoAfectado ?? null,
@@ -64,7 +79,7 @@ export async function enriquecerAccionRecomendadaDraft(
   fileId: string,
   filas: PreviewRow[],
   evaluador: BrakeDiscRulesEngine,
-): Promise<PreviewRow[]> {
+): Promise<(PreviewRow & FilaConAccionRecomendada)[]> {
   const identidades = new Map<string, IdentidadDraft>();
   for (const f of filas) {
     const clave = claveEjeDraft(f);
@@ -76,7 +91,9 @@ export async function enriquecerAccionRecomendadaDraft(
       });
     }
   }
-  if (identidades.size === 0) return filas;
+  if (identidades.size === 0) {
+    return filas.map((f) => ({ ...f, ...accionOrNull(null) }));
+  }
 
   // Un único query: TODAS las filas de este fileId que comparten alguna de
   // las identidades presentes en esta página (nunca el archivo completo).
@@ -241,7 +258,7 @@ export async function enriquecerAccionRecomendadaConfirmado(
   prisma: PrismaService,
   filas: PreviewRow[],
   evaluador: BrakeDiscRulesEngine,
-): Promise<PreviewRow[]> {
+): Promise<(PreviewRow & FilaConAccionRecomendada)[]> {
   const discIdsPropios = [
     ...new Set(
       filas.map((f) => f.discId).filter((id): id is string => id !== null),

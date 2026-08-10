@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "EstadoDisco" ADD VALUE 'REPERFILADO';

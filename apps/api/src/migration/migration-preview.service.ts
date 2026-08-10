@@ -7,16 +7,13 @@ import { Prisma, type ScanRecord } from '../../generated/prisma';
 import { BrakeDiscRulesService } from '../brake-disc-rules/brake-disc-rules.service';
 import { calcularOrdenFisico } from '../common/orden-fisico';
 import { PrismaService } from '../prisma/prisma.service';
-import {
-  enriquecerAccionRecomendadaDraft,
-  paginarFiltrandoPorAccion,
-} from '../scan-records/accion-recomendada.query';
+import type { CampoValoresDistintos } from '../scan-records/dto/valores-distintos-query.dto';
 import {
   aPreviewRow,
   buscarScanRecordsPaginado,
-  buscarScanRecordsSinPaginar,
   obtenerEstadisticasScanRecords,
   obtenerResumenPorTrenScanRecord,
+  obtenerValoresDistintosScanRecord,
   type EstadisticasScanRecords,
   type PreviewResult,
   type PreviewRow,
@@ -24,7 +21,6 @@ import {
 } from '../scan-records/scan-record-query';
 import type { PreviewQueryDto } from './dto/preview-query.dto';
 import type { UpdateRowDto } from './dto/update-row.dto';
-import { resolverLado } from './migration-excel.parser';
 
 // Campos numéricos, para comparar en la auditoría sin falsos positivos por el
 // formato (Decimal "125000.50" vs number 125000.5).
@@ -53,54 +49,14 @@ export class MigrationPreviewService {
     q: PreviewQueryDto,
   ): Promise<PreviewResult> {
     await this.cargarArchivoMigracion(fileId);
-    const evaluador = await this.brakeDiscRules.obtenerEvaluador();
 
-    // accionRecomendada nunca es una columna (se calcula cruzando filas del
-    // mismo eje) — no hay WHERE posible para ese filtro. Cuando viene, hay
-    // que enriquecer TODO el conjunto que matchea el resto de filtros antes
-    // de paginar (ver paginarFiltrandoPorAccion); sin ese filtro, se sigue
-    // paginando en la base de datos como siempre.
-    if (q.accionRecomendada?.length) {
-      const filas = await buscarScanRecordsSinPaginar(
-        this.prisma,
-        { fileId },
-        q,
-      );
-      const enriquecidas = await enriquecerAccionRecomendadaDraft(
-        this.prisma,
-        fileId,
-        filas,
-        evaluador,
-      );
-      const { rows, total, totalPages } = paginarFiltrandoPorAccion(
-        enriquecidas,
-        (f) => f.accionRecomendada,
-        q.accionRecomendada,
-        q.page,
-        q.pageSize,
-      );
-      return {
-        rows,
-        page: q.page,
-        pageSize: q.pageSize,
-        total,
-        totalPages,
-        totalPaginas: totalPages,
-      };
-    }
-
-    const resultado = await buscarScanRecordsPaginado(
-      this.prisma,
-      { fileId },
-      q,
-    );
-    resultado.rows = await enriquecerAccionRecomendadaDraft(
-      this.prisma,
-      fileId,
-      resultado.rows,
-      evaluador,
-    );
-    return resultado;
+    // accionRecomendada/ladoAfectado dejaron de calcularse en esta vista (ver
+    // evaluarAccionRecomendada, BrakeDiscRulesModule — se deja de invocar acá
+    // por inestabilidad; la función sigue existiendo, sin uso, por si se
+    // recalibra más adelante). Si q.accionRecomendada viene en el query, se
+    // ignora en silencio: ya no hay valor calculado con el cual filtrar, y no
+    // tiene sentido enriquecer solo para descartar el resultado.
+    return buscarScanRecordsPaginado(this.prisma, { fileId }, q);
   }
 
   // Conteo por estado del total de la carga y del subconjunto filtrado. Recibe
@@ -151,6 +107,17 @@ export class MigrationPreviewService {
     return obtenerResumenPorTrenScanRecord(this.prisma, { fileId });
   }
 
+  // Valores distintos de motivo/responsable DENTRO de esta carga, para poblar
+  // dinámicamente el dropdown del filtro correspondiente (mismo patrón que
+  // ScanRecordsService.obtenerValoresDistintos, acotado a fileId).
+  async obtenerValoresDistintos(
+    fileId: string,
+    campo: CampoValoresDistintos,
+  ): Promise<string[]> {
+    await this.cargarArchivoMigracion(fileId);
+    return obtenerValoresDistintosScanRecord(this.prisma, { fileId }, campo);
+  }
+
   async editarFila(
     fileId: string,
     rowId: string,
@@ -183,15 +150,14 @@ export class MigrationPreviewService {
       cambios.ubicacionExcel = dto.ubicacionExcel;
     if (dto.ruedaExcel !== undefined) cambios.ruedaExcel = dto.ruedaExcel;
 
-    // ordenFisico depende de coche/bogie/eje/lado (nunca de numeroCoche): se
-    // recalcula si CUALQUIERA de esos 5 campos cambió, tomando el valor nuevo
-    // si vino en el DTO o el ya guardado si no — igual criterio que t/h más
-    // abajo para rd/estado.
+    // ordenFisico depende de coche/bogie/eje/rueda (nunca de numeroCoche ni de
+    // ubicación): se recalcula si CUALQUIERA de esos 4 campos cambió, tomando
+    // el valor nuevo si vino en el DTO o el ya guardado si no — igual criterio
+    // que t/h más abajo para rd/estado.
     if (
       dto.cocheExcel !== undefined ||
       dto.bogieExcel !== undefined ||
       dto.ejeExcel !== undefined ||
-      dto.ubicacionExcel !== undefined ||
       dto.ruedaExcel !== undefined
     ) {
       const cocheFinal =
@@ -200,17 +166,13 @@ export class MigrationPreviewService {
         dto.bogieExcel !== undefined ? dto.bogieExcel : original.bogieExcel;
       const ejeFinal =
         dto.ejeExcel !== undefined ? dto.ejeExcel : original.ejeExcel;
-      const ubicacionFinal =
-        dto.ubicacionExcel !== undefined
-          ? dto.ubicacionExcel
-          : original.ubicacionExcel;
       const ruedaFinal =
         dto.ruedaExcel !== undefined ? dto.ruedaExcel : original.ruedaExcel;
       cambios.ordenFisico = calcularOrdenFisico({
         tipoCoche: cocheFinal,
         bogieCodigo: bogieFinal,
         ejeNumero: ejeFinal,
-        lado: resolverLado(ubicacionFinal, ruedaFinal),
+        ruedaNumero: ruedaFinal,
       });
     }
 
@@ -222,7 +184,7 @@ export class MigrationPreviewService {
       const evaluador = await this.brakeDiscRules.obtenerEvaluador();
       const rd = evaluador.calcularRd(t, h);
       cambios.rdValue = rd;
-      cambios.estadoCalculado = evaluador.clasificarEstado(rd);
+      cambios.estadoCalculado = evaluador.clasificarEstadoConReperfilado(rd, h);
     }
 
     // Una entrada de auditoría por cada campo que efectivamente cambió (incluye

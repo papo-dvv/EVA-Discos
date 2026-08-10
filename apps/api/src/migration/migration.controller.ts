@@ -20,6 +20,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import type { AuthenticatedUser } from '../auth/interfaces/jwt-payload.interface';
+import { ValoresDistintosQueryDto } from '../scan-records/dto/valores-distintos-query.dto';
 import { PreviewQueryDto } from './dto/preview-query.dto';
 import { UpdateRowDto } from './dto/update-row.dto';
 import { MigrationCommitService } from './migration-commit.service';
@@ -88,6 +89,14 @@ export class MigrationController {
   @Get(':fileId/filtros')
   filtros(@Param('fileId', ParseUUIDPipe) fileId: string) {
     return this.previewService.obtenerOpcionesFiltro(fileId);
+  }
+
+  @Get(':fileId/valores-distintos')
+  valoresDistintos(
+    @Param('fileId', ParseUUIDPipe) fileId: string,
+    @Query() query: ValoresDistintosQueryDto,
+  ) {
+    return this.previewService.obtenerValoresDistintos(fileId, query.campo);
   }
 
   @Get(':fileId/summary-by-tren')

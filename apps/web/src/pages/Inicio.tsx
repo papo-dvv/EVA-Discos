@@ -9,8 +9,9 @@ import { CampanitaNotificaciones } from '../features/notifications/components/Ca
 // Inicio real de la app: dashboard de widgets estilo Apple (styles.md §4.1).
 // La grilla bento mezcla el widget hero (saludo) con las tarjetas de módulo.
 // Los módulos funcionales hoy son la migración masiva, la vista permanente de
-// mediciones confirmadas, la tasa de desgaste y la trazabilidad; el resto se
-// muestran como "Próximamente" sin fingir que ya existen.
+// mediciones confirmadas, la tasa de desgaste, la trazabilidad y la
+// proyección de reperfilado y cambio; el resto se muestran como
+// "Próximamente" sin fingir que ya existen.
 const MODULOS_PROXIMOS = [
   { etiqueta: 'Reportes', glifo: '▤', desc: 'Panel docente y administrativo.' },
   { etiqueta: 'Calendario', glifo: '◲', desc: 'Cambios y reperfilados programados.' },
@@ -84,6 +85,22 @@ export function Inicio() {
             />
           </Link>
 
+          {/* Módulo funcional: ficha de medición individual (CSV o manual) */}
+          <Link to="/nuevas-mediciones" className="block">
+            <Widget
+              tamano="m"
+              estado="ok"
+              etiqueta="Módulo disponible"
+              glifo="✎"
+              valor="Nuevas mediciones"
+              pie={
+                <span className="font-body text-sm font-semibold text-verde-oscuro">
+                  Registrar una ficha →
+                </span>
+              }
+            />
+          </Link>
+
           {/* Módulo funcional: vista permanente de mediciones confirmadas */}
           <Link to="/mediciones" className="block">
             <Widget
@@ -127,6 +144,22 @@ export function Inicio() {
               pie={
                 <span className="font-body text-sm font-semibold text-verde-oscuro">
                   Historial y evolución de cada disco →
+                </span>
+              }
+            />
+          </Link>
+
+          {/* Módulo funcional: proyección de reperfilado y cambio */}
+          <Link to="/proyeccion" className="block">
+            <Widget
+              tamano="m"
+              estado="ok"
+              etiqueta="Módulo disponible"
+              glifo="◈"
+              valor="Proyección"
+              pie={
+                <span className="font-body text-sm font-semibold text-verde-oscuro">
+                  Reperfilado y cambio a futuro →
                 </span>
               }
             />

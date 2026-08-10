@@ -6,6 +6,7 @@
 export interface Umbrales {
   rdUmbralOk: number;
   rdUmbralSeguimiento: number;
+  rdUmbralCritico: number;
   hUmbralReperfilado: number;
   reperfiladoDescuentoRd: number;
 }
@@ -14,6 +15,7 @@ export interface Umbrales {
 export const CLAVES_UMBRALES = {
   rdUmbralOk: 'rd_umbral_ok',
   rdUmbralSeguimiento: 'rd_umbral_seguimiento',
+  rdUmbralCritico: 'rd_umbral_critico',
   hUmbralReperfilado: 'h_umbral_reperfilado',
   reperfiladoDescuentoRd: 'reperfilado_descuento_rd',
 } as const satisfies Record<keyof Umbrales, string>;
@@ -21,6 +23,7 @@ export const CLAVES_UMBRALES = {
 export const UMBRALES_POR_DEFECTO: Umbrales = {
   rdUmbralOk: 1.0,
   rdUmbralSeguimiento: 0.4,
+  rdUmbralCritico: 0.0,
   hUmbralReperfilado: 1.6,
   reperfiladoDescuentoRd: 0.8,
 };

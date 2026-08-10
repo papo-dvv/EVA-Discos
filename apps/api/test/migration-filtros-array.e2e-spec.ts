@@ -136,12 +136,14 @@ describe('Migration — filtros con array en querystring (e2e)', () => {
       seguimiento: 1,
       cambio: 1,
       critico: 0,
+      reperfilado: 0,
     });
     expect(res.body.total).toEqual({
       ok: 1,
       seguimiento: 1,
       cambio: 1,
       critico: 1,
+      reperfilado: 0,
     });
     // totalFilasSubidas ignora el filtro: son las 4 filas de la carga.
     expect(res.body.totalFilasSubidas).toBe(4);

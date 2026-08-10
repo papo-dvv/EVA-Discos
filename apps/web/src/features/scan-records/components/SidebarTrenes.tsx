@@ -1,5 +1,6 @@
 import { GlassSurface } from '../../../components/GlassSurface'
 import { VirtualList } from '../../../components/VirtualList'
+import { WarningTooltip } from '../../../components/WarningTooltip'
 import type { ResumenTren } from '../types'
 
 // Sidebar de trenes (panel glass, lista virtualizada con scrollbar propio) —
@@ -64,13 +65,12 @@ export function SidebarTrenes({
                 <span>Tren {t.tren}</span>
                 <span className="font-data text-xs text-concreto">({t.totalFilas})</span>
                 {t.filasConAdvertencia > 0 && (
-                  <span
-                    title={`${t.filasConAdvertencia} fila(s) con advertencia`}
+                  <WarningTooltip
+                    texto={`${t.filasConAdvertencia} fila(s) con advertencia`}
                     className="ml-auto"
-                    aria-label="con advertencias"
                   >
-                    ⚠️
-                  </span>
+                    <span aria-label="con advertencias">⚠️</span>
+                  </WarningTooltip>
                 )}
               </button>
               {onEliminarTren && (

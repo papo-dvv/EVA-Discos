@@ -1,6 +1,7 @@
 import type { SortingState } from '@tanstack/react-table'
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { CardFormulas } from '../components/CardFormulas'
 import { GlassSurface } from '../components/GlassSurface'
 import { PantallaFondo } from '../components/PantallaFondo'
 import { PaginacionNumerica } from '../features/scan-records/components/PaginacionNumerica'
@@ -147,6 +148,7 @@ export function TasaDesgaste() {
           {/* Resumen + parámetros arriba de la tabla en pantallas sin columna derecha */}
           <div className="mt-4 space-y-4 xl:hidden">
             <PanelResumenWearRate resumen={resumen.data} cargando={resumen.isLoading} />
+            <CardFormulas variante="tasaDesgaste" />
             <PanelParametros />
           </div>
 
@@ -205,6 +207,7 @@ export function TasaDesgaste() {
         <aside className="hidden w-[21.25rem] flex-shrink-0 xl:block">
           <div className="sticky top-6 space-y-4">
             <PanelResumenWearRate resumen={resumen.data} cargando={resumen.isLoading} />
+            <CardFormulas variante="tasaDesgaste" />
             <PanelParametros />
           </div>
         </aside>

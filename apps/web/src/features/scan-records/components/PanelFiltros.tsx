@@ -3,24 +3,29 @@ import { GlassDatePicker } from '../../../components/GlassDatePicker'
 import { ModoCombinacionToggle } from '../../../components/ModoCombinacionToggle'
 import { MultiSelect } from '../../../components/MultiSelect'
 import { RangoNumerico } from '../../../components/RangoNumerico'
+import { SegmentedControl } from '../../../components/SegmentedControl'
 import { Switch } from '../../../components/Switch'
-import type { AccionRecomendada, EstadoDisco, OpcionesFiltro } from '../types'
+import type { AlcanceScanRecords, EstadoDisco, LadoDisco, OpcionesFiltro, VistaFecha } from '../types'
 import { contarFiltrosActivos, type FiltrosState } from '../filtros'
+import { useScanRecordsValoresDistintos } from '../queries'
 
 const ESTADOS: { v: EstadoDisco; label: string }[] = [
   { v: 'OK', label: 'OK' },
   { v: 'SEGUIMIENTO', label: 'Seguimiento' },
   { v: 'CAMBIO', label: 'Cambio' },
   { v: 'CRITICO', label: 'Crítico' },
+  { v: 'REPERFILADO', label: 'Reperfilado' },
 ]
 
-// NINGUNA queda fuera a propósito, igual criterio que el backend (ver
-// ACCIONES_RECOMENDADAS en preview-query.dto.ts): filtrar por "sin acción"
-// no tiene un uso real.
-const ACCIONES: { v: Exclude<AccionRecomendada, 'NINGUNA'>; label: string }[] = [
-  { v: 'CRITICO', label: 'Crítico' },
-  { v: 'CAMBIO', label: 'Cambio' },
-  { v: 'REPERFILADO', label: 'Reperfilado' },
+// MultiSelect trabaja con string[] planos (mismo criterio que LADOS en
+// wear-rate/components/PanelFiltrosWearRate.tsx) — 'izquierdo'/'derecho' se
+// muestran tal cual, sin mapeo de etiqueta aparte.
+const LADOS: LadoDisco[] = ['izquierdo', 'derecho']
+
+const VISTAS_FECHA_OPCIONES: { valor: VistaFecha; etiqueta: string }[] = [
+  { valor: 'todas', etiqueta: 'Todas' },
+  { valor: 'ultima', etiqueta: 'Última' },
+  { valor: 'primera', etiqueta: 'Primera' },
 ]
 
 const RANGOS: { campoMin: keyof FiltrosState; campoMax: keyof FiltrosState; label: string }[] = [
@@ -38,24 +43,22 @@ type Props = {
   onLimpiar: () => void
   opciones?: OpcionesFiltro
   disabled?: boolean
+  // Determina si los dropdowns de Motivo/Responsable pegan a
+  // /migration/:fileId/valores-distintos o a /scan-records/valores-distintos
+  // (ver useScanRecordsValoresDistintos) — mismo criterio mode-aware que el
+  // resto del feature. Ausente = alcance de confirmados ({}).
+  alcance?: AlcanceScanRecords
 }
 
-export function PanelFiltros({ filtros, onCambiar, onLimpiar, opciones, disabled }: Props) {
+export function PanelFiltros({ filtros, onCambiar, onLimpiar, opciones, disabled, alcance = {} }: Props) {
   const activos = contarFiltrosActivos(filtros)
+  const motivos = useScanRecordsValoresDistintos(alcance, 'motivo')
+  const responsables = useScanRecordsValoresDistintos(alcance, 'responsable')
 
   function alternarEstado(e: EstadoDisco) {
     const has = filtros.estado.includes(e)
     onCambiar({
       estado: has ? filtros.estado.filter((x) => x !== e) : [...filtros.estado, e],
-    })
-  }
-
-  function alternarAccion(a: Exclude<AccionRecomendada, 'NINGUNA'>) {
-    const has = filtros.accionRecomendada.includes(a)
-    onCambiar({
-      accionRecomendada: has
-        ? filtros.accionRecomendada.filter((x) => x !== a)
-        : [...filtros.accionRecomendada, a],
     })
   }
 
@@ -84,8 +87,29 @@ export function PanelFiltros({ filtros, onCambiar, onLimpiar, opciones, disabled
         </button>
       </div>
 
-      {/* Multi-selects coche / bogie */}
-      <div className="grid gap-3 sm:grid-cols-2">
+      {/* Vista de fecha: colapsa a 1 fila por disco (última/primera) o
+          mantiene todo el histórico ('todas', default) — no cuenta como
+          filtro activo (es un modo de vista, no una condición). */}
+      <div className="flex flex-wrap items-center gap-3">
+        <p className="font-body text-xs font-semibold uppercase tracking-[0.1em] text-concreto">
+          Vista de fecha
+        </p>
+        <SegmentedControl
+          ariaLabel="Vista de fecha"
+          opciones={VISTAS_FECHA_OPCIONES}
+          valor={filtros.vistaFecha}
+          onCambiar={(v) => onCambiar({ vistaFecha: v })}
+        />
+        {filtros.vistaFecha !== 'todas' && (
+          <p className="font-body text-xs text-concreto">
+            Mostrando solo la medición{' '}
+            {filtros.vistaFecha === 'ultima' ? 'más reciente' : 'más antigua'} de cada disco.
+          </p>
+        )}
+      </div>
+
+      {/* Multi-selects coche / bogie / lado / motivo / responsable */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <MultiSelect
           label="Tipo de coche"
           opciones={opciones?.tiposCoche ?? []}
@@ -100,43 +124,45 @@ export function PanelFiltros({ filtros, onCambiar, onLimpiar, opciones, disabled
           onCambiar={(v) => onCambiar({ bogieCodigo: v })}
           disabled={disabled}
         />
+        <MultiSelect
+          label="Lado"
+          opciones={LADOS}
+          seleccion={filtros.lado}
+          onCambiar={(v) => onCambiar({ lado: v as LadoDisco[] })}
+          disabled={disabled}
+        />
+        <MultiSelect
+          label="Motivo"
+          opciones={motivos.data ?? []}
+          seleccion={filtros.motivo}
+          onCambiar={(v) => onCambiar({ motivo: v })}
+          disabled={disabled || motivos.isLoading}
+        />
+        <MultiSelect
+          label="Responsable"
+          opciones={responsables.data ?? []}
+          seleccion={filtros.responsable}
+          onCambiar={(v) => onCambiar({ responsable: v })}
+          disabled={disabled || responsables.isLoading}
+        />
       </div>
 
-      {/* Estado + Acción recomendada (chips multi-choice) */}
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div>
-          <p className="mb-1.5 font-body text-xs font-semibold uppercase tracking-[0.1em] text-concreto">
-            Estado
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {ESTADOS.map((e) => (
-              <GlassChip
-                key={e.v}
-                activo={filtros.estado.includes(e.v)}
-                disabled={disabled}
-                onClick={() => alternarEstado(e.v)}
-              >
-                {e.label}
-              </GlassChip>
-            ))}
-          </div>
-        </div>
-        <div>
-          <p className="mb-1.5 font-body text-xs font-semibold uppercase tracking-[0.1em] text-concreto">
-            Acción recomendada
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {ACCIONES.map((a) => (
-              <GlassChip
-                key={a.v}
-                activo={filtros.accionRecomendada.includes(a.v)}
-                disabled={disabled}
-                onClick={() => alternarAccion(a.v)}
-              >
-                {a.label}
-              </GlassChip>
-            ))}
-          </div>
+      {/* Estado (chips multi-choice) */}
+      <div>
+        <p className="mb-1.5 font-body text-xs font-semibold uppercase tracking-[0.1em] text-concreto">
+          Estado
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {ESTADOS.map((e) => (
+            <GlassChip
+              key={e.v}
+              activo={filtros.estado.includes(e.v)}
+              disabled={disabled}
+              onClick={() => alternarEstado(e.v)}
+            >
+              {e.label}
+            </GlassChip>
+          ))}
         </div>
       </div>
 

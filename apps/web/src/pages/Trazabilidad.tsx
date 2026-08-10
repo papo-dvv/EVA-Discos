@@ -4,13 +4,15 @@ import { GlassSelect } from '../components/GlassSelect'
 import { GlassSurface } from '../components/GlassSurface'
 import { PantallaFondo } from '../components/PantallaFondo'
 import { SegmentedControl } from '../components/SegmentedControl'
+import { Switch } from '../components/Switch'
+import { EstadoActualizacionModulo } from '../features/module-snapshot/components/EstadoActualizacionModulo'
 import { EstadoDatosInsuficientes } from '../features/traceability/components/EstadoDatosInsuficientes'
 import { GraficoTrazabilidad } from '../features/traceability/components/GraficoTrazabilidad'
 import { GraficoTrazabilidadLimpia } from '../features/traceability/components/GraficoTrazabilidadLimpia'
-import { PanelEstadisticasTrazabilidad } from '../features/traceability/components/PanelEstadisticasTrazabilidad'
-import { PanelMetodosTrazabilidad } from '../features/traceability/components/PanelMetodosTrazabilidad'
-import { useTraceabilitySeries, useTraceabilitySummary } from '../features/traceability/queries'
+import { PanelLateralTrazabilidad } from '../features/traceability/components/PanelLateralTrazabilidad'
+import { usePromedioPorTren, useTraceabilitySeries, useTraceabilitySummary } from '../features/traceability/queries'
 import type { Periodo, TraceabilityScopeParams } from '../features/traceability/types'
+import { usePromedioPorVagon } from '../features/projection/queries'
 import { useScanRecordsOpcionesFiltro, useScanRecordsResumenPorTren } from '../features/scan-records/queries'
 import { extraerMensajeError } from '../lib/extraerMensajeError'
 
@@ -48,17 +50,26 @@ function construirEtiquetaScope(scope: TraceabilityScopeParams): string {
 export function Trazabilidad() {
   const [scope, setScope] = useState<TraceabilityScopeParams>({})
   const [periodo, setPeriodo] = useState<Periodo>('6m')
+  // Activado por defecto (espeja el default=true del backend, ver
+  // TraceabilityScopeQueryDto). Afecta Métodos y límites/Estadísticas
+  // generales/Asimetría y ambos gráficos — NUNCA las cards de promedio por
+  // rango de km/tren/tipo de coche (ver PanelLateralTrazabilidad).
+  const [filtrarPorRangoKm, setFiltrarPorRangoKm] = useState(true)
 
   const resumenTrenes = useScanRecordsResumenPorTren({})
   const opcionesFiltro = useScanRecordsOpcionesFiltro({})
 
+  const summaryParams = useMemo(
+    () => ({ ...scope, filtrarPorRangoKm }),
+    [scope, filtrarPorRangoKm],
+  )
   // Gráfico 1 (Diagnóstico completo) SIEMPRE pide crudo explícito: es la
   // vista de auditoría punto-a-punto y no sabe consumir puntos agregados por
   // mes — nunca debe depender del default del backend (ver el comentario
   // homólogo en TraceabilityController).
   const seriesParamsDiagnostico = useMemo(
-    () => ({ ...scope, periodo, agregacion: 'crudo' as const }),
-    [scope, periodo],
+    () => ({ ...scope, periodo, agregacion: 'crudo' as const, filtrarPorRangoKm }),
+    [scope, periodo, filtrarPorRangoKm],
   )
   // Gráfico 2 (Trazabilidad limpia) pide 'auto': con volumen alto se agrega
   // por mes (línea suave de baja densidad), con poco volumen se queda en
@@ -67,12 +78,17 @@ export function Trazabilidad() {
   // por lo tanto distinta query key y distinta respuesta (ver
   // GraficoTrazabilidadLimpia).
   const seriesParamsLimpia = useMemo(
-    () => ({ ...scope, periodo, agregacion: 'auto' as const }),
-    [scope, periodo],
+    () => ({ ...scope, periodo, agregacion: 'auto' as const, filtrarPorRangoKm }),
+    [scope, periodo, filtrarPorRangoKm],
   )
-  const summary = useTraceabilitySummary(scope)
+  const summary = useTraceabilitySummary(summaryParams)
   const seriesDiagnostico = useTraceabilitySeries(seriesParamsDiagnostico)
   const seriesLimpia = useTraceabilitySeries(seriesParamsLimpia)
+  // Promedio por tren/tipo de coche: independientes del scope de
+  // tipoCoche/bogieCodigo y de filtrarPorRangoKm — solo siguen el tren
+  // elegido arriba (o toda la flota si no hay ninguno seleccionado).
+  const promedioPorTren = usePromedioPorTren(scope.tren)
+  const promedioPorVagon = usePromedioPorVagon()
 
   const opcionesTren = useMemo(
     () => (resumenTrenes.data ?? []).map((t) => ({ valor: String(t.tren), etiqueta: `Tren ${t.tren}` })),
@@ -99,12 +115,15 @@ export function Trazabilidad() {
             <h1 className="font-display text-2xl font-semibold tracking-tight text-concreto-oscuro">Trazabilidad</h1>
             <p className="mt-0.5 font-body text-sm text-concreto">{etiquetaScope}</p>
           </div>
-          <Link
-            to="/"
-            className="font-body text-xs text-concreto underline underline-offset-2 transition-colors hover:text-concreto-oscuro"
-          >
-            ← Volver al inicio
-          </Link>
+          <div className="flex flex-wrap items-center gap-4">
+            <EstadoActualizacionModulo modulo="trazabilidad" />
+            <Link
+              to="/"
+              className="font-body text-xs text-concreto underline underline-offset-2 transition-colors hover:text-concreto-oscuro"
+            >
+              ← Volver al inicio
+            </Link>
+          </div>
         </GlassSurface>
 
         {/* Selector de scope: General/Por tren/Por modelo/Por bogie combinables */}
@@ -143,6 +162,18 @@ export function Trazabilidad() {
               Combiná cualquier cantidad de dimensiones a la vez — vacío = toda la flota.
             </p>
           </div>
+
+          <div className="mt-4 border-t border-concreto/15 pt-4">
+            <Switch
+              checked={filtrarPorRangoKm}
+              onChange={setFiltrarPorRangoKm}
+              label="Considerar solo rango de km habitual (7,000–15,000)"
+            />
+            <p className="mt-1.5 font-body text-xs text-concreto">
+              Afecta a Métodos y límites, Estadísticas generales, Asimetría y ambos gráficos. Las cards de promedio
+              por rango de km/tren/tipo de coche siempre corren sobre el conjunto completo, sin importar este switch.
+            </p>
+          </div>
         </GlassSurface>
 
         {summary.isLoading || seriesDiagnostico.isLoading || seriesLimpia.isLoading ? (
@@ -156,7 +187,7 @@ export function Trazabilidad() {
           seriesLimpia.data.datosInsuficientes ? (
           <EstadoDatosInsuficientes conteo={summary.data.conteo} />
         ) : (
-          <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_22rem]">
+          <div className="mt-4 grid gap-4 xl:grid-cols-[1fr_36rem]">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-3">
                 <SegmentedControl
@@ -192,39 +223,49 @@ export function Trazabilidad() {
                 titulo={etiquetaScope}
               />
 
-              {/* Paneles apilados debajo del gráfico en pantallas sin columna derecha */}
-              <div className="mt-4 space-y-4 xl:hidden">
-                <PanelMetodosTrazabilidad
+              {/* Panel lateral apilado debajo del gráfico en pantallas sin columna derecha */}
+              <div className="mt-4 xl:hidden">
+                <PanelLateralTrazabilidad
                   conteo={summary.data.conteo}
                   gauss={summary.data.gauss}
                   percentiles={summary.data.percentiles}
                   tukey={summary.data.tukey}
                   consenso={summary.data.consenso}
-                />
-                <PanelEstadisticasTrazabilidad
+                  clasificacionAsimetria={summary.data.asimetria.clasificacion}
                   estadisticas={summary.data.estadisticas}
+                  asimetria={summary.data.asimetria}
                   conteoTotalHistorico={seriesDiagnostico.data.conteoTotalHistorico}
                   conteoMostradoEnPeriodo={seriesDiagnostico.data.conteoMostradoEnPeriodo}
                   etiquetaPeriodo={ETIQUETA_PERIODO[periodo]}
+                  promedioRangoKm={summary.data.promedioRangoKm}
+                  promedioPorTren={promedioPorTren.data}
+                  promedioPorTrenCargando={promedioPorTren.isLoading}
+                  promedioPorVagon={promedioPorVagon.data}
+                  promedioPorVagonCargando={promedioPorVagon.isLoading}
                 />
               </div>
             </div>
 
-            {/* Columna derecha: métodos + estadísticas (desde xl) */}
+            {/* Columna derecha: panel lateral (desde xl) */}
             <aside className="hidden xl:block">
-              <div className="sticky top-6 space-y-4">
-                <PanelMetodosTrazabilidad
+              <div className="sticky top-6">
+                <PanelLateralTrazabilidad
                   conteo={summary.data.conteo}
                   gauss={summary.data.gauss}
                   percentiles={summary.data.percentiles}
                   tukey={summary.data.tukey}
                   consenso={summary.data.consenso}
-                />
-                <PanelEstadisticasTrazabilidad
+                  clasificacionAsimetria={summary.data.asimetria.clasificacion}
                   estadisticas={summary.data.estadisticas}
+                  asimetria={summary.data.asimetria}
                   conteoTotalHistorico={seriesDiagnostico.data.conteoTotalHistorico}
                   conteoMostradoEnPeriodo={seriesDiagnostico.data.conteoMostradoEnPeriodo}
                   etiquetaPeriodo={ETIQUETA_PERIODO[periodo]}
+                  promedioRangoKm={summary.data.promedioRangoKm}
+                  promedioPorTren={promedioPorTren.data}
+                  promedioPorTrenCargando={promedioPorTren.isLoading}
+                  promedioPorVagon={promedioPorVagon.data}
+                  promedioPorVagonCargando={promedioPorVagon.isLoading}
                 />
               </div>
             </aside>

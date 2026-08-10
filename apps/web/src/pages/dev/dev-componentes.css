@@ -1,0 +1,124 @@
+/* RUTA TEMPORAL DE DESARROLLO — eliminar tras periodo de pruebas de UI.
+   Estilos exclusivos de /dev/componentes (prefijo `dev-` en todas las
+   clases): nada de este archivo se importa desde ninguna pantalla real, así
+   que se puede borrar entero junto con la carpeta pages/dev/ sin tocar
+   tokens.css ni styles.md. Si algo de acá se aprueba, el traspaso a las
+   clases oficiales del sistema de diseño se hace en un prompt aparte. */
+
+/* --- Variante (a): cuadrícula densa — llena los tramos vacíos entre tuercas --- */
+.dev-bg-cuadricula-densa {
+  background-color: var(--color-arena-suave);
+  background-image:
+    linear-gradient(rgba(140, 137, 127, 0.10) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(140, 137, 127, 0.10) 1px, transparent 1px),
+    linear-gradient(rgba(140, 137, 127, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(140, 137, 127, 0.05) 1px, transparent 1px);
+  background-size: 64px 64px, 64px 64px, 16px 16px, 16px 16px;
+}
+
+/* --- Variante (a): tuercas cayendo — mismo concepto que .bg-engranajes-cayendo
+   (styles.md §7.1), tamaño/velocidad por instancia vía PRNG con semilla
+   (ver FondoTuercas.tsx) en vez de las fórmulas escalonadas por índice. --- */
+@keyframes dev-tuerca-caer {
+  from { top: -12%; left: -12%; }
+  to { top: 112%; left: 112%; }
+}
+@keyframes dev-tuerca-girar {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.dev-bg-tuercas-cayendo {
+  position: relative;
+  overflow: hidden;
+}
+.dev-bg-tuercas-cayendo .dev-tuerca {
+  position: absolute;
+  width: var(--size, 32px);
+  height: var(--size, 32px);
+  color: var(--color-gris-concreto);
+  opacity: var(--opacidad, 0.14);
+  animation:
+    dev-tuerca-caer var(--duracion, 26s) linear infinite,
+    dev-tuerca-girar var(--giro, 9s) linear infinite;
+  animation-delay: var(--retraso, 0s), 0s;
+}
+.dev-bg-tuercas-cayendo .dev-tuerca svg {
+  display: block;
+}
+
+/* --- Variante (b): fondo reactivo — .bg-aura gana desplazamiento lento de
+   gradiente + pulso de opacidad. Se aplica ADEMÁS de .bg-aura (la capa base
+   estática se mantiene, esto solo suma la animación por encima). --- */
+.dev-aura-reactiva {
+  position: relative;
+  isolation: isolate;
+}
+.dev-aura-reactiva::before {
+  content: '';
+  position: absolute;
+  inset: -25%;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(42% 34% at 30% 30%, color-mix(in srgb, var(--color-verde-claro) 60%, transparent) 0%, transparent 68%),
+    radial-gradient(38% 32% at 75% 68%, color-mix(in srgb, var(--color-verde-institucional) 22%, transparent) 0%, transparent 70%);
+  background-repeat: no-repeat;
+  background-size: 160% 160%;
+  animation:
+    dev-aura-desplazar 26s var(--ease-apple, ease-in-out) infinite alternate,
+    dev-aura-pulso 8s ease-in-out infinite;
+}
+.dev-aura-reactiva > * {
+  position: relative;
+  z-index: 1;
+}
+@keyframes dev-aura-desplazar {
+  0%   { background-position: 8% 12%, 88% 82%; }
+  100% { background-position: 36% 42%, 58% 52%; }
+}
+@keyframes dev-aura-pulso {
+  0%, 100% { opacity: 0.7; }
+  50%      { opacity: 1; }
+}
+
+/* --- Globos (comentario/estado) — cola de burbuja. El glass-surface tiene
+   overflow:hidden (styles.md §4), así que la cola vive en el wrapper
+   .dev-globo (sin overflow) y no en la superficie glass en sí. --- */
+.dev-globo--comentario::before {
+  content: '';
+  position: absolute;
+  left: -5px;
+  top: 16px;
+  width: 14px;
+  height: 14px;
+  background: var(--glass-bg-strong);
+  border-left: 1px solid var(--glass-border);
+  border-bottom: 1px solid var(--glass-border);
+  border-radius: 3px;
+  transform: rotate(45deg);
+  z-index: 0;
+}
+.dev-globo--estado::after {
+  content: '';
+  position: absolute;
+  left: 18px;
+  bottom: -6px;
+  width: 12px;
+  height: 12px;
+  background: var(--glass-bg-strong);
+  border-right: 1px solid var(--glass-border);
+  border-bottom: 1px solid var(--glass-border);
+  border-radius: 2px;
+  transform: rotate(45deg);
+  z-index: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dev-bg-tuercas-cayendo .dev-tuerca {
+    animation: none;
+  }
+  .dev-aura-reactiva::before {
+    animation: none;
+  }
+}

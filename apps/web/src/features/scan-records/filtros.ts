@@ -1,4 +1,4 @@
-import type { AccionRecomendada, EstadoDisco, PreviewParams } from './types'
+import type { EstadoDisco, LadoDisco, PreviewParams, VistaFecha } from './types'
 
 // Estado de UI de los filtros combinables de la vista previa. Los rangos se
 // guardan como strings (valor crudo del input) y se convierten a número al
@@ -9,7 +9,6 @@ export type FiltrosState = {
   tipoCoche: string[]
   bogieCodigo: string[]
   estado: EstadoDisco[]
-  accionRecomendada: AccionRecomendada[]
   corregidoOAdvertencia: boolean
   fechaDesde: string
   fechaHasta: string
@@ -25,6 +24,14 @@ export type FiltrosState = {
   ejeMax: string
   ruedaMin: string
   ruedaMax: string
+  // 'todas' = sin colapsar (comportamiento histórico, sin cambios). No es un
+  // filtro que "cuenta" en contarFiltrosActivos por ser en rigor un modo de
+  // vista, no una condición que reduce filas — igual criterio que
+  // modoCombinacion (tampoco cuenta).
+  vistaFecha: VistaFecha
+  motivo: string[]
+  responsable: string[]
+  lado: LadoDisco[]
 }
 
 export const FILTROS_VACIOS: FiltrosState = {
@@ -32,7 +39,6 @@ export const FILTROS_VACIOS: FiltrosState = {
   tipoCoche: [],
   bogieCodigo: [],
   estado: [],
-  accionRecomendada: [],
   corregidoOAdvertencia: false,
   fechaDesde: '',
   fechaHasta: '',
@@ -48,6 +54,10 @@ export const FILTROS_VACIOS: FiltrosState = {
   ejeMax: '',
   ruedaMin: '',
   ruedaMax: '',
+  vistaFecha: 'todas',
+  motivo: [],
+  responsable: [],
+  lado: [],
 }
 
 const CAMPOS_RANGO: (keyof FiltrosState)[] = [
@@ -78,10 +88,12 @@ export function contarFiltrosActivos(f: FiltrosState): number {
   if (f.tipoCoche.length) n++
   if (f.bogieCodigo.length) n++
   if (f.estado.length) n++
-  if (f.accionRecomendada.length) n++
   if (f.corregidoOAdvertencia) n++
   if (f.fechaDesde || f.fechaHasta) n++
   for (const campo of CAMPOS_RANGO) if ((f[campo] as string).trim() !== '') n++
+  if (f.motivo.length) n++
+  if (f.responsable.length) n++
+  if (f.lado.length) n++
   return n
 }
 
@@ -94,7 +106,6 @@ export function aplicarFiltros(base: PreviewParams, f: FiltrosState): PreviewPar
     tipoCoche: f.tipoCoche.length ? f.tipoCoche : undefined,
     bogieCodigo: f.bogieCodigo.length ? f.bogieCodigo : undefined,
     estado: f.estado.length ? f.estado : undefined,
-    accionRecomendada: f.accionRecomendada.length ? f.accionRecomendada : undefined,
     corregidoOAdvertencia: f.corregidoOAdvertencia ? true : undefined,
     fechaDesde: f.fechaDesde || undefined,
     fechaHasta: f.fechaHasta || undefined,
@@ -110,5 +121,9 @@ export function aplicarFiltros(base: PreviewParams, f: FiltrosState): PreviewPar
     ejeMax: num(f.ejeMax),
     ruedaMin: num(f.ruedaMin),
     ruedaMax: num(f.ruedaMax),
+    vistaFecha: f.vistaFecha !== 'todas' ? f.vistaFecha : undefined,
+    motivo: f.motivo.length ? f.motivo : undefined,
+    responsable: f.responsable.length ? f.responsable : undefined,
+    lado: f.lado.length ? f.lado : undefined,
   }
 }

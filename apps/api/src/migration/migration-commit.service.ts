@@ -5,11 +5,13 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import {
+  ModuloSnapshot,
   Prisma,
   TipoCoche,
   type LadoDisco,
   type ScanRecord,
 } from '../../generated/prisma';
+import { GenerarSnapshotService } from '../module-snapshot/generar-snapshot.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { WearRateService } from '../wear-rate/wear-rate.service';
 import { normalizarCoche, resolverLado } from './migration-excel.parser';
@@ -81,6 +83,7 @@ export class MigrationCommitService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly wearRate: WearRateService,
+    private readonly generarSnapshot: GenerarSnapshotService,
   ) {}
 
   // Confirmación final de la migración, rediseñada en dos fases para escalar
@@ -272,6 +275,24 @@ export class MigrationCommitService {
       });
       return actualizado;
     });
+
+    // Primer commit exitoso de la migración masiva: uno de los 2
+    // disparadores automáticos del snapshot mensual (ver
+    // SnapshotBootstrapService para el otro, "primer arranque del
+    // proceso" — gana el que ocurra primero). Se llama SIEMPRE tras un
+    // commit exitoso, no solo la vez que sea literalmente el primero: el
+    // propio UNIQUE(modulo, mesAnio) de GenerarSnapshotService.generar hace
+    // que los commits siguientes dentro del mismo mes sean no-ops. Mejor
+    // esfuerzo — un fallo acá nunca debe convertir un commit ya exitoso en
+    // un error de respuesta.
+    await Promise.all([
+      this.generarSnapshot
+        .generar(ModuloSnapshot.trazabilidad)
+        .catch(() => undefined),
+      this.generarSnapshot
+        .generar(ModuloSnapshot.proyeccion)
+        .catch(() => undefined),
+    ]);
 
     return {
       fileId,

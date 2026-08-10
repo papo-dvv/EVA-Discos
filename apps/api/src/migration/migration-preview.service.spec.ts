@@ -195,75 +195,9 @@ describe('MigrationPreviewService', () => {
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
-    it('accionRecomendada=[CRITICO]: filtra por la acción calculada del EJE, con paginación sobre lo YA filtrado (no sobre count() de la BD)', async () => {
-      // 3 ejes en el borrador: crítico (rd<=0 en un lado), reperfilado
-      // (viable en ambos lados) y sin acción (H bajo) — mismo mock de
-      // findMany sirve para el fetch sin paginar Y para el cruce interno de
-      // enriquecerAccionRecomendadaDraft (no evalúa el WHERE, así que ambas
-      // llamadas ven el conjunto completo).
-      const filas = [
-        buildRecord({
-          id: 'critico-L',
-          numeroCocheExcel: 201,
-          bogieExcel: 'PB2',
-          ejeExcel: 1,
-          ubicacionExcel: 'izquierdo',
-          ruedaExcel: 1,
-          hValue: 2.0,
-          rdValue: 0,
-        }),
-        buildRecord({
-          id: 'critico-R',
-          numeroCocheExcel: 201,
-          bogieExcel: 'PB2',
-          ejeExcel: 1,
-          ubicacionExcel: 'derecho',
-          ruedaExcel: 2,
-          hValue: 2.0,
-          rdValue: 3.0,
-        }),
-        buildRecord({
-          id: 'reperf-L',
-          numeroCocheExcel: 202,
-          bogieExcel: 'PB2',
-          ejeExcel: 1,
-          ubicacionExcel: 'izquierdo',
-          ruedaExcel: 1,
-          hValue: 2.0,
-          rdValue: 1.5,
-        }),
-        buildRecord({
-          id: 'reperf-R',
-          numeroCocheExcel: 202,
-          bogieExcel: 'PB2',
-          ejeExcel: 1,
-          ubicacionExcel: 'derecho',
-          ruedaExcel: 2,
-          hValue: 2.0,
-          rdValue: 1.5,
-        }),
-        buildRecord({
-          id: 'ninguna-L',
-          numeroCocheExcel: 203,
-          bogieExcel: 'PB2',
-          ejeExcel: 1,
-          ubicacionExcel: 'izquierdo',
-          ruedaExcel: 1,
-          hValue: 0.5,
-          rdValue: 5.0,
-        }),
-        buildRecord({
-          id: 'ninguna-R',
-          numeroCocheExcel: 203,
-          bogieExcel: 'PB2',
-          ejeExcel: 1,
-          ubicacionExcel: 'derecho',
-          ruedaExcel: 2,
-          hValue: 0.5,
-          rdValue: 5.0,
-        }),
-      ];
-      prisma.scanRecord.findMany.mockResolvedValue(filas);
+    it('accionRecomendada en el query se ignora en silencio (ya no se calcula en esta vista) — sigue paginando en la base como siempre', async () => {
+      prisma.scanRecord.count.mockResolvedValue(1);
+      prisma.scanRecord.findMany.mockResolvedValue([buildRecord()]);
 
       const res = await service.obtenerPreview('file-1', {
         page: 1,
@@ -273,18 +207,11 @@ describe('MigrationPreviewService', () => {
         accionRecomendada: ['CRITICO'],
       });
 
-      expect(res.total).toBe(2);
-      expect(res.totalPages).toBe(1);
-      expect(res.rows.map((r) => r.id).sort()).toEqual([
-        'critico-L',
-        'critico-R',
-      ]);
-      expect(res.rows.every((r) => r.accionRecomendada === 'CRITICO')).toBe(
-        true,
-      );
-      // count() de la base NUNCA se usa en esta rama (el total viene del
-      // conjunto filtrado en memoria, no de un COUNT WHERE).
-      expect(prisma.scanRecord.count).not.toHaveBeenCalled();
+      // Sigue siendo un count() + findMany() normal, paginado en la base —
+      // no hay rama especial de enriquecer/filtrar en memoria.
+      expect(prisma.scanRecord.count).toHaveBeenCalled();
+      expect(res.total).toBe(1);
+      expect((res.rows[0] as Registro).accionRecomendada).toBeUndefined();
     });
   });
 
@@ -423,12 +350,14 @@ describe('MigrationPreviewService', () => {
         seguimiento: 4,
         cambio: 2,
         critico: 1,
+        reperfilado: 0,
       });
       expect(stats.filtrado).toEqual({
         ok: 0,
         seguimiento: 0,
         cambio: 0,
         critico: 1,
+        reperfilado: 0,
       });
 
       // El total NO lleva filtros; el filtrado sí (estado CRITICO).

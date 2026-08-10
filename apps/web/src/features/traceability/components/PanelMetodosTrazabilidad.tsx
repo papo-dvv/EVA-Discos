@@ -7,7 +7,8 @@ import { AvisoAjusteConsenso } from '../../system-params/components/AvisoAjusteC
 import { FilaParametro } from '../../system-params/components/FilaParametro'
 import { useSystemParams } from '../../system-params/queries'
 import { claveFilaConEstado, useConfirmacionParametro } from '../../system-params/useConfirmacionParametro'
-import type { ConsensoLimites, MetodoDescrito } from '../types'
+import { ETIQUETA_ASIMETRIA, GLIFO_ASIMETRIA } from '../asimetria'
+import type { ClasificacionAsimetria, ConsensoLimites, MetodoDescrito } from '../types'
 
 type Props = {
   // Total de pares válidos (esValido=true) del alcance actual — el MISMO
@@ -21,6 +22,10 @@ type Props = {
   percentiles: MetodoDescrito
   tukey: MetodoDescrito
   consenso: ConsensoLimites
+  // Ver tarjeta "Asimetría" en PanelEstadisticasTrazabilidad — se reusa acá
+  // solo para explicar el vínculo con los percentiles, null si el backend no
+  // pudo calcularla (n<3, no debería pasar en la práctica).
+  clasificacionAsimetria: ClasificacionAsimetria | null
 }
 
 const METODOS: { clave: 'gauss' | 'percentiles' | 'tukey'; nombre: string }[] = [
@@ -52,7 +57,14 @@ function formatearRango(inferior: number, superior: number): string {
 // PanelParametros en Migración/Mediciones/Tasa de desgaste) — Gauss y Tukey
 // no tienen parámetro configurable, así que sus tarjetas quedan de solo
 // lectura.
-export function PanelMetodosTrazabilidad({ conteo, gauss, percentiles, tukey, consenso }: Props) {
+export function PanelMetodosTrazabilidad({
+  conteo,
+  gauss,
+  percentiles,
+  tukey,
+  consenso,
+  clasificacionAsimetria,
+}: Props) {
   const porMetodo = { gauss, percentiles, tukey }
   const queryClient = useQueryClient()
   const params = useSystemParams()
@@ -73,6 +85,18 @@ export function PanelMetodosTrazabilidad({ conteo, gauss, percentiles, tukey, co
     <GlassSurface fuerte className="rounded-glass p-4">
       <h3 className="mb-1 font-display text-base font-semibold text-concreto-oscuro">Métodos y límites</h3>
       <p className="mb-3 font-body text-xs text-concreto">Calculados sobre el histórico completo del alcance actual.</p>
+
+      {/* Vínculo con la tarjeta "Asimetría" (PanelEstadisticasTrazabilidad):
+          solo se muestra cuando hay sesgo real, para no saturar el panel
+          cuando la distribución es simétrica (ahí no hay nada que explicar). */}
+      {clasificacionAsimetria && clasificacionAsimetria !== 'SIMETRICA' && (
+        <p className="mb-3 font-body text-[0.6875rem] text-concreto">
+          {GLIFO_ASIMETRIA[clasificacionAsimetria]} Esta distribución tiene {ETIQUETA_ASIMETRIA[
+            clasificacionAsimetria
+          ].toLowerCase()} (ver "Asimetría" en Estadísticas generales) — por eso los percentiles no quedan
+          centrados en la mediana, y el límite y el extremo de consenso pueden verse distintos entre sí.
+        </p>
+      )}
 
       <Widget
         className="mb-3"

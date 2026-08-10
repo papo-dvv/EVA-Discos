@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { PublicOnlyRoute } from './auth/PublicOnlyRoute'
 import { RequireAuth } from './auth/RequireAuth'
+import { DevComponentes } from './pages/dev/DevComponentes'
 import { CambiarPasswordObligatorio } from './pages/CambiarPasswordObligatorio'
 import { Galeria } from './pages/Galeria'
 import { Inicio } from './pages/Inicio'
@@ -8,6 +9,8 @@ import { Login } from './pages/Login'
 import { MedicionesConfirmadas } from './pages/MedicionesConfirmadas'
 import { MigracionPreview } from './pages/MigracionPreview'
 import { MigracionUpload } from './pages/MigracionUpload'
+import { NuevasMediciones } from './pages/NuevasMediciones'
+import { Proyeccion } from './pages/Proyeccion'
 import { TasaDesgaste } from './pages/TasaDesgaste'
 import { Trazabilidad } from './pages/Trazabilidad'
 
@@ -46,6 +49,17 @@ function App() {
           </RequireAuth>
         }
       />
+      {/* RUTA TEMPORAL DE DESARROLLO — eliminar tras periodo de pruebas de UI.
+          Protegida por login (cualquier rol autenticado), a propósito fuera
+          del nav principal — no se enlaza desde Inicio ni desde ningún menú. */}
+      <Route
+        path="/dev/componentes"
+        element={
+          <RequireAuth>
+            <DevComponentes />
+          </RequireAuth>
+        }
+      />
       <Route
         path="/mediciones"
         element={
@@ -71,6 +85,14 @@ function App() {
         }
       />
       <Route
+        path="/proyeccion"
+        element={
+          <RequireAuth>
+            <Proyeccion />
+          </RequireAuth>
+        }
+      />
+      <Route
         path="/migracion"
         element={
           <RequireAuth>
@@ -83,6 +105,22 @@ function App() {
         element={
           <RequireAuth>
             <MigracionPreview />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/nuevas-mediciones"
+        element={
+          <RequireAuth>
+            <NuevasMediciones />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/nuevas-mediciones/:fichaId"
+        element={
+          <RequireAuth>
+            <NuevasMediciones />
           </RequireAuth>
         }
       />

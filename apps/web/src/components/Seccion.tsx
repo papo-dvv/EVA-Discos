@@ -14,17 +14,17 @@ type SeccionProps = {
 export function Seccion({ id, numero, titulo, nota, children }: SeccionProps) {
   const { ref, visible } = useScrollReveal<HTMLElement>()
   return (
-    <section id={id} ref={ref} className="mb-32 scroll-mt-28">
+    <section id={id} ref={ref} className="mb-[6.4rem] scroll-mt-28">
       <div
-        className={`eva-revelar mb-5 flex items-baseline gap-3 ${visible ? 'is-visible' : ''}`}
+        className={`eva-revelar mb-4 flex items-baseline gap-2 ${visible ? 'is-visible' : ''}`}
         style={{ '--reveal-delay': '0ms' } as CSSProperties}
       >
         <span className="font-data text-xs text-concreto">{numero}</span>
-        <h2 className="font-display text-2xl font-semibold tracking-tight text-concreto-oscuro">{titulo}</h2>
+        <h2 className="font-display text-xl font-semibold tracking-tight text-concreto-oscuro">{titulo}</h2>
       </div>
       {nota && (
         <p
-          className={`eva-revelar mb-6 max-w-2xl text-sm text-concreto ${visible ? 'is-visible' : ''}`}
+          className={`eva-revelar mb-5 max-w-2xl text-xs text-concreto ${visible ? 'is-visible' : ''}`}
           style={{ '--reveal-delay': '120ms' } as CSSProperties}
         >
           {nota}

@@ -19,6 +19,7 @@
   --color-estado-seguimiento: #C79A3E;
   --color-estado-cambio: #C2703C;
   --color-estado-critico: #B33B3B;
+  --color-estado-reperfilado: #8E5E78; /* mauve tierra, versión desaturada del magenta de tabla */
 
   /* Superficies */
   --color-fondo-app: var(--color-arena);
@@ -157,6 +158,7 @@ body {
 .glass-card--estado-seguim { border-color: rgba(199, 154, 62, 0.35); box-shadow: var(--glass-shadow-ambient), 0 0 0 1px rgba(199, 154, 62, 0.15); }
 .glass-card--estado-cambio { border-color: rgba(194, 112, 60, 0.35); box-shadow: var(--glass-shadow-ambient), 0 0 0 1px rgba(194, 112, 60, 0.15); }
 .glass-card--estado-critico { border-color: rgba(179, 59, 59, 0.35); box-shadow: var(--glass-shadow-ambient), 0 0 0 1px rgba(179, 59, 59, 0.15); }
+.glass-card--estado-reperfilado { border-color: rgba(142, 94, 120, 0.35); box-shadow: var(--glass-shadow-ambient), 0 0 0 1px rgba(142, 94, 120, 0.15); }
 
 /* Borde animado, opt-in — 1-2 piezas hero, nunca en grillas repetidas */
 @property --eva-angulo-borde {
@@ -494,6 +496,10 @@ body {
   color: var(--color-verde-oscuro);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
+.eva-segmento__opcion[aria-disabled='true'] {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
 
 /* --- Botón de página numérica (paginación §6 tarea) --- */
 .eva-pagina {
@@ -611,12 +617,46 @@ body {
   );
 }
 
+/* Las 2 manchas verdes "respiran" (scale + opacity en bucle, cada una en su
+   propio pseudo-elemento para poder desfasarlas — ver eva-aura-respirar más
+   abajo); la mancha de arena y el color base quedan estáticos en el propio
+   elemento, sin animar. */
 .bg-aura {
+  position: relative;
+  overflow: hidden;
   background:
-    radial-gradient(55% 40% at 15% 0%, color-mix(in srgb, var(--color-verde-claro) 65%, transparent) 0%, transparent 60%),
-    radial-gradient(50% 45% at 100% 15%, color-mix(in srgb, var(--color-verde-institucional) 16%, transparent) 0%, transparent 65%),
     radial-gradient(60% 55% at 45% 100%, color-mix(in srgb, var(--color-arena) 70%, transparent) 0%, transparent 70%),
     var(--color-arena-suave);
+}
+
+.bg-aura::before,
+.bg-aura::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  animation: eva-aura-respirar var(--duracion, 8s) ease-in-out infinite;
+}
+
+.bg-aura::before {
+  background: radial-gradient(55% 40% at 15% 0%, color-mix(in srgb, var(--color-verde-claro) 65%, transparent) 0%, transparent 60%);
+  transform-origin: 15% 0%;
+}
+
+.bg-aura::after {
+  background: radial-gradient(50% 45% at 100% 15%, color-mix(in srgb, var(--color-verde-institucional) 16%, transparent) 0%, transparent 65%);
+  transform-origin: 100% 15%;
+  /* Duración propia (no un simple delay a mitad de ciclo de la de arriba):
+     las 2 manchas se desfasan y además derivan de fase con el tiempo, en vez
+     de repetir siempre la misma oposición — se ve orgánico, no mecánico. */
+  --duracion: 9.5s;
+  animation-delay: -2.5s;
+}
+
+@keyframes eva-aura-respirar {
+  0%, 100% { transform: scale(0.95); opacity: 0.7; }
+  50%      { transform: scale(1.05); opacity: 1; }
 }
 
 .bg-difuminado-inferior {
@@ -626,9 +666,16 @@ body {
 
 /* --- 7.1 Fondo animado de engranajes — pantallas de solo aviso --- */
 
+/* `left` SIEMPRE viaja de -12% a 112% (misma diagonal esquina-a-esquina de
+   siempre) más el offset propio de --carril: antes `left` se fijaba en línea
+   (style inline) pero la animación de `top`/`left` lo pisaba en cada frame —
+   toda tuerca terminaba cayendo por la MISMA diagonal, solo con distinto
+   --retraso (se veían una detrás de otra, nunca en paralelo). Con --carril
+   dentro del propio keyframe, cada carril recorre una diagonal paralela
+   desplazada, no la diagonal única de antes. */
 @keyframes eva-engranaje-caer {
-  from { top: -12%; left: -12%; }
-  to { top: 112%; left: 112%; }
+  from { top: -12%; left: calc(-12% + var(--carril, 0%)); }
+  to { top: 112%; left: calc(112% + var(--carril, 0%)); }
 }
 
 @keyframes eva-engranaje-girar {
@@ -649,7 +696,7 @@ body {
   color: var(--color-gris-concreto);
   opacity: var(--opacidad, 0.14);
   animation:
-    eva-engranaje-caer var(--duracion, 26s) linear infinite,
+    eva-engranaje-caer var(--duracion, 5s) linear infinite,
     eva-engranaje-girar var(--giro, 9s) linear infinite;
   animation-delay: var(--retraso, 0s), 0s;
 }
@@ -658,7 +705,61 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .bg-aura::before,
+  .bg-aura::after {
+    animation: none;
+    transform: none;
+    opacity: 1;
+  }
+
   .bg-engranajes-cayendo .engranaje {
     animation: none;
   }
+}
+
+/* --- §0 Densidad compacta — EXCLUSIVO de /design-system (Galeria.tsx) ---
+   NO es una regla del sistema de diseño real: el resto de la app sigue
+   usando estos mismos componentes compartidos (.eva-widget, .glass-chip,
+   .tabla-chip) a su tamaño base de siempre. [data-densidad="compacta"] solo
+   se declara en el contenedor raíz de Galeria.tsx, así que estos overrides
+   nunca alcanzan ninguna pantalla real. Reducción ~20% por componente sobre
+   los valores base definidos arriba — nunca transform:scale(). */
+
+[data-densidad='compacta'] .eva-widget {
+  gap: 11px;
+  padding: 18px;
+}
+[data-densidad='compacta'] .eva-widget--s {
+  padding: 14px;
+  gap: 8px;
+}
+[data-densidad='compacta'] .eva-widget--m {
+  padding: 19px;
+}
+[data-densidad='compacta'] .eva-widget--l {
+  padding: 24px;
+  gap: 14px;
+}
+[data-densidad='compacta'] .eva-widget__glifo {
+  width: 21px;
+  height: 21px;
+}
+[data-densidad='compacta'] .eva-widget__valor {
+  font-size: 32px;
+}
+[data-densidad='compacta'] .eva-widget--s .eva-widget__valor {
+  font-size: 26px;
+}
+[data-densidad='compacta'] .eva-widget--l .eva-widget__valor {
+  font-size: 58px;
+}
+[data-densidad='compacta'] .eva-widget__pie {
+  font-size: 11px;
+}
+[data-densidad='compacta'] .glass-chip {
+  padding: 5px 11px;
+  font-size: 11px;
+}
+[data-densidad='compacta'] .tabla-chip {
+  padding: 3px 10px;
 }

@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '../../generated/prisma';
 import { agruparPorMes, ordenarPorMes } from '../common/agrupar-por-mes';
 import { PrismaService } from '../prisma/prisma.service';
+import { ProyeccionConfigService } from '../projection/proyeccion-config.service';
+import { AsimetriaConfigService } from './asimetria-config.service';
 import { ConsensoConfigService } from './consenso-config.service';
 import type { TraceabilityScopeQueryDto } from './dto/traceability-scope-query.dto';
 import type {
@@ -11,6 +13,7 @@ import type {
 } from './dto/traceability-series-query.dto';
 import {
   TraceabilityStatsService,
+  type ClasificacionAsimetria,
   type ConsensoLimites,
   type EstadisticasGenerales,
   type FraccionesPercentil,
@@ -30,13 +33,63 @@ export const CONTEO_MINIMO = 20;
 // puntos no aporta nada y solo perdería granularidad para nada a cambio.
 const UMBRAL_AGREGACION_MENSUAL = 100;
 
+// Rango de comparación para promedioRangoKm: un tramo de kilometraje ni tan
+// corto (un diferenciaKm chico infla tasaMensual por extrapolación — mismo
+// mecanismo que motivó excluir "Cambio"/"Pares montados de giro" en
+// WearRateCalculatorService) ni tan largo (mezcla más tiempo/desgaste en un
+// solo par, diluyendo variación real). No es un parámetro de negocio
+// configurable (no vive en system_params): es un corte fijo para dar
+// contexto adicional al promedio general, no reemplaza el consenso.
+const KM_RANGO_INFERIOR = 7000;
+const KM_RANGO_SUPERIOR = 15000;
+
+// Piso técnico (NO estadístico) para poder calcular algo: la desviación
+// estándar es muestral, divide por n-1 (ver traceability-stats.service.ts), así
+// que con 1 valor da NaN y con 0 se rompe todo. Es distinto de CONTEO_MINIMO,
+// que es el umbral de CONFIABILIDAD (20): entre 2 y 19 pares el cálculo sí se
+// hace, pero se marca `confiable:false` para que la card lo advierta.
+const CONTEO_MINIMO_CALCULABLE = 2;
+
 export interface MetodoDescrito extends LimitesMetodo {
   formula: string;
+}
+
+// Promedio calculado APARTE, solo sobre los pares cuyo diferenciaKm cae en
+// [kmMinimo, kmMaximo]: ese subconjunto define sus PROPIOS límites (Gauss/
+// Percentiles/Tukey -> consenso) y su propio recorte, en vez de heredar el
+// consenso del alcance completo. Por eso `consenso` acá casi nunca coincide
+// con el consenso global del summary — es el punto de la card.
+export interface PromedioRangoKm {
+  kmMinimo: number;
+  kmMaximo: number;
+  // Pares válidos del alcance con diferenciaKm en el rango — el conjunto CRUDO
+  // que alimenta a los 3 métodos de esta card (análogo del `conteo` global).
+  conteo: number;
+  // false si conteo < CONTEO_MINIMO: los límites se calculan igual, pero con
+  // tan pocos puntos no tienen valor estadístico y la card lo advierte. Pasa
+  // seguido al filtrar por tren+tipoCoche+bogie.
+  confiable: boolean;
+  // null solo si conteo < CONTEO_MINIMO_CALCULABLE (no hay con qué calcular).
+  consenso: ConsensoLimites | null;
+  // Pares que sobreviven al recorte/exclusión de ESE consenso — los que
+  // efectivamente promedian.
+  conteoLimpio: number;
+  promedio: number | null;
 }
 
 export interface TraceabilitySummaryInsuficiente {
   datosInsuficientes: true;
   conteo: number;
+}
+
+// Coeficiente de Fisher-Pearson AJUSTADO (G1) sobre valorLimpio — mismo
+// dataset que `estadisticas`. null solo si calcularAsimetria no puede operar
+// (n<3, ver traceability-stats.service.ts); no debería pasar dado
+// CONTEO_MINIMO=20, pero se cubre igual. `clasificacion` viaja null junto con
+// `coeficiente` (no hay umbral que aplicar sin un coeficiente).
+export interface AsimetriaResumen {
+  coeficiente: number | null;
+  clasificacion: ClasificacionAsimetria | null;
 }
 
 export interface TraceabilitySummaryResult {
@@ -51,6 +104,8 @@ export interface TraceabilitySummaryResult {
   // criterio de "dato limpio" que ya usa /traceability/series, para que
   // ambos endpoints describan el mismo dataset.
   estadisticas: EstadisticasGenerales;
+  promedioRangoKm: PromedioRangoKm;
+  asimetria: AsimetriaResumen;
 }
 
 export type TraceabilitySummaryResponse =
@@ -106,12 +161,32 @@ export type TraceabilitySeriesResult =
 export type TraceabilitySeriesResponse =
   TraceabilitySeriesInsuficiente | TraceabilitySeriesResult;
 
+// Promedio de valorLimpio agrupado por tren (o toda la flota si `tren` es
+// null) — mismo cálculo de "dato limpio" que promedioRangoKm/ProyeccionRateService
+// (consenso Gauss∩Percentiles∩Tukey -> recorte/exclusión -> promedio), pero
+// SIN filtrar por tipoCoche/bogieCodigo (fleet completo de ese tren) y SIN
+// ningún recorte de km — ni el fijo de Trazabilidad ni el configurable de
+// Proyección: el conjunto completo de pares válidos de ese tren. Por eso
+// nunca se ve afectado por filtrarPorRangoKm (GET /traceability/summary y
+// /series), ni siquiera acepta ese parámetro (ver
+// TraceabilityPromedioPorTrenQueryDto).
+export interface PromedioPorTren {
+  tren: number | null;
+  conteo: number;
+  confiable: boolean;
+  consenso: ConsensoLimites | null;
+  conteoLimpio: number;
+  promedio: number | null;
+}
+
 @Injectable()
 export class TraceabilityService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly stats: TraceabilityStatsService,
     private readonly consensoConfig: ConsensoConfigService,
+    private readonly asimetriaConfig: AsimetriaConfigService,
+    private readonly proyeccionConfig: ProyeccionConfigService,
   ) {}
 
   async obtenerSummary(
@@ -120,16 +195,28 @@ export class TraceabilityService {
     const where = this.construirWhereScope(q);
     const filas = await this.prisma.wearRatePair.findMany({
       where,
-      select: { tasaMensual: true, fecha2: true },
+      select: { tasaMensual: true, fecha2: true, diferenciaKm: true },
     });
-    const valores = filas.map((f) => Number(f.tasaMensual));
+    // promedioRangoKm SIEMPRE parte de `filas` sin tocar (scope completo,
+    // ver más abajo) — el filtro de este toggle solo afecta a
+    // `filasParaCalculo`, nunca a esa card.
+    const filasParaCalculo = q.filtrarPorRangoKm
+      ? await this.filtrarFilasPorRangoKm(filas)
+      : filas;
+    const valores = filasParaCalculo.map((f) => Number(f.tasaMensual));
 
     if (valores.length < CONTEO_MINIMO) {
       return { datosInsuficientes: true, conteo: valores.length };
     }
 
-    const { gauss, percentiles, tukey, consenso, fracciones } =
-      await this.calcularMetodos(valores);
+    // La config se lee UNA vez y se reparte: el consenso global de acá abajo y
+    // el del subconjunto por rango de km deben salir de los mismos parámetros.
+    const { fracciones, epsilon } = await this.obtenerConfigConsenso();
+    const { gauss, percentiles, tukey, consenso } = this.calcularMetodosCon(
+      valores,
+      fracciones,
+      epsilon,
+    );
 
     // Estadísticas generales sobre valorLimpio (post-recorte/exclusión del
     // propio consenso), NO sobre el valor crudo: mismo criterio de "dato
@@ -138,7 +225,10 @@ export class TraceabilityService {
     // estándar/mínimo/máximo del summary. `where` ya filtra esValido:true
     // (construirWhereScope) — los pares inválidos nunca llegan a `filas`.
     const clasificados = this.stats.clasificarYLimpiarSerie(
-      filas.map((f) => ({ fecha: f.fecha2, valor: Number(f.tasaMensual) })),
+      filasParaCalculo.map((f) => ({
+        fecha: f.fecha2,
+        valor: Number(f.tasaMensual),
+      })),
       consenso.limiteConsenso,
       consenso.extremoConsenso,
     );
@@ -147,6 +237,15 @@ export class TraceabilityService {
       .filter((v): v is number => v !== null);
     const estadisticas =
       this.stats.calcularEstadisticasGenerales(valoresLimpios);
+    // Rango FIJO propio de Trazabilidad (KM_RANGO_INFERIOR/SUPERIOR), sobre
+    // el scope COMPLETO (`filas`, no `filasParaCalculo`) — independiente de
+    // filtrarPorRangoKm, igual que promedio-por-tren/promedio-por-tipo-coche.
+    const promedioRangoKm = this.calcularPromedioRangoKm(
+      filas,
+      fracciones,
+      epsilon,
+    );
+    const asimetria = await this.calcularAsimetriaResumen(valoresLimpios);
 
     return {
       datosInsuficientes: false,
@@ -166,7 +265,146 @@ export class TraceabilityService {
       },
       consenso,
       estadisticas,
+      promedioRangoKm,
+      asimetria,
     };
+  }
+
+  // Igual criterio de "dato limpio" que `estadisticas` (valorLimpio, post-
+  // recorte/exclusión del propio consenso) — SOLO se aplica a /traceability,
+  // nunca a Tasa de Desgaste ni a otro módulo. clasificacion queda null junto
+  // con coeficiente cuando calcularAsimetria no puede operar (n<3).
+  private async calcularAsimetriaResumen(
+    valoresLimpios: number[],
+  ): Promise<AsimetriaResumen> {
+    const coeficiente = this.stats.calcularAsimetria(valoresLimpios);
+    if (coeficiente === null) return { coeficiente: null, clasificacion: null };
+
+    const umbral = await this.asimetriaConfig.obtenerUmbralSimetrica();
+    return {
+      coeficiente,
+      clasificacion: this.stats.clasificarAsimetria(coeficiente, umbral),
+    };
+  }
+
+  // Cálculo INDEPENDIENTE del global: primero recorta el universo a los pares
+  // dentro del rango de km, y recién sobre ESE subconjunto corre los 3 métodos
+  // y el recorte. Heredar el consenso del alcance completo (lo que hacía la
+  // versión anterior) daba un promedio de pares del rango pero limpiado con
+  // límites que no salieron de ellos. SIEMPRE recibe el scope COMPLETO (nunca
+  // pre-filtrado por filtrarPorRangoKm) — ver obtenerSummary.
+  private calcularPromedioRangoKm(
+    filas: {
+      tasaMensual: Prisma.Decimal;
+      fecha2: Date;
+      diferenciaKm: Prisma.Decimal;
+    }[],
+    fracciones: FraccionesPercentil,
+    epsilon: number,
+  ): PromedioRangoKm {
+    const enRango = filas.filter((f) => {
+      const km = Number(f.diferenciaKm);
+      return km >= KM_RANGO_INFERIOR && km <= KM_RANGO_SUPERIOR;
+    });
+    return {
+      kmMinimo: KM_RANGO_INFERIOR,
+      kmMaximo: KM_RANGO_SUPERIOR,
+      ...this.calcularPromedioConsenso(enRango, fracciones, epsilon),
+    };
+  }
+
+  // Promedio de valorLimpio sobre TODOS los pares válidos del tren pedido (o
+  // de toda la flota si `tren` es undefined) — sin tipoCoche/bogieCodigo, sin
+  // ningún recorte de km: el conjunto completo del scope. Mismo cálculo
+  // (consenso Gauss∩Percentiles∩Tukey -> recorte/exclusión -> promedio) que
+  // calcularPromedioRangoKm/ProyeccionRateService, factorizado acá para no
+  // triplicar la lógica. Nunca acepta filtrarPorRangoKm (ver
+  // TraceabilityPromedioPorTrenQueryDto) ni se ve afectado por él.
+  async obtenerPromedioPorTren(tren?: number): Promise<PromedioPorTren> {
+    const pares = await this.prisma.wearRatePair.findMany({
+      where: {
+        esValido: true,
+        ...(tren !== undefined ? { trenNumero: tren } : {}),
+      },
+      select: { tasaMensual: true, fecha2: true },
+    });
+    const { fracciones, epsilon } = await this.obtenerConfigConsenso();
+
+    return {
+      tren: tren ?? null,
+      ...this.calcularPromedioConsenso(pares, fracciones, epsilon),
+    };
+  }
+
+  // Núcleo compartido de "promedio de dato limpio" (consenso propio del
+  // subconjunto -> recorte/exclusión -> promedio de valorLimpio) — usado por
+  // calcularPromedioRangoKm (recorte fijo de Trazabilidad) y
+  // obtenerPromedioPorTren (sin recorte de km). `conteo`/`confiable` se
+  // calculan igual en ambos casos (>= CONTEO_MINIMO); por debajo de
+  // CONTEO_MINIMO_CALCULABLE no hay con qué calcular un consenso.
+  private calcularPromedioConsenso(
+    pares: { tasaMensual: Prisma.Decimal; fecha2: Date }[],
+    fracciones: FraccionesPercentil,
+    epsilon: number,
+  ): {
+    conteo: number;
+    confiable: boolean;
+    consenso: ConsensoLimites | null;
+    conteoLimpio: number;
+    promedio: number | null;
+  } {
+    const conteo = pares.length;
+    const confiable = conteo >= CONTEO_MINIMO;
+
+    if (conteo < CONTEO_MINIMO_CALCULABLE) {
+      return {
+        conteo,
+        confiable,
+        consenso: null,
+        conteoLimpio: 0,
+        promedio: null,
+      };
+    }
+
+    const valores = pares.map((f) => Number(f.tasaMensual));
+    const { consenso } = this.calcularMetodosCon(valores, fracciones, epsilon);
+    const clasificados = this.stats.clasificarYLimpiarSerie(
+      pares.map((f) => ({ fecha: f.fecha2, valor: Number(f.tasaMensual) })),
+      consenso.limiteConsenso,
+      consenso.extremoConsenso,
+    );
+    const limpios = clasificados
+      .map((p) => p.valorLimpio)
+      .filter((v): v is number => v !== null);
+
+    return {
+      conteo,
+      confiable,
+      consenso,
+      conteoLimpio: limpios.length,
+      // Defensivo: `limpios` no debería quedar vacío (los límites salen de
+      // estos mismos valores, así que al menos los centrales sobreviven), pero
+      // un 0/0 acá devolvería NaN y contaminaría la card en vez de fallar.
+      promedio:
+        limpios.length > 0
+          ? limpios.reduce((s, v) => s + v, 0) / limpios.length
+          : null,
+    };
+  }
+
+  // Aplica el rango de km de PROYECCIÓN (proyeccion_km_rango_min/max, MISMO
+  // parámetro que ProyeccionRateService — reutilizado tal cual, nunca
+  // duplicado) — exclusivo de filtrarPorRangoKm en /summary y /series, jamás
+  // usado por calcularPromedioRangoKm (rango fijo propio de Trazabilidad) ni
+  // por obtenerPromedioPorTren (sin recorte de km).
+  private async filtrarFilasPorRangoKm<
+    T extends { diferenciaKm: Prisma.Decimal },
+  >(filas: T[]): Promise<T[]> {
+    const { kmMin, kmMax } = await this.proyeccionConfig.obtenerRangoKm();
+    return filas.filter((f) => {
+      const km = Number(f.diferenciaKm);
+      return km >= kmMin && km <= kmMax;
+    });
   }
 
   async obtenerSeries(
@@ -175,10 +413,13 @@ export class TraceabilityService {
     const where = this.construirWhereScope(q);
     const filas = await this.prisma.wearRatePair.findMany({
       where,
-      select: { fecha2: true, tasaMensual: true },
+      select: { fecha2: true, tasaMensual: true, diferenciaKm: true },
       orderBy: { fecha2: 'asc' },
     });
-    const conteoTotalHistorico = filas.length;
+    const filasParaCalculo = q.filtrarPorRangoKm
+      ? await this.filtrarFilasPorRangoKm(filas)
+      : filas;
+    const conteoTotalHistorico = filasParaCalculo.length;
 
     // Mismo umbral que /summary: los límites se calculan siempre sobre el
     // histórico completo (nunca por periodo), así que si el histórico
@@ -187,12 +428,14 @@ export class TraceabilityService {
       return { datosInsuficientes: true, conteoTotalHistorico };
     }
 
-    const valores = filas.map((f) => Number(f.tasaMensual));
+    const valores = filasParaCalculo.map((f) => Number(f.tasaMensual));
     const { gauss, percentiles, tukey, consenso } =
       await this.calcularMetodos(valores);
 
     const desde = this.calcularFechaDesde(q.periodo);
-    const filasPeriodo = desde ? filas.filter((f) => f.fecha2 >= desde) : filas;
+    const filasPeriodo = desde
+      ? filasParaCalculo.filter((f) => f.fecha2 >= desde)
+      : filasParaCalculo;
     const conteoMostradoEnPeriodo = filasPeriodo.length;
 
     const puntosClasificados = this.stats.clasificarYLimpiarSerie(
@@ -284,11 +527,24 @@ export class TraceabilityService {
     }));
   }
 
-  private async calcularMetodos(valores: number[]) {
+  private async obtenerConfigConsenso() {
     const [fracciones, epsilon] = await Promise.all([
       this.consensoConfig.obtenerFracciones(),
       this.consensoConfig.obtenerEpsilon(),
     ]);
+    return { fracciones, epsilon };
+  }
+
+  // Cálculo puro (sin I/O): recibe la config ya resuelta en vez de leerla. Se
+  // separó de calcularMetodos porque obtenerSummary lo invoca DOS veces por
+  // request (una sobre todo el alcance, otra sobre el subconjunto por rango de
+  // km — ver calcularPromedioRangoKm) y releer system_params en cada una sería
+  // trabajo duplicado sobre parámetros que no cambian dentro del request.
+  private calcularMetodosCon(
+    valores: number[],
+    fracciones: FraccionesPercentil,
+    epsilon: number,
+  ) {
     const gauss = this.stats.calcularLimitesGauss(valores);
     const percentiles = this.stats.calcularLimitesPercentiles(
       valores,
@@ -307,7 +563,15 @@ export class TraceabilityService {
       consensoBruto,
       epsilon,
     );
-    return { gauss, percentiles, tukey, consenso, fracciones };
+    return { gauss, percentiles, tukey, consenso };
+  }
+
+  private async calcularMetodos(valores: number[]) {
+    const { fracciones, epsilon } = await this.obtenerConfigConsenso();
+    return {
+      ...this.calcularMetodosCon(valores, fracciones, epsilon),
+      fracciones,
+    };
   }
 
   // Texto SIEMPRE derivado de los percentiles configurados vigentes (escala

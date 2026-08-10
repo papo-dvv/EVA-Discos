@@ -147,13 +147,14 @@ export class WearRateService {
       ejeNumero: disco.ejeNumero,
       lado: disco.lado,
       // Mismo cálculo que ScanRecord.ordenFisico (ver common/orden-fisico.ts)
-      // — acá siempre resuelve limpio: tipoCoche/bogieCodigo/ejeNumero/lado
-      // de un BrakeDisc ya confirmado nunca son texto libre ni nulos.
+      // — acá siempre resuelve limpio: tipoCoche/bogieCodigo/ejeNumero de un
+      // BrakeDisc ya confirmado nunca son texto libre ni nulos. ruedaNumero sí
+      // puede ser null (no todos los discos históricos lo tienen cargado).
       ordenFisico: calcularOrdenFisico({
         tipoCoche: disco.wagonUnit.tipoCoche,
         bogieCodigo: disco.bogieCodigo,
         ejeNumero: disco.ejeNumero,
-        lado: disco.lado,
+        ruedaNumero: disco.ruedaNumero,
       }),
     };
 

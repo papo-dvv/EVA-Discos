@@ -11,7 +11,7 @@ import {
   Max,
   Min,
 } from 'class-validator';
-import type { EstadoDisco } from '../../../generated/prisma';
+import { LadoDisco, type EstadoDisco } from '../../../generated/prisma';
 import type { AccionRecomendada } from '../../brake-disc-rules/brake-disc-rules.engine';
 
 // Columnas por las que se puede ordenar la vista previa. El nombre público
@@ -42,6 +42,17 @@ export const ESTADOS_DISCO = [
   'CRITICO',
 ] as const satisfies readonly EstadoDisco[];
 
+// Distinto de ESTADOS_DISCO (4 estados): usado SOLO por PreviewQueryDto.estado
+// (Migración preview y Mediciones confirmadas — ambos vía este mismo DTO),
+// que ahora clasifica con clasificarEstadoConReperfilado (ver
+// BrakeDiscRulesEngine). wear-rate-pairs-query.dto.ts sigue usando
+// ESTADOS_DISCO (4) sin REPERFILADO a propósito: wear-rate/pairs no tiene H
+// por fila, así que ese estado nunca puede ocurrir ahí.
+export const ESTADOS_DISCO_CON_REPERFILADO = [
+  ...ESTADOS_DISCO,
+  'REPERFILADO',
+] as const satisfies readonly EstadoDisco[];
+
 // Distinto de ESTADOS_DISCO: accionRecomendada no es un estado del disco, es
 // la recomendación cruzada del eje (ver BrakeDiscRulesEngine.evaluarAccionRecomendada).
 // NINGUNA no se incluye a propósito: filtrar por "sin acción" no tiene un uso
@@ -52,6 +63,15 @@ export const ACCIONES_RECOMENDADAS = [
   'CAMBIO',
   'REPERFILADO',
 ] as const satisfies readonly AccionRecomendada[];
+
+const LADOS_VALORES = Object.values(LadoDisco);
+
+// 'todas' (default) = todas las filas históricas, sin colapsar. 'ultima' /
+// 'primera' colapsan el resultado a UNA fila por disco físico (ver
+// colapsarPorVistaFecha en scan-record-query.ts) — la de fecha más reciente o
+// más antigua de ESE disco, respectivamente.
+export const VISTAS_FECHA = ['todas', 'ultima', 'primera'] as const;
+export type VistaFecha = (typeof VISTAS_FECHA)[number];
 
 // Normaliza un parámetro de array de query: acepta tanto repetición
 // (?estado=OK&estado=CRITICO) como coma (?estado=OK,CRITICO). Devuelve un
@@ -132,11 +152,12 @@ export class PreviewQueryDto {
   bogieCodigo?: string[];
 
   // estadoCalculado SÍ es un enum del sistema: un valor fuera del enum es un
-  // error del cliente y se rechaza.
+  // error del cliente y se rechaza. Incluye REPERFILADO (ver
+  // ESTADOS_DISCO_CON_REPERFILADO) — exclusivo de este DTO.
   @IsOptional()
   @Transform(({ value }) => aArray(value))
   @IsArray()
-  @IsIn(ESTADOS_DISCO, { each: true })
+  @IsIn(ESTADOS_DISCO_CON_REPERFILADO, { each: true })
   estado?: EstadoDisco[];
 
   // A diferencia del resto de filtros, este NUNCA se traduce a un WHERE de
@@ -227,4 +248,37 @@ export class PreviewQueryDto {
   @Type(() => Number)
   @IsInt()
   ruedaMax?: number;
+
+  // Sin default a propósito (undefined se trata igual que 'todas' en
+  // construirWhereScanRecord/buscarScanRecordsPaginado): así un query sin
+  // este parámetro sigue el camino rápido de paginación en la base de datos.
+  @IsOptional()
+  @IsIn(VISTAS_FECHA)
+  vistaFecha?: VistaFecha;
+
+  // Texto libre (ScanRecord.motivo no es un enum) — poblado dinámicamente por
+  // el frontend vía GET .../valores-distintos?campo=motivo (ver punto 2).
+  @IsOptional()
+  @Transform(({ value }) => aArray(value))
+  @IsArray()
+  @IsString({ each: true })
+  motivo?: string[];
+
+  // responsableNombre tampoco es un enum — poblado dinámicamente vía
+  // GET .../valores-distintos?campo=responsable.
+  @IsOptional()
+  @Transform(({ value }) => aArray(value))
+  @IsArray()
+  @IsString({ each: true })
+  responsable?: string[];
+
+  // lado SÍ es un enum real (LadoDisco), pero ScanRecord no tiene una columna
+  // propia: se deriva de ubicacionExcel (y ruedaExcel como fallback), igual
+  // criterio que resolverLado en migration-excel.parser.ts — ver
+  // construirWhereScanRecord.
+  @IsOptional()
+  @Transform(({ value }) => aArray(value))
+  @IsArray()
+  @IsIn(LADOS_VALORES, { each: true })
+  lado?: LadoDisco[];
 }

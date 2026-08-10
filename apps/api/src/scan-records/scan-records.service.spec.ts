@@ -424,6 +424,7 @@ describe('ScanRecordsService (post-commit)', () => {
         seguimiento: 1,
         cambio: 0,
         critico: 1,
+        reperfilado: 0,
       });
       expect(stats.filtrado).toEqual(stats.total);
     });
@@ -463,47 +464,9 @@ describe('ScanRecordsService (post-commit)', () => {
       expect(res).toEqual({ tiposCoche: ['MA1'], bogies: ['PB2', 'PB6'] });
     });
 
-    it('buscar(): calcula accionRecomendada/ladoAfectado cruzando el disco con su par (H>=1.6 y (Rd-0.8)>0.4 en ambos lados -> REPERFILADO/ambos)', async () => {
-      // H=2.0, Rd=1.5 (T=3.5) en los 2 lados: H>=1.6 ✓ y Rd-0.8=0.7>0.4 ✓ ->
-      // reperfilado viable en cada lado por separado -> 'ambos' (ver
-      // BrakeDiscRulesEngine.evaluarAccionRecomendada).
-      const filas = [
-        scan({
-          id: 'r1',
-          discId: 'disc-L',
-          hValue: 2.0,
-          tValue: 3.5,
-          rdValue: 1.5,
-        }),
-        scan({
-          id: 'r2',
-          discId: 'disc-R',
-          hValue: 2.0,
-          tValue: 3.5,
-          rdValue: 1.5,
-        }),
-      ];
+    it('buscar(): accionRecomendada/ladoAfectado ya no se calculan (se dejó de invocar evaluarAccionRecomendada) — ni aparecen en la fila', async () => {
+      const filas = [scan({ id: 'r1', discId: 'disc-L' })];
       prisma = crearPrismaConFixture(filas);
-      const discos = [
-        {
-          id: 'disc-L',
-          wagonUnitId: 'wu-1',
-          bogieCodigo: 'PB3',
-          ejeNumero: 1,
-          lado: 'izquierdo',
-        },
-        {
-          id: 'disc-R',
-          wagonUnitId: 'wu-1',
-          bogieCodigo: 'PB3',
-          ejeNumero: 1,
-          lado: 'derecho',
-        },
-      ];
-      prisma.brakeDisc.findMany.mockImplementation(
-        ({ where }: { where: Condicion }) =>
-          Promise.resolve(discos.filter((d) => coincideCondicion(d, where))),
-      );
 
       const moduleRef = await Test.createTestingModule({
         providers: [
@@ -511,13 +474,7 @@ describe('ScanRecordsService (post-commit)', () => {
           { provide: PrismaService, useValue: prisma },
           {
             provide: BrakeDiscRulesService,
-            useValue: {
-              obtenerEvaluador: jest
-                .fn()
-                .mockResolvedValue(
-                  new BrakeDiscRulesEngine(UMBRALES_POR_DEFECTO),
-                ),
-            },
+            useValue: { obtenerEvaluador: jest.fn() },
           },
         ],
       }).compile();
@@ -525,36 +482,16 @@ describe('ScanRecordsService (post-commit)', () => {
 
       const res = await service.buscar(filtrosBase);
 
-      const porId = new Map(res.rows.map((r) => [r.id, r]));
-      expect(porId.get('r1')).toMatchObject({
-        accionRecomendada: 'REPERFILADO',
-        ladoAfectado: 'ambos',
-      });
-      expect(porId.get('r2')).toMatchObject({
-        accionRecomendada: 'REPERFILADO',
-        ladoAfectado: 'ambos',
-      });
+      expect((res.rows[0] as Registro).accionRecomendada).toBeUndefined();
+      expect((res.rows[0] as Registro).ladoAfectado).toBeUndefined();
+      // brakeDisc nunca se consulta: sin enriquecimiento, no hace falta
+      // resolver el disco par.
+      expect(prisma.brakeDisc.findMany).not.toHaveBeenCalled();
     });
 
-    it('buscar(): sin disco par (nunca se creó el otro lado) -> accionRecomendada null', async () => {
-      const filas = [scan({ id: 'r1', discId: 'disc-solo' })];
+    it('buscar(accionRecomendada=[CRITICO]): el filtro se ignora en silencio — sigue paginando en la base como siempre', async () => {
+      const filas = [scan({ id: 'r1', discId: 'disc-1' })];
       prisma = crearPrismaConFixture(filas);
-      prisma.brakeDisc.findMany.mockImplementation(
-        ({ where }: { where: Condicion }) => {
-          const discos = [
-            {
-              id: 'disc-solo',
-              wagonUnitId: 'wu-2',
-              bogieCodigo: 'PB3',
-              ejeNumero: 1,
-              lado: 'izquierdo',
-            },
-          ];
-          return Promise.resolve(
-            discos.filter((d) => coincideCondicion(d, where)),
-          );
-        },
-      );
 
       const moduleRef = await Test.createTestingModule({
         providers: [
@@ -562,135 +499,7 @@ describe('ScanRecordsService (post-commit)', () => {
           { provide: PrismaService, useValue: prisma },
           {
             provide: BrakeDiscRulesService,
-            useValue: {
-              obtenerEvaluador: jest
-                .fn()
-                .mockResolvedValue(
-                  new BrakeDiscRulesEngine(UMBRALES_POR_DEFECTO),
-                ),
-            },
-          },
-        ],
-      }).compile();
-      service = moduleRef.get(ScanRecordsService);
-
-      const res = await service.buscar(filtrosBase);
-
-      expect(res.rows[0].accionRecomendada).toBeNull();
-      expect(res.rows[0].ladoAfectado).toBeNull();
-    });
-
-    it('buscar(accionRecomendada=[CRITICO]): filtra por la acción calculada, ignorando REPERFILADO y NINGUNA — y pagina sobre lo YA filtrado', async () => {
-      // 3 ejes: uno crítico (rd<=0 en un lado), uno reperfilado (H/Rd
-      // viables en ambos lados), uno sin acción (H bajo, nunca cruza el
-      // umbral de reperfilado) — solo el primero debe sobrevivir al filtro.
-      const filas = [
-        scan({
-          id: 'critico-L',
-          discId: 'disc-crit-L',
-          hValue: 2.0,
-          tValue: 2.0,
-          rdValue: 0,
-        }),
-        scan({
-          id: 'critico-R',
-          discId: 'disc-crit-R',
-          hValue: 2.0,
-          tValue: 5.0,
-          rdValue: 3.0,
-        }),
-        scan({
-          id: 'reperf-L',
-          discId: 'disc-rep-L',
-          hValue: 2.0,
-          tValue: 3.5,
-          rdValue: 1.5,
-        }),
-        scan({
-          id: 'reperf-R',
-          discId: 'disc-rep-R',
-          hValue: 2.0,
-          tValue: 3.5,
-          rdValue: 1.5,
-        }),
-        scan({
-          id: 'ninguna-L',
-          discId: 'disc-ning-L',
-          hValue: 0.5,
-          tValue: 5.5,
-          rdValue: 5.0,
-        }),
-        scan({
-          id: 'ninguna-R',
-          discId: 'disc-ning-R',
-          hValue: 0.5,
-          tValue: 5.5,
-          rdValue: 5.0,
-        }),
-      ];
-      prisma = crearPrismaConFixture(filas);
-      const discos = [
-        {
-          id: 'disc-crit-L',
-          wagonUnitId: 'wu-crit',
-          bogieCodigo: 'PB3',
-          ejeNumero: 1,
-          lado: 'izquierdo',
-        },
-        {
-          id: 'disc-crit-R',
-          wagonUnitId: 'wu-crit',
-          bogieCodigo: 'PB3',
-          ejeNumero: 1,
-          lado: 'derecho',
-        },
-        {
-          id: 'disc-rep-L',
-          wagonUnitId: 'wu-rep',
-          bogieCodigo: 'PB3',
-          ejeNumero: 1,
-          lado: 'izquierdo',
-        },
-        {
-          id: 'disc-rep-R',
-          wagonUnitId: 'wu-rep',
-          bogieCodigo: 'PB3',
-          ejeNumero: 1,
-          lado: 'derecho',
-        },
-        {
-          id: 'disc-ning-L',
-          wagonUnitId: 'wu-ning',
-          bogieCodigo: 'PB3',
-          ejeNumero: 1,
-          lado: 'izquierdo',
-        },
-        {
-          id: 'disc-ning-R',
-          wagonUnitId: 'wu-ning',
-          bogieCodigo: 'PB3',
-          ejeNumero: 1,
-          lado: 'derecho',
-        },
-      ];
-      prisma.brakeDisc.findMany.mockImplementation(
-        ({ where }: { where: Condicion }) =>
-          Promise.resolve(discos.filter((d) => coincideCondicion(d, where))),
-      );
-
-      const moduleRef = await Test.createTestingModule({
-        providers: [
-          ScanRecordsService,
-          { provide: PrismaService, useValue: prisma },
-          {
-            provide: BrakeDiscRulesService,
-            useValue: {
-              obtenerEvaluador: jest
-                .fn()
-                .mockResolvedValue(
-                  new BrakeDiscRulesEngine(UMBRALES_POR_DEFECTO),
-                ),
-            },
+            useValue: { obtenerEvaluador: jest.fn() },
           },
         ],
       }).compile();
@@ -701,15 +510,8 @@ describe('ScanRecordsService (post-commit)', () => {
         accionRecomendada: ['CRITICO'],
       });
 
-      expect(res.total).toBe(2);
-      expect(res.totalPages).toBe(1);
-      expect(res.rows.map((r) => r.id).sort()).toEqual([
-        'critico-L',
-        'critico-R',
-      ]);
-      expect(res.rows.every((r) => r.accionRecomendada === 'CRITICO')).toBe(
-        true,
-      );
+      expect(res.total).toBe(1);
+      expect(res.rows.map((r) => r.id)).toEqual(['r1']);
     });
   });
 });

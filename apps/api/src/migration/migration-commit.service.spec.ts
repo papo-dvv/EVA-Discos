@@ -4,6 +4,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { GenerarSnapshotService } from '../module-snapshot/generar-snapshot.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { WearRateService } from '../wear-rate/wear-rate.service';
 import { MigrationCommitService } from './migration-commit.service';
@@ -290,11 +291,18 @@ async function construirServicio(
   const wearRateFake = {
     recalcularParaDiscos: jest.fn().mockResolvedValue(undefined),
   };
+  // Igual criterio que wearRateFake: la correctitud de GenerarSnapshotService
+  // ya está cubierta en su propio spec — acá solo hace falta un stub que no
+  // reviente, para no acoplar este spec a la generación de snapshots.
+  const generarSnapshotFake = {
+    generar: jest.fn().mockResolvedValue(undefined),
+  };
   const moduleRef = await Test.createTestingModule({
     providers: [
       MigrationCommitService,
       { provide: PrismaService, useValue: prisma },
       { provide: WearRateService, useValue: wearRateFake },
+      { provide: GenerarSnapshotService, useValue: generarSnapshotFake },
     ],
   }).compile();
   return moduleRef.get(MigrationCommitService);

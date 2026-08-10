@@ -1,6 +1,7 @@
-import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import { IsBoolean, IsIn, IsInt, IsOptional, IsString } from 'class-validator';
 import { TipoCoche } from '../../../generated/prisma';
+import { aBoolean } from '../../migration/dto/preview-query.dto';
 
 const TIPOS_COCHE_VALORES = Object.values(TipoCoche);
 
@@ -25,4 +26,19 @@ export class TraceabilityScopeQueryDto {
   @IsOptional()
   @IsString()
   bogieCodigo?: string;
+
+  // Filtra el conjunto de wear_rate_pairs usado para TODOS los cálculos
+  // (límites, consenso, estadísticas generales, asimetría, series del
+  // gráfico) al rango de km de Proyección (proyeccion_km_rango_min/max, ver
+  // ProyeccionConfigService — el MISMO rango, reutilizado tal cual, nunca
+  // duplicado). Default true a nivel DTO (ausente en la query -> true acá vía
+  // el Transform); el ausente de un objeto plano armado a mano (tests
+  // unitarios que llaman al servicio directo, sin pasar por este DTO) NO
+  // dispara este default — ver TraceabilityService, que solo filtra cuando
+  // el valor es exactamente `true`. NUNCA afecta promedioRangoKm (rango fijo
+  // propio de Trazabilidad) ni el cálculo interno de ProyeccionRateService.
+  @IsOptional()
+  @Transform(({ value }) => aBoolean(value) ?? true)
+  @IsBoolean()
+  filtrarPorRangoKm: boolean = true;
 }

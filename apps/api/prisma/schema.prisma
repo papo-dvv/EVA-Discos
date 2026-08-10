@@ -82,6 +82,7 @@ enum EstadoDisco {
   SEGUIMIENTO
   CAMBIO
   CRITICO
+  REPERFILADO
 }
 
 enum MetodoOutlier {
@@ -93,6 +94,10 @@ enum MetodoOutlier {
 enum TipoCargaArchivo {
   csv_individual
   migracion_masiva_excel
+  // Ficha de medición individual (NewMeasurementModule) — carga desde el CSV
+  // "largo" de Nextsense/cpo, o ficha 100% manual sin archivo. Distinto de
+  // csv_individual (reservado, sin uso todavía) a pedido explícito del prompt.
+  ficha_medicion_individual
 }
 
 enum EtapaEdicion {
@@ -136,6 +141,11 @@ enum FormatoReporte {
   excel
 }
 
+enum ModuloSnapshot {
+  trazabilidad
+  proyeccion
+}
+
 // ============================================================================
 // 2. USUARIOS Y ACCESOS
 // ============================================================================
@@ -175,6 +185,7 @@ model User {
   reportRequests                ReportRequest[]
   systemParamsActualizados      SystemParam[]
   systemParamAudits             SystemParamAudit[]
+  moduleSnapshotsGenerados      ModuleSnapshot[]
 
   @@index([rol], map: "idx_users_rol")
   @@index([estadoCuenta], map: "idx_users_estado_cuenta")
@@ -333,9 +344,10 @@ model UploadedFile {
   commitLotesCompletados Int     @default(0) @map("commit_lotes_completados")
   commitError            String? @map("commit_error")
 
-  uploadedByUser User          @relation(fields: [uploadedBy], references: [id])
-  scanRecords    ScanRecord[]
-  scanEditLogs   ScanEditLog[]
+  uploadedByUser    User               @relation(fields: [uploadedBy], references: [id])
+  scanRecords       ScanRecord[]
+  scanEditLogs      ScanEditLog[]
+  measurementSheets MeasurementSheet[]
 
   @@index([status], map: "idx_uploaded_files_status")
   @@index([tipoCarga], map: "idx_uploaded_files_tipo_carga")
@@ -388,6 +400,27 @@ model ScanRecord {
   // chars), no solo "izquierdo/derecho": VarChar(20) las truncaba (error 22001).
   ubicacionExcel   String? @map("ubicacion_excel") @db.VarChar(50)
   ruedaExcel       Int?    @map("rueda_excel")
+
+  // Exclusivo de NewMeasurementModule (ficha_medicion_individual): campo libre
+  // "Observación" por disco, ingresado a mano o vacío. Nullable y sin uso en
+  // ningún otro flujo — no rompe la migración masiva ni las mediciones
+  // confirmadas existentes.
+  observacion String? @db.VarChar(500)
+
+  // Flags de validación cruzada automática (NewMeasurementModule, ficha en
+  // borrador) — ver NewMeasurementValidationService. kmInvalido/fechaInvalido
+  // son a nivel FICHA/TREN (mismo valor calculado para todas las filas de la
+  // ficha); tInvalido/rdInvalido son por disco físico individual. Todos en
+  // false por defecto y sin uso fuera de NewMeasurementModule — no afectan la
+  // migración masiva ni las mediciones ya confirmadas. excluidaDelCommit se
+  // fija recién en POST .../validate: una fila que sigue con algún flag activo
+  // tras la re-evaluación queda fuera del commit sin borrarse físicamente (ver
+  // NewMeasurementCommitService.confirmar).
+  kmInvalido        Boolean @default(false) @map("km_invalido")
+  fechaInvalido     Boolean @default(false) @map("fecha_invalido")
+  tInvalido         Boolean @default(false) @map("t_invalido")
+  rdInvalido        Boolean @default(false) @map("rd_invalido")
+  excluidaDelCommit Boolean @default(false) @map("excluida_del_commit")
 
   // Orden FÍSICO real de coche+bogie+eje+lado (nunca alfabético) — precalculado
   // por calcularOrdenFisico (ver common/orden-fisico.ts) al insertar la fila
@@ -513,6 +546,106 @@ model WearRatePair {
   @@map("wear_rate_pairs")
 }
 
+// Ficha de medición individual (NewMeasurementModule, motivo 'Medición'
+// únicamente por ahora) — cabecera + firmas/conformidad de una carga CSV o de
+// un ingreso 100% manual. Las filas de medición en sí viven en ScanRecord
+// (mismo mecanismo de borrador que la migración masiva: fileId obligatorio,
+// disc_id null hasta confirmar), NO acá — esta tabla solo guarda lo que
+// ScanRecord no puede representar (metadata de la ficha física + firmas).
+model MeasurementSheet {
+  id             String   @id @default(uuid()) @db.Uuid
+  // Nullable en el modelo: conceptualmente, una ficha 100% manual no "viene"
+  // de ningún archivo. En la práctica, como scan_records.file_id es NOT NULL,
+  // el servicio siempre crea un UploadedFile "técnico" (tipo_carga
+  // ficha_medicion_individual) para agrupar sus filas incluso en modo manual
+  // — ver comentario en NewMeasurementService.crearManual.
+  uploadedFileId String?  @map("uploaded_file_id") @db.Uuid
+  trenNumero     Int      @map("tren_numero")
+  kilometraje    Decimal  @db.Decimal(12, 2)
+  fechaFicha     DateTime @map("fecha_ficha") @db.Date
+  // Texto fijo por ahora ("BAJO BASTIDOR - TREN ALSTOM"), no editable —
+  // exclusivo de fichas con motivo='Medición' (ver NewMeasurementService).
+  actividad      String   @db.VarChar(200)
+
+  // Discrepancia Tren/Kilometraje editado vs. el valor que trajo el CSV —
+  // mismo patrón "corregidoPorHoja" de la migración masiva (ver
+  // ScanRecord.corregidoPorHoja): se marca pero NUNCA bloquea. Ambos null en
+  // fichas 100% manuales (no hay CSV contra el cual comparar).
+  trenOriginalCsv        Int?     @map("tren_original_csv")
+  corregidoTren          Boolean  @default(false) @map("corregido_tren")
+  kilometrajeOriginalCsv Decimal? @map("kilometraje_original_csv") @db.Decimal(12, 2)
+  corregidoKilometraje   Boolean  @default(false) @map("corregido_kilometraje")
+
+  todasConformes                 Boolean?  @map("todas_conformes")
+  comentariosActividad           String?   @map("comentarios_actividad") @db.Text
+  // Único campo obligatorio para poder confirmar (validado en el commit, NO
+  // acá: la ficha se guarda en borrador sin esto todavía) — ver
+  // NewMeasurementCommitService.confirmar.
+  responsableMantenimientoNombre String?   @map("responsable_mantenimiento_nombre") @db.VarChar(200)
+  responsableMantenimientoFirma  String?   @map("responsable_mantenimiento_firma") @db.VarChar(500)
+  responsableMantenimientoFecha  DateTime? @map("responsable_mantenimiento_fecha") @db.Date
+  ingMrNombre                    String?   @map("ing_mr_nombre") @db.VarChar(200)
+  ingMrFirma                     String?   @map("ing_mr_firma") @db.VarChar(500)
+  ingMrFecha                     DateTime? @map("ing_mr_fecha") @db.Date
+
+  // Ciclo verificar -> bloquear -> confirmar (ver NewMeasurementValidationService
+  // y NewMeasurementCommitService.confirmar). verificado pasa a true recién
+  // tras un POST .../validate exitoso, y se resetea a false apenas se edita
+  // cualquier fila o el header (tren/kilometraje/fecha) — así POST .../lock
+  // siempre exige una verificación fresca, sin ediciones posteriores.
+  // tablaBloqueada congela la tabla de mediciones y el header (Tren/Fecha/
+  // Kilometraje); las firmas/técnicos/comentarios siguen editables después.
+  // El commit final exige responsableMantenimientoNombre Y tablaBloqueada.
+  verificado     Boolean @default(false)
+  tablaBloqueada Boolean @default(false) @map("tabla_bloqueada")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  uploadedFile UploadedFile?                 @relation(fields: [uploadedFileId], references: [id])
+  tecnicos     MeasurementSheetTecnico[]
+  instrumentos MeasurementSheetInstrumento[]
+
+  @@index([uploadedFileId], map: "idx_measurement_sheet_uploaded_file")
+  @@index([trenNumero], map: "idx_measurement_sheet_tren")
+  @@map("measurement_sheet")
+}
+
+// "Realizado por": 4 filas FIJAS por ficha (posicion 1-4), todas nullable —
+// solo el nombre de responsable_mantenimiento en la ficha padre es
+// obligatorio para confirmar, esto queda libre.
+model MeasurementSheetTecnico {
+  id                 String    @id @default(uuid()) @db.Uuid
+  measurementSheetId String    @map("measurement_sheet_id") @db.Uuid
+  posicion           Int
+  nombre             String?   @db.VarChar(200)
+  firma              String?   @db.VarChar(500)
+  fecha              DateTime? @db.Date
+
+  measurementSheet MeasurementSheet @relation(fields: [measurementSheetId], references: [id], onDelete: Cascade)
+
+  @@unique([measurementSheetId, posicion])
+  @@map("measurement_sheet_tecnico")
+}
+
+// Instrumentos usados: 3 filas FIJAS por ficha (posicion 1-3), texto libre,
+// todas nullable.
+model MeasurementSheetInstrumento {
+  id                          String    @id @default(uuid()) @db.Uuid
+  measurementSheetId          String    @map("measurement_sheet_id") @db.Uuid
+  posicion                    Int
+  codigo                      String?   @db.VarChar(100)
+  descripcion                 String?   @db.VarChar(300)
+  modeloMarca                 String?   @map("modelo_marca") @db.VarChar(200)
+  fechaCalibracion            DateTime? @map("fecha_calibracion") @db.Date
+  fechaVencimientoCalibracion DateTime? @map("fecha_vencimiento_calibracion") @db.Date
+  observaciones               String?   @db.Text
+
+  measurementSheet MeasurementSheet @relation(fields: [measurementSheetId], references: [id], onDelete: Cascade)
+
+  @@unique([measurementSheetId, posicion])
+  @@map("measurement_sheet_instrumento")
+}
+
 // ============================================================================
 // 5. OPERACIONES Y CALENDARIO
 // ============================================================================
@@ -621,4 +754,44 @@ model SystemParamAudit {
 
   @@index([clave], map: "idx_system_param_audit_clave")
   @@map("system_param_audit")
+}
+
+// ============================================================================
+// 7. HISTORIAL DE ACTUALIZACIÓN (SNAPSHOTS DE TRAZABILIDAD/PROYECCIÓN)
+// ============================================================================
+
+// Snapshot mensual de TODOS los cálculos de un módulo (Trazabilidad o
+// Proyección) en un momento dado — ver GenerarSnapshotService.generar. Regla
+// de negocio: "solo se conserva la primera actualización del mes" — de ahí
+// el UNIQUE(modulo, mesAnio); un segundo intento de generar un snapshot en
+// el mismo mes calendario nunca sobrescribe el que ya existe, es un
+// upsert-SI-NO-EXISTE, nunca un upsert que reemplace. Sirve para que el
+// frontend muestre "Última actualización: [fecha]" sin recalcular todo en
+// vivo cada vez que alguien abre Trazabilidad/Proyección.
+model ModuleSnapshot {
+  id      String         @id @default(uuid()) @db.Uuid
+  modulo  ModuloSnapshot
+  // 'YYYY-MM' (ej. '2026-08') — mes calendario del SERVIDOR al momento de
+  // generar, nunca recalculado a partir de generadoEn en la lectura.
+  mesAnio String         @map("mes_anio") @db.VarChar(7)
+
+  // Copia completa de todos los cálculos del módulo en ese momento: límites
+  // de los 3 métodos + consenso + estadísticas generales + asimetría +
+  // promedios por tren/tipo de coche (trazabilidad), o proyección completa
+  // por disco + pronóstico 12 meses + promedios por tipo de coche
+  // (proyección) — ver GenerarSnapshotService.calcularDatosCompletos.
+  datosCompletos Json @map("datos_completos") @db.JsonB
+
+  generadoEn  DateTime @default(now()) @map("generado_en") @db.Timestamptz(6)
+  // NULL = generado automáticamente por el sistema — hoy el ÚNICO caso
+  // posible (primer arranque del proceso o primer commit exitoso de la
+  // migración masiva, lo que ocurra primero: ver SnapshotBootstrapService y
+  // MigrationCommitService.confirmar). Queda nullable a propósito para
+  // cuando exista un botón de "actualizar manualmente" y sí viaje un usuario.
+  generadoPor String?  @map("generado_por") @db.Uuid
+
+  generadoPorUser User? @relation(fields: [generadoPor], references: [id])
+
+  @@unique([modulo, mesAnio])
+  @@map("module_snapshot")
 }

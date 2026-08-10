@@ -1,6 +1,7 @@
 import { apiClient } from '../../lib/apiClient'
 import type {
   CambiosFila,
+  CampoValoresDistintos,
   OpcionesFiltro,
   PreviewParams,
   PreviewResult,
@@ -31,6 +32,15 @@ export async function obtenerStatsConfirmado(params: PreviewParams): Promise<Sta
 
 export async function obtenerOpcionesFiltroConfirmado(): Promise<OpcionesFiltro> {
   const { data } = await apiClient.get<OpcionesFiltro>('/scan-records/filtros')
+  return data
+}
+
+export async function obtenerValoresDistintosConfirmado(
+  campo: CampoValoresDistintos,
+): Promise<string[]> {
+  const { data } = await apiClient.get<string[]>('/scan-records/valores-distintos', {
+    params: { campo },
+  })
   return data
 }
 

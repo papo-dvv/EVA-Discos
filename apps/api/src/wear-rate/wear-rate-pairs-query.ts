@@ -23,6 +23,16 @@ function rangoRd2ParaEstado(
       return { gt: umbrales.rdUmbralSeguimiento, lt: umbrales.rdUmbralOk };
     case 'OK':
       return { gte: umbrales.rdUmbralOk };
+    case 'REPERFILADO':
+      // Nunca debería llegar acá: WearRatePairsQueryDto valida estado[]
+      // contra ESTADOS_DISCO (4 estados, sin REPERFILADO) — wear-rate/pairs
+      // no tiene H por fila, así que no participa de la clasificación
+      // ampliada (ver BrakeDiscRulesEngine.clasificarEstadoConReperfilado,
+      // exclusiva de Migración/Mediciones). Caso agregado solo para que el
+      // switch siga siendo exhaustivo tras sumar REPERFILADO al enum.
+      throw new Error(
+        'REPERFILADO no es un estado válido para el filtro de wear-rate/pairs',
+      );
   }
 }
 

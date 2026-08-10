@@ -60,6 +60,9 @@ export interface EstadisticasGenerales {
   conteo: number;
 }
 
+export type ClasificacionAsimetria =
+  'SIMETRICA' | 'SESGO_POSITIVO' | 'SESGO_NEGATIVO';
+
 function media(valores: number[]): number {
   return valores.reduce((suma, v) => suma + v, 0) / valores.length;
 }
@@ -270,6 +273,36 @@ export function calcularEstadisticasGenerales(
   };
 }
 
+// Coeficiente de asimetría de Fisher-Pearson AJUSTADO (G1, el mismo que usa
+// Excel SKEW()) — sobre los mismos valores (valorLimpio) que ya alimentan a
+// calcularEstadisticasGenerales, nunca sobre el crudo. Requiere n>=3 para que
+// el factor de ajuste sqrt(n(n-1))/(n-2) tenga sentido (n=2 divide por cero,
+// n<2 además deja la desviación muestral en NaN) — no debería ocurrir dado
+// CONTEO_MINIMO=20 en TraceabilityService, pero se cubre igual: null en vez
+// de reventar.
+export function calcularAsimetria(valores: number[]): number | null {
+  const n = valores.length;
+  if (n < 3) return null;
+  const m = media(valores);
+  const s = desviacionEstandar(valores, m);
+  const momentoTercero =
+    valores.reduce((suma, v) => suma + (v - m) ** 3, 0) / n;
+  const factorAjuste = Math.sqrt(n * (n - 1)) / (n - 2);
+  return factorAjuste * (momentoTercero / s ** 3);
+}
+
+// asimetria_umbral_simetrica es el único parámetro configurable (ver
+// AsimetriaConfigService) — Gauss/Tukey de arriba y este umbral comparten el
+// mismo criterio: convención estadística fija salvo lo explícitamente
+// configurable en system_params.
+export function clasificarAsimetria(
+  coeficiente: number,
+  umbral: number,
+): ClasificacionAsimetria {
+  if (Math.abs(coeficiente) < umbral) return 'SIMETRICA';
+  return coeficiente >= 0 ? 'SESGO_POSITIVO' : 'SESGO_NEGATIVO';
+}
+
 @Injectable()
 export class TraceabilityStatsService {
   calcularLimitesGauss(valores: number[]): LimitesMetodo {
@@ -312,5 +345,16 @@ export class TraceabilityStatsService {
 
   calcularEstadisticasGenerales(valores: number[]): EstadisticasGenerales {
     return calcularEstadisticasGenerales(valores);
+  }
+
+  calcularAsimetria(valores: number[]): number | null {
+    return calcularAsimetria(valores);
+  }
+
+  clasificarAsimetria(
+    coeficiente: number,
+    umbral: number,
+  ): ClasificacionAsimetria {
+    return clasificarAsimetria(coeficiente, umbral);
   }
 }

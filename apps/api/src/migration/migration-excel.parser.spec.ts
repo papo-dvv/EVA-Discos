@@ -69,12 +69,13 @@ describe('procesarWorkbook — fixture T06/T07', () => {
     expect(resultado.filas).toHaveLength(8);
   });
 
-  it('cubre los 4 estados calculados por el backend', () => {
+  it('cubre los 5 estados calculados por el backend (incluido REPERFILADO)', () => {
     const estados = resultado.filas.map((f) => f.estadoCalculado);
     expect(estados).toContain('OK');
     expect(estados).toContain('SEGUIMIENTO');
     expect(estados).toContain('CAMBIO');
     expect(estados).toContain('CRITICO');
+    expect(estados).toContain('REPERFILADO');
   });
 
   it('calcula rd = T - H y NUNCA usa la columna T-H de la planilla (que trae 999)', () => {
@@ -82,7 +83,9 @@ describe('procesarWorkbook — fixture T06/T07', () => {
     expect(primera.tValue).toBe(12.4);
     expect(primera.hValue).toBe(3.8);
     expect(primera.rdValue).toBeCloseTo(8.6);
-    expect(primera.estadoCalculado).toBe('OK');
+    // REPERFILADO, no OK: h=3.8 >= 1.6 y (8.6-0.8)=7.8 > 0.4 -> H manda (ver
+    // clasificarEstadoConReperfilado).
+    expect(primera.estadoCalculado).toBe('REPERFILADO');
   });
 
   it('corrige el tren según la hoja y conserva el valor original (99 -> 6 en T06)', () => {
@@ -238,7 +241,8 @@ describe('procesarWorkbook — casos aislados', () => {
     expect(fila.hValue).toBe(3.8);
     expect(fila.bogieExcel).toBe('PB3');
     expect(fila.ubicacionExcel).toBe('derecho');
-    expect(fila.estadoCalculado).toBe('OK');
+    // REPERFILADO, no OK: h=3.8 >= 1.6 y (8.6-0.8)=7.8 > 0.4 -> H manda.
+    expect(fila.estadoCalculado).toBe('REPERFILADO');
   });
 
   it('una hoja del rango presente pero sin filas de datos se procesa sin filas', () => {

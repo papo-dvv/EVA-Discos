@@ -28,6 +28,7 @@ describe('BrakeDiscRulesService', () => {
     umbralesProvider.obtenerUmbrales.mockResolvedValue({
       rdUmbralOk: 2.0,
       rdUmbralSeguimiento: 1.0,
+      rdUmbralCritico: 0.0,
       hUmbralReperfilado: 1.6,
       reperfiladoDescuentoRd: 0.8,
     });
@@ -41,6 +42,7 @@ describe('BrakeDiscRulesService', () => {
     const umbrales = {
       rdUmbralOk: 2.0,
       rdUmbralSeguimiento: 1.0,
+      rdUmbralCritico: 0.0,
       hUmbralReperfilado: 1.6,
       reperfiladoDescuentoRd: 0.8,
     };
@@ -53,6 +55,7 @@ describe('BrakeDiscRulesService', () => {
     umbralesProvider.obtenerUmbrales.mockResolvedValue({
       rdUmbralOk: 1.0,
       rdUmbralSeguimiento: 0.4,
+      rdUmbralCritico: 0.0,
       hUmbralReperfilado: 1.6,
       reperfiladoDescuentoRd: 0.8,
     });

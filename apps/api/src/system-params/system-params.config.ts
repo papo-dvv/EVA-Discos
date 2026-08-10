@@ -45,6 +45,25 @@ export const PARAMS_EDITABLES: Record<string, ReglaParam> = {
   // forma de volver a "sin restricción" por API — mismo límite que ya tiene
   // consenso_extremo_epsilon.
   amplitud_maxima_extremo: { tipo: 'numero', min: 0 },
+  // Valor absoluto del coeficiente de asimetría (Fisher-Pearson ajustado, ver
+  // calcularAsimetria en traceability-stats.service.ts) por debajo del cual
+  // la distribución de trazabilidad se considera SIMETRICA — cambiar ESTA
+  // clave tampoco dispara la validación de consenso (no es un percentil, no
+  // afecta gauss/percentiles/tukey/consenso, solo la clasificación de
+  // asimetria en /traceability/summary).
+  asimetria_umbral_simetrica: { tipo: 'numero', min: 0 },
+  // Rango de diferenciaKm (wear_rate_pairs) que alimenta la tasa promedio de
+  // desgaste por tipo de coche usada en Proyección de Reperfilado y Cambio
+  // (ver ProyeccionRateService) — mismo criterio de "tramo ni muy corto ni
+  // muy largo" que KM_RANGO_INFERIOR/SUPERIOR en traceability.service.ts,
+  // pero configurable acá porque es un parámetro propio de Proyección, no de
+  // Trazabilidad.
+  proyeccion_km_rango_min: { tipo: 'numero', min: 0 },
+  proyeccion_km_rango_max: { tipo: 'numero', min: 0 },
+  // Umbral configurable de "hace cuánto no se mide" (MeasurementGapModule) —
+  // la alerta SEVERA queda fija en 7 meses en el código, nunca lee esta
+  // clave (ver measurement-gap.service.ts).
+  measurement_gap_umbral_meses: { tipo: 'numero', min: 0 },
 };
 
 // Valida y normaliza el valor recibido según la regla de la clave. Devuelve el

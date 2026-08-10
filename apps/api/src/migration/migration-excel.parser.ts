@@ -3,6 +3,7 @@ import { utils } from 'xlsx';
 import { LadoDisco } from '../../generated/prisma';
 import type {
   BrakeDiscRulesEngine,
+  EstadoDiscoAmpliado,
   EstadoDiscoCalculado,
 } from '../brake-disc-rules/brake-disc-rules.engine';
 import { calcularOrdenFisico } from '../common/orden-fisico';
@@ -50,7 +51,7 @@ export interface FilaMigracion {
   tValue: number;
   hValue: number;
   rdValue: number;
-  estadoCalculado: EstadoDiscoCalculado;
+  estadoCalculado: EstadoDiscoAmpliado;
   estadoSugeridoExcel: string | null;
   hojaExcelOrigen: string;
   trenOriginalExcel: number | null;
@@ -551,7 +552,10 @@ export function procesarWorkbook(
 
         // --- A partir de acá, lógica de negocio del prompt 3 (SIN CAMBIOS) ---
         const rdValue = evaluador.calcularRd(tValue, hValue);
-        const estadoCalculado = evaluador.clasificarEstado(rdValue);
+        const estadoCalculado = evaluador.clasificarEstadoConReperfilado(
+          rdValue,
+          hValue,
+        );
 
         // b. Corrección de tren por hoja. La hoja siempre manda.
         const trenExcel = aNumeroONull(filaCruda[col.tren]);
@@ -612,7 +616,7 @@ export function procesarWorkbook(
             tipoCoche: cocheNormalizado,
             bogieCodigo: bogieExcel,
             ejeNumero: ejeExcel,
-            lado: resolverLado(ubicacionExcel, ruedaExcel),
+            ruedaNumero: ruedaExcel,
           }),
         });
       } catch (err) {

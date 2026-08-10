@@ -2,6 +2,7 @@ import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
+import { TraceabilityPromedioPorTrenQueryDto } from './dto/traceability-promedio-por-tren-query.dto';
 import { TraceabilityScopeQueryDto } from './dto/traceability-scope-query.dto';
 import { TraceabilitySeriesQueryDto } from './dto/traceability-series-query.dto';
 import { TraceabilityService } from './traceability.service';
@@ -35,5 +36,10 @@ export class TraceabilityController {
   @Get('series')
   series(@Query() query: TraceabilitySeriesQueryDto) {
     return this.traceability.obtenerSeries(query);
+  }
+
+  @Get('promedio-por-tren')
+  promedioPorTren(@Query() query: TraceabilityPromedioPorTrenQueryDto) {
+    return this.traceability.obtenerPromedioPorTren(query.tren);
   }
 }
