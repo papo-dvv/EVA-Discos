@@ -94,7 +94,7 @@ export class ReprofilingGeminiService {
     const ai = new GoogleGenAI({ apiKey });
     const prompt = `Analiza esta fotografía de una ficha ferroviaria de reperfilado. Puede estar inclinada, girada, recortada y contener escritura manuscrita azul.
 
-Identifica primero el formato. Para UT-UF-MTO-FR-414, extrae N° de tren, kilometraje, P.T., fecha/hora de inicio y fecha/hora de fin. En la tabla hay hasta 24 ejes y dos lados por eje. Extrae únicamente valores visibles y legibles de DESPUÉS DEL REPERFILADO:
+Identifica primero el formato. Para UT-UF-MTO-FR-414, extrae N° de tren, kilometraje, P.T., fecha/hora de inicio y fecha/hora de fin. El P.T. es un código alfanumérico continuo, sin espacios ni guiones (por ejemplo: GZMF1844435); distingue cuidadosamente letras similares como Y/Z y no agregues separadores. En la tabla hay hasta 24 ejes y dos lados por eje. Extrae únicamente valores visibles y legibles de DESPUÉS DEL REPERFILADO:
 - tValue = Espesor medido (mm)
 - hValue = Desgaste cóncavo / profundidad (mm)
 No confundas las columnas ANTES con DESPUÉS. No uses Rugosidad Ra como hValue. No inventes filas tapadas, cortadas o vacías.
@@ -127,7 +127,7 @@ El lado izquierdo está a la izquierda del bloque central EJE/RUEDA/COCHE y el d
       return {
         trenNumero: datos.trenNumero,
         kilometraje: datos.kilometraje,
-        puestoTrabajo: datos.puestoTrabajo,
+        puestoTrabajo: datos.puestoTrabajo?.replace(/[^A-Z0-9]/gi, '').toUpperCase() || null,
         fecha: datos.fecha,
         horaInicio: datos.horaInicio,
         horaFin: datos.horaFin,
