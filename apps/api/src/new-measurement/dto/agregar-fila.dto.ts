@@ -36,6 +36,11 @@ export class AgregarFilaDto {
   tValue!: number;
 
   @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  rugosidadRa?: number;
+
+  @IsOptional()
   @IsDateString()
   fecha?: string;
 

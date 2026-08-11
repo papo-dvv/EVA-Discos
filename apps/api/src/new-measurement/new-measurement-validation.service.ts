@@ -34,6 +34,7 @@ export class NewMeasurementValidationService {
       throw new NotFoundException('Ficha de medición no encontrada.');
     }
     if (!ficha.uploadedFileId) return [];
+    const esReperfilado = ficha.motivo === 'Reperfilado';
 
     const [filas, tren] = await Promise.all([
       this.prisma.scanRecord.findMany({
@@ -57,6 +58,7 @@ export class NewMeasurementValidationService {
     const wagonCache = new Map<string, string | null>();
     const flagsPorFila = await Promise.all(
       filas.map(async (fila) => {
+        const raCalculada = Number(fila.tValue) - Number(fila.hValue);
         const discId = tren
           ? await this.resolverDiscIdSilencioso(tren.id, fila, wagonCache)
           : null;
@@ -70,7 +72,13 @@ export class NewMeasurementValidationService {
           referenciaDisco !== null &&
           Number(fila.tValue) > Number(referenciaDisco.tValue);
         const rdInvalido =
-          referenciaDisco !== null && fila.rdValue > referenciaDisco.rdValue;
+          !esReperfilado && referenciaDisco !== null && fila.rdValue > referenciaDisco.rdValue;
+        const rugosidadInvalida =
+          esReperfilado &&
+          (raCalculada < 0 ||
+            raCalculada > 3.2 ||
+            Number(fila.hValue) > 2 ||
+            Number(fila.tValue) <= 0.3);
 
         return {
           id: fila.id,
@@ -81,6 +89,8 @@ export class NewMeasurementValidationService {
           fechaInvalido,
           tInvalido,
           rdInvalido,
+          rugosidadInvalida,
+          raCalculada,
         };
       }),
     );
@@ -94,6 +104,7 @@ export class NewMeasurementValidationService {
             fechaInvalido: f.fechaInvalido,
             tInvalido: f.tInvalido,
             rdInvalido: f.rdInvalido,
+            ...(esReperfilado ? { rugosidadRa: f.raCalculada } : {}),
           },
         }),
       ),
@@ -137,6 +148,7 @@ export class NewMeasurementValidationService {
           f.fechaInvalido ? 'fecha' : null,
           f.tInvalido ? 't' : null,
           f.rdInvalido ? 'rd' : null,
+          f.rugosidadInvalida ? 'límites de reperfilado (T > 0.3, H ≤ 2.0, Ra ≤ 3.2)' : null,
         ].filter((m): m is string => m !== null),
       }));
 
@@ -221,6 +233,8 @@ export interface FilaValidada {
   fechaInvalido: boolean;
   tInvalido: boolean;
   rdInvalido: boolean;
+  rugosidadInvalida: boolean;
+  raCalculada: number;
 }
 
 export interface FilaExcluida {
@@ -247,6 +261,7 @@ function esInvalida(f: {
   fechaInvalido: boolean;
   tInvalido: boolean;
   rdInvalido: boolean;
+  rugosidadInvalida: boolean;
 }): boolean {
-  return f.kmInvalido || f.fechaInvalido || f.tInvalido || f.rdInvalido;
+  return f.kmInvalido || f.fechaInvalido || f.tInvalido || f.rdInvalido || f.rugosidadInvalida;
 }

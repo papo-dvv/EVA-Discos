@@ -49,6 +49,10 @@ export interface FichaMedicion {
   kilometraje: number
   fechaFicha: string
   actividad: string
+  motivo: MotivoFicha
+  puestoTrabajo: string | null
+  fechaHoraInicio: string | null
+  fechaHoraFin: string | null
   trenOriginalCsv: number | null
   corregidoTren: boolean
   kilometrajeOriginalCsv: number | null
@@ -185,6 +189,9 @@ export interface CambiosFicha {
   trenNumero?: number
   kilometraje?: number
   fechaFicha?: string
+  puestoTrabajo?: string
+  fechaHoraInicio?: string
+  fechaHoraFin?: string
   todasConformes?: boolean
   comentariosActividad?: string
   responsableMantenimientoNombre?: string
@@ -214,6 +221,7 @@ export interface AgregarFilaFicha {
   tValue: number
   fecha?: string
   observacion?: string
+  rugosidadRa?: number
 }
 
 // Payload de PATCH .../records/:id (espejo de UpdateFilaDto) — todo opcional.
@@ -224,4 +232,5 @@ export interface EditarFilaFicha {
   ejeNumero?: number
   lado?: 'izquierdo' | 'derecho'
   observacion?: string
+  rugosidadRa?: number
 }

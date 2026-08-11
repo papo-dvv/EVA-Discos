@@ -11,6 +11,7 @@ import { MigracionPreview } from './pages/MigracionPreview'
 import { MigracionUpload } from './pages/MigracionUpload'
 import { NuevasMediciones } from './pages/NuevasMediciones'
 import { Proyeccion } from './pages/Proyeccion'
+import { Reperfilado } from './pages/Reperfilado'
 import { TasaDesgaste } from './pages/TasaDesgaste'
 import { Trazabilidad } from './pages/Trazabilidad'
 
@@ -124,6 +125,8 @@ function App() {
           </RequireAuth>
         }
       />
+      <Route path="/reperfilado" element={<RequireAuth><Reperfilado /></RequireAuth>} />
+      <Route path="/reperfilado/:fichaId" element={<RequireAuth><Reperfilado /></RequireAuth>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

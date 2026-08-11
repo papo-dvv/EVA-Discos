@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { GlassButton } from '../components/GlassButton'
@@ -7,6 +7,7 @@ import { PantallaFondo } from '../components/PantallaFondo'
 import { SegmentedControl } from '../components/SegmentedControl'
 import { WarningTooltip } from '../components/WarningTooltip'
 import { CargaInicialFicha } from '../features/new-measurement/components/CargaInicialFicha'
+import { guardarFichaActiva, limpiarFichaActiva, obtenerFichaActiva } from '../features/new-measurement/fichaActiva'
 import { FooterFicha } from '../features/new-measurement/components/FooterFicha'
 import { HeaderFicha } from '../features/new-measurement/components/HeaderFicha'
 import { ModalMedicionAnterior } from '../features/new-measurement/components/ModalMedicionAnterior'
@@ -32,7 +33,7 @@ const MOTIVO_OPCIONES: {
   tooltipPosicion?: 'arriba' | 'abajo'
 }[] = [
   { valor: 'Medición', etiqueta: 'Medición' },
-  { valor: 'Reperfilado', etiqueta: 'Reperfilado', deshabilitada: true, tooltip: 'Próximamente', tooltipPosicion: 'abajo' },
+  { valor: 'Reperfilado', etiqueta: 'Reperfilado' },
   { valor: 'Cambio', etiqueta: 'Cambio', deshabilitada: true, tooltip: 'Próximamente', tooltipPosicion: 'abajo' },
 ]
 
@@ -79,6 +80,15 @@ export function NuevasMediciones() {
   const ficha = preview.data?.ficha
   const rows = preview.data?.rows ?? []
 
+  useEffect(() => {
+    if (fichaId) {
+      guardarFichaActiva('medicion', fichaId)
+      return
+    }
+    const activa = obtenerFichaActiva('medicion')
+    if (activa) navigate(`/nuevas-mediciones/${activa}`, { replace: true })
+  }, [fichaId, navigate])
+
   // Última medición confirmada de CADA disco de este tren (mismo GET
   // .../reference que alimenta el modal de "Medición Anterior") — acá se usa
   // como fuente del "valor previo" en las alertas de fila (punto 1) y del
@@ -101,11 +111,13 @@ export function NuevasMediciones() {
 
   async function confirmar() {
     await confirmarFicha.mutateAsync()
+    limpiarFichaActiva('medicion')
     navigate('/mediciones', { replace: true })
   }
 
   async function cancelar() {
     await cancelarFicha.mutateAsync()
+    limpiarFichaActiva('medicion')
     navigate('/nuevas-mediciones', { replace: true })
   }
 
@@ -139,13 +151,18 @@ export function NuevasMediciones() {
             ariaLabel="Motivo de la ficha"
             opciones={MOTIVO_OPCIONES}
             valor={motivo}
-            onCambiar={setMotivo}
+            onCambiar={async (valor) => {
+              if (valor === 'Reperfilado') {
+                const activa = obtenerFichaActiva('reperfilado')
+                navigate(activa ? `/reperfilado/${activa}` : '/reperfilado')
+              } else setMotivo(valor)
+            }}
           />
         </div>
 
         {motivo === 'Medición' && !fichaId && (
           <GlassSurface fuerte className="mt-4 rounded-glass-lg p-6 sm:p-8">
-            <CargaInicialFicha onCreada={(id) => navigate(`/nuevas-mediciones/${id}`)} />
+            <CargaInicialFicha onCreada={(id) => { guardarFichaActiva('medicion', id); navigate(`/nuevas-mediciones/${id}`) }} />
           </GlassSurface>
         )}
 

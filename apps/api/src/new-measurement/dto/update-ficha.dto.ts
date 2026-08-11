@@ -88,6 +88,18 @@ export class UpdateFichaDto {
   fechaFicha?: string;
 
   @IsOptional()
+  @IsString()
+  puestoTrabajo?: string;
+
+  @IsOptional()
+  @IsDateString()
+  fechaHoraInicio?: string;
+
+  @IsOptional()
+  @IsDateString()
+  fechaHoraFin?: string;
+
+  @IsOptional()
   @IsBoolean()
   todasConformes?: boolean;
 

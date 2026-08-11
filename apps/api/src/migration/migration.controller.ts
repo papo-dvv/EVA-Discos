@@ -45,15 +45,12 @@ export class MigrationController {
     FileInterceptor('file', {
       limits: { fileSize: MAX_TAMANO_BYTES },
       fileFilter: (_req, file, cb) => {
-        // Se valida por extensión (no por MIME): el mimetype del multipart es
-        // poco fiable para .xlsm (suele llegar como application/vnd.ms-excel o
-        // application/octet-stream). Se aceptan .xlsx y .xlsm — internamente son
-        // el mismo contenedor OOXML; el .xlsm solo suma el proyecto de macros.
         const nombre = file.originalname.toLowerCase();
-        if (!nombre.endsWith('.xlsx') && !nombre.endsWith('.xlsm')) {
+        const extensiones = ['.csv', '.tsv', '.xlsx', '.xls', '.xlsm', '.ods'];
+        if (!extensiones.some((extension) => nombre.endsWith(extension))) {
           cb(
             new BadRequestException(
-              'Solo se aceptan archivos Excel .xlsx o .xlsm.',
+              'Solo se aceptan archivos tabulares .csv, .tsv, .xlsx, .xls, .xlsm u .ods.',
             ),
             false,
           );

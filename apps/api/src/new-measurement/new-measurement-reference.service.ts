@@ -8,7 +8,7 @@ import {
 import type { TipoReferencia } from './dto/reference-query.dto';
 import {
   resolverNumerosCochePorTren,
-  validarTrenAlstom,
+  validarTrenCatalogo,
 } from './new-measurement-catalogo';
 import {
   generarEsqueleto48,
@@ -54,7 +54,7 @@ export class NewMeasurementReferenceService {
     trenNumero: number,
     tipo: TipoReferencia,
   ): Promise<ResultadoReferencia> {
-    const tren = await validarTrenAlstom(this.prisma, trenNumero);
+    const tren = await validarTrenCatalogo(this.prisma, trenNumero);
     return tipo === 'ultima_medicion'
       ? this.ultimaMedicion(tren.id, trenNumero)
       : this.ultimaFicha(tren.id, trenNumero);

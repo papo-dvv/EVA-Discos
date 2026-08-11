@@ -29,6 +29,9 @@ export type CampoValoresDistintos = (typeof CAMPOS_VALORES_DISTINTOS)[number]
 export type AccionRecomendada = 'CRITICO' | 'CAMBIO' | 'REPERFILADO' | 'NINGUNA'
 
 export interface PreviewRow {
+  measPointNameOriginal?: string | null
+  measTimeOriginal?: string | null
+  profileLinkOriginal?: string | null
   id: string
   responsableNombre: string
   trenNumero: number
@@ -53,6 +56,10 @@ export interface PreviewRow {
   // Exclusivo de features/new-measurement (ficha de medición individual) —
   // null en filas de migración/confirmados normales.
   observacion: string | null
+  rugosidadRa: number | null
+  reperfiladoTAntes: number | null
+  reperfiladoHAntes: number | null
+  reperfiladoCompletado: boolean
   // Flags de validación cruzada automática — exclusivos de features/new-measurement
   // (siempre false en filas de migración/confirmados normales). kmInvalido/
   // fechaInvalido son a nivel FICHA (mismo valor en todas las filas); tInvalido/

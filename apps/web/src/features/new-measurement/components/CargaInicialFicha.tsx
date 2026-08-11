@@ -60,7 +60,7 @@ export function CargaInicialFicha({ onCreada }: Props) {
       <SegmentedControl
         ariaLabel="Origen de la ficha"
         opciones={[
-          { valor: 'csv', etiqueta: 'Subir archivo .csv' },
+          { valor: 'csv', etiqueta: 'Subir CSV o Excel' },
           { valor: 'manual', etiqueta: 'Registrar manualmente' },
         ]}
         valor={modo}
@@ -72,14 +72,14 @@ export function CargaInicialFicha({ onCreada }: Props) {
           <label className="glass-field flex cursor-pointer flex-col items-center gap-2 border-dashed py-7 text-center transition-colors hover:border-[color:var(--color-verde-institucional)]">
             <span className="font-display text-2xl text-verde-oscuro">⇪</span>
             <span className="font-body text-sm font-semibold text-concreto-oscuro">
-              {file ? file.name : 'Elegir archivo .csv'}
+              {file ? file.name : 'Elegir CSV o Excel'}
             </span>
             <span className="font-body text-xs text-concreto">
-              {file ? 'Clic para cambiar' : 'Exportado de Nextsense/cpo'}
+              {file ? 'Clic para cambiar' : 'CSV o Excel exportado de Nextsense/cpo'}
             </span>
             <input
               type="file"
-              accept=".csv"
+              accept=".csv,.tsv,.xlsx,.xls,.xlsm,.ods"
               className="hidden"
               onChange={(e) => setFile(e.target.files?.[0] ?? null)}
             />

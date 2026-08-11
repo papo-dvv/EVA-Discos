@@ -51,6 +51,14 @@ export class NewMeasurementCommitService {
         'Falta el responsable de mantenimiento — es obligatorio para confirmar la ficha.',
       );
     }
+    if (
+      ficha.motivo === 'Reperfilado' &&
+      (!ficha.puestoTrabajo?.trim() || !ficha.fechaHoraInicio || !ficha.fechaHoraFin)
+    ) {
+      throw new UnprocessableEntityException(
+        'P.T., Fecha/Hora de inicio y Fecha/Hora de fin son obligatorios para confirmar un reperfilado.',
+      );
+    }
     if (!ficha.tablaBloqueada) {
       throw new UnprocessableEntityException(
         'Falta bloquear la tabla de mediciones (POST .../lock) — es obligatorio para confirmar la ficha.',

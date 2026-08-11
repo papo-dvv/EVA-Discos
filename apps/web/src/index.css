@@ -1,7 +1,6 @@
 @import "tailwindcss";
-@config "../tailwind.config.js";
-
 @import "./styles/tokens.css";
+@config "../tailwind.config.js";
 
 :root {
   color-scheme: light only;

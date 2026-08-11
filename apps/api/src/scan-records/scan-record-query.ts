@@ -75,6 +75,10 @@ export interface PreviewRow {
   // Exclusivo de NewMeasurementModule (ver comentario en ScanRecord.observacion
   // del schema) — null en filas de migración/confirmados normales.
   observacion: string | null;
+  rugosidadRa: number | null;
+  reperfiladoTAntes: number | null;
+  reperfiladoHAntes: number | null;
+  reperfiladoCompletado: boolean;
   // Flags de validación cruzada automática — exclusivos de NewMeasurementModule
   // (ver ScanRecord.kmInvalido/etc. y NewMeasurementValidationService), siempre
   // false en filas de migración/confirmados normales.
@@ -568,6 +572,10 @@ export function aPreviewRow(r: ScanRecord): PreviewRow {
     discrepanciaEstadoExcel: r.discrepanciaEstadoExcel,
     hojaExcelOrigen: r.hojaExcelOrigen,
     observacion: r.observacion,
+    rugosidadRa: r.rugosidadRa !== null ? Number(r.rugosidadRa) : null,
+    reperfiladoTAntes: r.reperfiladoTAntes !== null ? Number(r.reperfiladoTAntes) : null,
+    reperfiladoHAntes: r.reperfiladoHAntes !== null ? Number(r.reperfiladoHAntes) : null,
+    reperfiladoCompletado: r.reperfiladoCompletado,
     kmInvalido: r.kmInvalido,
     fechaInvalido: r.fechaInvalido,
     tInvalido: r.tInvalido,
