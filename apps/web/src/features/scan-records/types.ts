@@ -53,6 +53,16 @@ export interface PreviewRow {
   // Exclusivo de features/new-measurement (ficha de medición individual) —
   // null en filas de migración/confirmados normales.
   observacion: string | null
+  // Flags de validación cruzada automática — exclusivos de features/new-measurement
+  // (siempre false en filas de migración/confirmados normales). kmInvalido/
+  // fechaInvalido son a nivel FICHA (mismo valor en todas las filas); tInvalido/
+  // rdInvalido son por disco individual (por fila). excluidaDelCommit se fija
+  // recién tras POST .../validate.
+  kmInvalido: boolean
+  fechaInvalido: boolean
+  tInvalido: boolean
+  rdInvalido: boolean
+  excluidaDelCommit: boolean
 }
 
 export interface PreviewResult {

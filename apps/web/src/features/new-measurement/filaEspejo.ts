@@ -16,6 +16,12 @@ export interface LadoFilaEspejo {
   tValue: number | null
   hValue: number | null
   rdValue: number | null
+  // Flags de validación cruzada automática de ESTE disco (ver
+  // NewMeasurementValidationService) — siempre false en una fila vacía o en
+  // una fila de una tabla de solo-lectura (comparativa histórica).
+  tInvalido: boolean
+  rdInvalido: boolean
+  excluidaDelCommit: boolean
 }
 
 export interface FilaEspejo {
@@ -35,6 +41,9 @@ function ladoVacio(pos: PosicionEsqueleto): LadoFilaEspejo {
     tValue: null,
     hValue: null,
     rdValue: null,
+    tInvalido: false,
+    rdInvalido: false,
+    excluidaDelCommit: false,
   }
 }
 
@@ -46,6 +55,9 @@ function ladoDeFila(pos: PosicionEsqueleto, fila: PreviewRow): LadoFilaEspejo {
     tValue: fila.tValue,
     hValue: fila.hValue,
     rdValue: fila.rdValue,
+    tInvalido: fila.tInvalido,
+    rdInvalido: fila.rdInvalido,
+    excluidaDelCommit: fila.excluidaDelCommit,
   }
 }
 

@@ -8,9 +8,13 @@ import type {
   PreviewFichaResult,
   PreviewParams,
   PreviewRow,
+  ResultadoReferencia,
+  ResumenBloqueo,
   ResumenCargaMedicion,
   ResumenCommitMedicion,
   ResumenFichaManual,
+  ResumenVerificacion,
+  TipoReferencia,
 } from './types'
 
 // Ficha de medición individual — espejo de features/migration/api.ts, contra
@@ -84,6 +88,26 @@ export async function eliminarFilaFicha(
   const { data } = await apiClient.delete<{ eliminadas: number }>(
     `/new-measurement/${fichaId}/records/${recordId}`,
   )
+  return data
+}
+
+export async function verificarFicha(fichaId: string): Promise<ResumenVerificacion> {
+  const { data } = await apiClient.post<ResumenVerificacion>(`/new-measurement/${fichaId}/validate`)
+  return data
+}
+
+export async function bloquearFicha(fichaId: string): Promise<ResumenBloqueo> {
+  const { data } = await apiClient.post<ResumenBloqueo>(`/new-measurement/${fichaId}/lock`)
+  return data
+}
+
+export async function obtenerReferenciaFicha(
+  trenNumero: number,
+  tipo: TipoReferencia,
+): Promise<ResultadoReferencia> {
+  const { data } = await apiClient.get<ResultadoReferencia>('/new-measurement/reference', {
+    params: { tren: trenNumero, tipo },
+  })
   return data
 }
 

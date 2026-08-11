@@ -64,6 +64,9 @@ export interface FichaMedicion {
   createdAt: string
   tecnicos: FichaTecnico[]
   instrumentos: FichaInstrumento[]
+  // Ciclo verificar -> bloquear -> confirmar (ver NewMeasurementValidationService).
+  verificado: boolean
+  tablaBloqueada: boolean
 }
 
 // Espejo de PreviewMedicionResult (new-measurement-preview.service.ts): la
@@ -115,6 +118,66 @@ export interface ResumenCommitMedicion {
   totalFilas: number
   discosResueltos: number
 }
+
+// Espejo de FilaExcluida (new-measurement-validation.service.ts).
+export interface FilaExcluidaVerificacion {
+  id: string
+  cocheExcel: string | null
+  ejeExcel: number | null
+  ubicacionExcel: string | null
+  motivos: string[]
+}
+
+// Respuesta de POST /new-measurement/:fichaId/validate.
+export interface ResumenVerificacion {
+  todoValido: boolean
+  filasExcluidas: FilaExcluidaVerificacion[]
+  filasIncluidas: number
+}
+
+// Respuesta de POST /new-measurement/:fichaId/lock.
+export interface ResumenBloqueo {
+  fichaId: string
+  tablaBloqueada: boolean
+}
+
+// Espejo de TipoReferencia (dto/reference-query.dto.ts).
+export const TIPOS_REFERENCIA = ['ultima_medicion', 'ultima_ficha'] as const
+export type TipoReferencia = (typeof TIPOS_REFERENCIA)[number]
+
+// Espejo de ResultadoReferencia (new-measurement-reference.service.ts) — GET
+// /new-measurement/reference?tren=&tipo=. `disponible` discrimina la unión;
+// `fecha` (ultima_medicion) vs. `fechaFicha` (ultima_ficha) reflejan el mismo
+// nombre distinto que usa el backend a propósito (ver comentario ahí: la
+// fecha de una MEDICIÓN puntual no es lo mismo que la fecha de LA FICHA).
+export interface ReferenciaNoDisponible {
+  disponible: false
+}
+
+export interface ReferenciaUltimaMedicion {
+  disponible: true
+  tren: number
+  fecha: string
+  kilometraje: number
+  responsable: string
+  esqueleto: PosicionEsqueleto[]
+  rows: import('../scan-records/types').PreviewRow[]
+}
+
+export interface ReferenciaUltimaFicha {
+  disponible: true
+  tren: number
+  fechaFicha: string
+  kilometraje: number
+  responsable: string | null
+  esqueleto: PosicionEsqueleto[]
+  rows: import('../scan-records/types').PreviewRow[]
+}
+
+export type ResultadoReferencia =
+  | ReferenciaNoDisponible
+  | ReferenciaUltimaMedicion
+  | ReferenciaUltimaFicha
 
 // Payload de edición de cabecera — todos opcionales, se envía solo lo que
 // cambia (espejo de UpdateFichaDto).
