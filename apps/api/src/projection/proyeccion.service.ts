@@ -104,6 +104,8 @@ export interface PronosticoMesApi {
 export interface EventoPronosticoApi {
   tipo: TipoEventoPronostico;
   fechaEstimada: string;
+  fechaUltimaMedicion: string;
+  diasHastaEvento: number;
   trenNumero: number;
   posiciones: PosicionDisco[];
 }
@@ -111,6 +113,7 @@ export interface EventoPronosticoApi {
 interface EventoPronosticoCalculado {
   tipo: TipoEventoPronostico;
   fechaEstimada: Date;
+  fechaUltimaMedicion: Date;
   trenNumero: number;
   posiciones: PosicionDisco[];
 }
@@ -443,6 +446,13 @@ export class ProyeccionService {
       .map((evento) => ({
         ...evento,
         fechaEstimada: evento.fechaEstimada.toISOString().slice(0, 10),
+        fechaUltimaMedicion: evento.fechaUltimaMedicion
+          .toISOString()
+          .slice(0, 10),
+        diasHastaEvento: this.diasEntreFechas(
+          evento.fechaUltimaMedicion,
+          evento.fechaEstimada,
+        ),
       }))
       .sort(
       (a, b) =>
@@ -460,6 +470,11 @@ export class ProyeccionService {
   private fechaCaeEnPeriodo(fecha: Date, periodo: string): boolean {
     const iso = fecha.toISOString().slice(0, periodo.length);
     return iso === periodo;
+  }
+
+  private diasEntreFechas(desde: Date, hasta: Date): number {
+    const dias = (hasta.getTime() - desde.getTime()) / (24 * 60 * 60 * 1000);
+    return Math.trunc(dias * 10) / 10;
   }
 
   // Una intervención cuenta por eje físico, no por lado. El primer
@@ -488,11 +503,15 @@ export class ProyeccionService {
         if (!existente.posiciones.some((p) => p.lado === disco.posicion.lado)) {
           existente.posiciones.push(disco.posicion);
         }
+        if (disco.fechaUltimaMedicion > existente.fechaUltimaMedicion) {
+          existente.fechaUltimaMedicion = disco.fechaUltimaMedicion;
+        }
         return;
       }
       eventos.set(clave, {
         tipo,
         fechaEstimada,
+        fechaUltimaMedicion: disco.fechaUltimaMedicion,
         trenNumero: trenPorDiscId.get(disco.discId)!,
         posiciones: [disco.posicion],
       });

@@ -52,6 +52,8 @@ export function ModalDetallePronostico({ tren, periodo, tipo, onCerrar }: Props)
             <table className="w-full min-w-[48rem] border-collapse text-left font-body text-[0.8125rem]">
               <thead>
                 <tr className="border-b border-concreto/20 text-xs font-semibold uppercase tracking-wide text-concreto">
+                  <th className="px-2 py-2">Última medición</th>
+                  <th className="px-2 py-2 text-right">Días hasta evento</th>
                   <th className="px-2 py-2">Fecha</th>
                   <th className="px-2 py-2">Tipo</th>
                   <th className="px-2 py-2 text-right">Tren</th>
@@ -68,6 +70,8 @@ export function ModalDetallePronostico({ tren, periodo, tipo, onCerrar }: Props)
                     key={`${evento.fechaEstimada}-${evento.tipo}-${evento.trenNumero}-${indice}`}
                     className="border-b border-concreto/10"
                   >
+                    <td className="px-2 py-1.5 font-data text-concreto-oscuro">{evento.fechaUltimaMedicion}</td>
+                    <td className="px-2 py-1.5 text-right font-data text-concreto-oscuro">{evento.diasHastaEvento}</td>
                     <td className="px-2 py-1.5 font-data text-concreto-oscuro">{evento.fechaEstimada}</td>
                     <td className="px-2 py-1.5 font-semibold text-concreto-oscuro">
                       {evento.tipo === 'CAMBIO' ? 'Cambio' : 'Reperfilado'}
