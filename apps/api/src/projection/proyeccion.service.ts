@@ -26,6 +26,10 @@ import {
 import { ProyeccionRateService } from './proyeccion-rate.service';
 import type { ProyeccionDiscosQueryDto } from './dto/proyeccion-discos-query.dto';
 import type { ProyeccionPronosticoQueryDto } from './dto/proyeccion-pronostico-query.dto';
+import type {
+  ProyeccionPronosticoDetalleQueryDto,
+  TipoEventoPronostico,
+} from './dto/proyeccion-pronostico-detalle-query.dto';
 
 export interface CicloReperfiladoApi {
   numero: number;
@@ -95,6 +99,13 @@ export interface PronosticoMesApi {
   reperfilados: number;
   cambios: number;
   desgloseEstado: DesgloseEstadoApi;
+}
+
+export interface EventoPronosticoApi {
+  tipo: TipoEventoPronostico;
+  fechaEstimada: string;
+  trenNumero: number;
+  posicion: PosicionDisco;
 }
 
 interface DiscoEnScope {
@@ -381,6 +392,73 @@ export class ProyeccionService {
     return meses.map((mes) =>
       this.agregarMes(mes, proyecciones, evaluador, hoy),
     );
+  }
+
+  // Detalle bajo demanda de una barra/fila del pronóstico. Usa exactamente
+  // los ciclos calculados para la agregación mensual; solo cambia que acá se
+  // conservan los eventos individuales y su posición física.
+  async obtenerDetallePronostico(
+    q: ProyeccionPronosticoDetalleQueryDto,
+  ): Promise<EventoPronosticoApi[]> {
+    const discosEnScope = await this.resolverDiscosEnScope({ tren: q.tren });
+    const tasasPorTipoCoche = await this.rate.calcularTasasPorTipoCoche();
+    const proyecciones = (
+      await Promise.all(
+        discosEnScope.map((d) =>
+          this.calculator.proyectarDisco(d.discId, tasasPorTipoCoche),
+        ),
+      )
+    ).filter((p): p is ProyeccionDisco => p !== null);
+    const trenPorDiscId = new Map(
+      discosEnScope.map((d) => [d.discId, d.trenNumero]),
+    );
+
+    const eventos: EventoPronosticoApi[] = [];
+    for (const disco of proyecciones) {
+      const trenNumero = trenPorDiscId.get(disco.discId)!;
+      if (q.tipo !== 'CAMBIO') {
+        for (const ciclo of disco.ciclosReperfilado) {
+          if (this.fechaCaeEnPeriodo(ciclo.fechaEstimada, q.periodo)) {
+            eventos.push({
+              tipo: 'REPERFILADO',
+              fechaEstimada: ciclo.fechaEstimada.toISOString().slice(0, 10),
+              trenNumero,
+              posicion: disco.posicion,
+            });
+          }
+        }
+      }
+      if (
+        q.tipo !== 'REPERFILADO' &&
+        disco.cicloCambio &&
+        this.fechaCaeEnPeriodo(disco.cicloCambio.fechaEstimada, q.periodo)
+      ) {
+        eventos.push({
+          tipo: 'CAMBIO',
+          fechaEstimada: disco.cicloCambio.fechaEstimada
+            .toISOString()
+            .slice(0, 10),
+          trenNumero,
+          posicion: disco.posicion,
+        });
+      }
+    }
+
+    return eventos.sort(
+      (a, b) =>
+        a.fechaEstimada.localeCompare(b.fechaEstimada) ||
+        a.tipo.localeCompare(b.tipo) ||
+        a.trenNumero - b.trenNumero ||
+        a.posicion.numeroCoche - b.posicion.numeroCoche ||
+        a.posicion.bogieCodigo.localeCompare(b.posicion.bogieCodigo) ||
+        a.posicion.ejeNumero - b.posicion.ejeNumero ||
+        a.posicion.lado.localeCompare(b.posicion.lado),
+    );
+  }
+
+  private fechaCaeEnPeriodo(fecha: Date, periodo: string): boolean {
+    const iso = fecha.toISOString().slice(0, periodo.length);
+    return iso === periodo;
   }
 
   private agregarMes(

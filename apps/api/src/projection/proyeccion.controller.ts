@@ -4,6 +4,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { ProyeccionDiscosQueryDto } from './dto/proyeccion-discos-query.dto';
 import { ProyeccionPronosticoQueryDto } from './dto/proyeccion-pronostico-query.dto';
+import { ProyeccionPronosticoDetalleQueryDto } from './dto/proyeccion-pronostico-detalle-query.dto';
 import { ProyeccionService } from './proyeccion.service';
 
 // Proyección de Reperfilado y Cambio (wear_rate_pairs + última medición
@@ -31,5 +32,10 @@ export class ProyeccionController {
   @Get('pronostico')
   pronostico(@Query() query: ProyeccionPronosticoQueryDto) {
     return this.proyeccion.obtenerPronostico(query);
+  }
+
+  @Get('pronostico/detalle')
+  detallePronostico(@Query() query: ProyeccionPronosticoDetalleQueryDto) {
+    return this.proyeccion.obtenerDetallePronostico(query);
   }
 }

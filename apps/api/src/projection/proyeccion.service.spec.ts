@@ -1024,4 +1024,109 @@ describe('ProyeccionService.obtenerPronostico', () => {
     expect(meses[0].mes).toBe('2026-01');
     expect(meses[59].mes).toBe('2030-12');
   });
+
+  it('meses=77 alcanza diciembre de 2032 desde agosto de 2026', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-08-14T00:00:00.000Z'));
+
+    const prisma = {
+      brakeDisc: { findMany: jest.fn().mockResolvedValue([]) },
+    } as unknown as PrismaService;
+    const service = new ProyeccionService(
+      prisma,
+      crearRate(),
+      { proyectarDisco: jest.fn() } as unknown as ProyeccionCalculatorService,
+      crearBrakeDiscRules(),
+    );
+
+    const meses = await service.obtenerPronostico({ meses: 77 });
+
+    expect(meses).toHaveLength(77);
+    expect(meses[0].mes).toBe('2026-08');
+    expect(meses[76].mes).toBe('2032-12');
+  });
+
+  it('devuelve eventos exactos del período con tipo y posición del disco', async () => {
+    const discos = [
+      discoBrakeFixture({
+        id: 'd1',
+        trenNumero: 7,
+        tipoCoche: 'MB1',
+        numeroCoche: 204,
+        bogieCodigo: 'PB4',
+        ejeNumero: 2,
+        lado: 'derecho',
+      }),
+    ];
+    const prisma = {
+      brakeDisc: { findMany: jest.fn().mockResolvedValue(discos) },
+    } as unknown as PrismaService;
+    const calculator = {
+      proyectarDisco: jest.fn().mockResolvedValue(
+        proyeccionFixture({
+          discId: 'd1',
+          posicion: posicion({
+            tipoCoche: 'MB1',
+            numeroCoche: 204,
+            bogieCodigo: 'PB4',
+            ejeNumero: 2,
+            lado: 'derecho',
+          }),
+          ciclosReperfilado: [
+            {
+              numero: 1,
+              mesesHastaFecha: 1,
+              fechaEstimada: new Date('2027-03-10T00:00:00.000Z'),
+              hEnEseMomento: 1.6,
+              tEnEseMomento: 3.6,
+              rdAntes: 2,
+              rdDespues: 1.2,
+            },
+          ],
+          cicloCambio: {
+            mesesHastaFecha: 1,
+            fechaEstimada: new Date('2027-03-25T00:00:00.000Z'),
+          },
+        }),
+      ),
+    } as unknown as ProyeccionCalculatorService;
+    const service = new ProyeccionService(
+      prisma,
+      crearRate(),
+      calculator,
+      crearBrakeDiscRules(),
+    );
+
+    const todos = await service.obtenerDetallePronostico({
+      periodo: '2027-03',
+    });
+    const cambios = await service.obtenerDetallePronostico({
+      periodo: '2027',
+      tipo: 'CAMBIO',
+    });
+
+    expect(todos).toEqual([
+      expect.objectContaining({
+        tipo: 'REPERFILADO',
+        fechaEstimada: '2027-03-10',
+        trenNumero: 7,
+      }),
+      expect.objectContaining({
+        tipo: 'CAMBIO',
+        fechaEstimada: '2027-03-25',
+        trenNumero: 7,
+      }),
+    ]);
+    expect(todos[0].posicion).toEqual(
+      expect.objectContaining({
+        tipoCoche: 'MB1',
+        numeroCoche: 204,
+        bogieCodigo: 'PB4',
+        ejeNumero: 2,
+        lado: 'derecho',
+      }),
+    );
+    expect(cambios).toEqual([
+      expect.objectContaining({ tipo: 'CAMBIO', fechaEstimada: '2027-03-25' }),
+    ]);
+  });
 });

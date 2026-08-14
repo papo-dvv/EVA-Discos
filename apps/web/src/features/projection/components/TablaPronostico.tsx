@@ -1,14 +1,34 @@
+import { useState } from 'react'
 import { GlassSurface } from '../../../components/GlassSurface'
 import { ScrollArea } from '../../../components/ScrollArea'
 import { SegmentedControl } from '../../../components/SegmentedControl'
-import type { DesgloseEstado, PronosticoMes, RangoPronosticoMeses } from '../types'
+import { GraficoBarrasPronostico } from './GraficoBarrasPronostico'
+import { ModalDetallePronostico } from './ModalDetallePronostico'
+import { usePronostico } from '../queries'
+import type { DesgloseEstado, PronosticoMes, RangoPronosticoMeses, TipoEventoPronostico } from '../types'
 
-const SEGMENTOS: { clave: keyof DesgloseEstado; etiqueta: string; color: string }[] = [
+const SEGMENTOS: {
+  clave: keyof DesgloseEstado
+  etiqueta: string
+  color: string
+}[] = [
   { clave: 'ok', etiqueta: 'OK', color: 'var(--color-estado-ok)' },
-  { clave: 'seguimiento', etiqueta: 'Seguimiento', color: 'var(--color-estado-seguimiento)' },
+  {
+    clave: 'seguimiento',
+    etiqueta: 'Seguimiento',
+    color: 'var(--color-estado-seguimiento)',
+  },
   { clave: 'cambio', etiqueta: 'Cambio', color: 'var(--color-estado-cambio)' },
-  { clave: 'critico', etiqueta: 'Crítico', color: 'var(--color-estado-critico)' },
-  { clave: 'reperfilado', etiqueta: 'Reperfilado', color: 'var(--color-estado-reperfilado)' },
+  {
+    clave: 'critico',
+    etiqueta: 'Crítico',
+    color: 'var(--color-estado-critico)',
+  },
+  {
+    clave: 'reperfilado',
+    etiqueta: 'Reperfilado',
+    color: 'var(--color-estado-reperfilado)',
+  },
 ]
 
 // Mini barra apilada CSS (sin librería de gráficos — el proyecto no tiene
@@ -28,7 +48,10 @@ function BarraEstados({ desglose }: { desglose: DesgloseEstado }) {
         <div
           key={s.clave}
           title={`${s.etiqueta}: ${desglose[s.clave]}`}
-          style={{ width: `${(desglose[s.clave] / total) * 100}%`, background: s.color }}
+          style={{
+            width: `${(desglose[s.clave] / total) * 100}%`,
+            background: s.color,
+          }}
         />
       ))}
     </div>
@@ -63,6 +86,7 @@ type Props = {
   cargando: boolean
   rango: RangoPronosticoMeses
   onCambiarRango: (rango: RangoPronosticoMeses) => void
+  tren: number | undefined
 }
 
 // Pronóstico: una fila por mes calendario (empezando hoy) hasta el rango
@@ -73,7 +97,16 @@ type Props = {
 // siempre MENSUAL sin importar el rango: cambiar el selector solo cambia
 // cuántas filas trae la respuesta — hasta 60 para el caso de 5 años, con
 // scroll vertical interno en vez de paginación.
-export function TablaPronostico({ meses, cargando, rango, onCambiarRango }: Props) {
+export function TablaPronostico({ meses, cargando, rango, onCambiarRango, tren }: Props) {
+  const [vistaGrafico, setVistaGrafico] = useState<'lineal' | 'barras'>('lineal')
+  const [vistaBarras, setVistaBarras] = useState<'anio' | 'mes'>('anio')
+  const [anioBarras, setAnioBarras] = useState(2026)
+  const [seleccion, setSeleccion] = useState<{
+    periodo: string
+    tipo?: TipoEventoPronostico
+  } | null>(null)
+  const pronosticoBarras = usePronostico(tren, 77, vistaGrafico === 'barras')
+
   return (
     <GlassSurface fuerte className="mt-4 overflow-hidden rounded-glass p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
@@ -87,50 +120,96 @@ export function TablaPronostico({ meses, cargando, rango, onCambiarRango }: Prop
       </div>
 
       <SegmentedControl
-        ariaLabel="Rango del pronóstico"
-        opciones={OPCIONES_RANGO}
-        valor={String(rango) as `${RangoPronosticoMeses}`}
-        onCambiar={(v) => onCambiarRango(Number(v) as RangoPronosticoMeses)}
+        ariaLabel="Tipo de visualización del pronóstico"
+        opciones={[
+          { valor: 'lineal', etiqueta: 'Lineal' },
+          { valor: 'barras', etiqueta: 'Barras' },
+        ]}
+        valor={vistaGrafico}
+        onCambiar={setVistaGrafico}
         className="mb-3"
       />
 
-      {cargando ? (
-        <p className="font-body text-sm text-concreto">Cargando…</p>
-      ) : !meses || meses.length === 0 ? (
-        <p className="font-body text-sm text-concreto">Sin datos de pronóstico.</p>
+      {vistaGrafico === 'barras' ? (
+        <GraficoBarrasPronostico
+          meses={pronosticoBarras.data ?? []}
+          cargando={pronosticoBarras.isLoading}
+          vista={vistaBarras}
+          onCambiarVista={setVistaBarras}
+          anio={anioBarras}
+          onCambiarAnio={setAnioBarras}
+          onSeleccionar={(periodo, tipo) => setSeleccion({ periodo, tipo })}
+        />
       ) : (
-        <ScrollArea ejes="both" viewportClassName="max-h-[64vh]">
-          <table className="w-full min-w-[36rem] border-collapse text-left font-body text-sm">
-            <thead>
-              <tr className="border-b border-concreto/20">
-                <th className="sticky top-0 z-[1] bg-[color:var(--color-arena-suave)] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-concreto">
-                  Mes
-                </th>
-                <th className="sticky top-0 z-[1] bg-[color:var(--color-arena-suave)] px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-concreto">
-                  Reperfilados
-                </th>
-                <th className="sticky top-0 z-[1] bg-[color:var(--color-arena-suave)] px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-concreto">
-                  Cambios
-                </th>
-                <th className="sticky top-0 z-[1] bg-[color:var(--color-arena-suave)] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-concreto">
-                  Estado proyectado de la flota
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {meses.map((m) => (
-                <tr key={m.mes} className="tabla-fila--glass border-b border-concreto/10">
-                  <td className="px-3 py-2.5 font-data text-concreto-oscuro">{m.mes}</td>
-                  <td className="px-3 py-2.5 text-right font-data text-concreto-oscuro">{m.reperfilados}</td>
-                  <td className="px-3 py-2.5 text-right font-data text-concreto-oscuro">{m.cambios}</td>
-                  <td className="px-3 py-2.5">
-                    <BarraEstados desglose={m.desgloseEstado} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </ScrollArea>
+        <>
+          <SegmentedControl
+            ariaLabel="Rango del pronóstico"
+            opciones={OPCIONES_RANGO}
+            valor={String(rango) as `${RangoPronosticoMeses}`}
+            onCambiar={(v) => onCambiarRango(Number(v) as RangoPronosticoMeses)}
+            className="mb-3"
+          />
+
+          {cargando ? (
+            <p className="font-body text-sm text-concreto">Cargando…</p>
+          ) : !meses || meses.length === 0 ? (
+            <p className="font-body text-sm text-concreto">Sin datos de pronóstico.</p>
+          ) : (
+            <ScrollArea ejes="both" viewportClassName="max-h-[64vh]">
+              <table className="w-full min-w-[36rem] border-collapse text-left font-body text-sm">
+                <thead>
+                  <tr className="border-b border-concreto/20">
+                    <th className="sticky top-0 z-[1] bg-[color:var(--color-arena-suave)] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-concreto">
+                      Mes
+                    </th>
+                    <th className="sticky top-0 z-[1] bg-[color:var(--color-arena-suave)] px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-concreto">
+                      Reperfilados
+                    </th>
+                    <th className="sticky top-0 z-[1] bg-[color:var(--color-arena-suave)] px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-concreto">
+                      Cambios
+                    </th>
+                    <th className="sticky top-0 z-[1] bg-[color:var(--color-arena-suave)] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-concreto">
+                      Estado proyectado de la flota
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {meses.map((m) => (
+                    <tr
+                      key={m.mes}
+                      tabIndex={0}
+                      className="tabla-fila--glass cursor-pointer border-b border-concreto/10 outline-none focus-visible:bg-white/60"
+                      onClick={() => setSeleccion({ periodo: m.mes })}
+                      onKeyDown={(evento) => {
+                        if (evento.key === 'Enter' || evento.key === ' ') {
+                          evento.preventDefault()
+                          setSeleccion({ periodo: m.mes })
+                        }
+                      }}
+                      aria-label={`Ver detalle de eventos de ${m.mes}`}
+                    >
+                      <td className="px-3 py-2.5 font-data text-concreto-oscuro">{m.mes}</td>
+                      <td className="px-3 py-2.5 text-right font-data text-concreto-oscuro">{m.reperfilados}</td>
+                      <td className="px-3 py-2.5 text-right font-data text-concreto-oscuro">{m.cambios}</td>
+                      <td className="px-3 py-2.5">
+                        <BarraEstados desglose={m.desgloseEstado} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </ScrollArea>
+          )}
+        </>
+      )}
+
+      {seleccion && (
+        <ModalDetallePronostico
+          tren={tren}
+          periodo={seleccion.periodo}
+          tipo={seleccion.tipo}
+          onCerrar={() => setSeleccion(null)}
+        />
       )}
     </GlassSurface>
   )

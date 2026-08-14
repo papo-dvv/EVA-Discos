@@ -23,7 +23,7 @@ describe('ProyeccionPronosticoQueryDto', () => {
     expect(dto.meses).toBe(12);
   });
 
-  it.each([12, 24, 36, 48, 60])(
+  it.each([12, 24, 36, 48, 60, 77])(
     'meses=%i (valor permitido) pasa la validación',
     async (valor) => {
       const dto = plainToInstance(ProyeccionPronosticoQueryDto, {

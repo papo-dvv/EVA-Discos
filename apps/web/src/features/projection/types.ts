@@ -120,6 +120,15 @@ export interface PronosticoMes {
   desgloseEstado: DesgloseEstado
 }
 
+export type TipoEventoPronostico = 'REPERFILADO' | 'CAMBIO'
+
+export interface EventoPronostico {
+  tipo: TipoEventoPronostico
+  fechaEstimada: string
+  trenNumero: number
+  posicion: PosicionDisco
+}
+
 // Espejo de RANGOS_PRONOSTICO_MESES (apps/api/src/projection/dto/proyeccion-pronostico-query.dto.ts).
-export const RANGOS_PRONOSTICO_MESES = [12, 24, 36, 48, 60] as const
+export const RANGOS_PRONOSTICO_MESES = [12, 24, 36, 48, 60, 77] as const
 export type RangoPronosticoMeses = (typeof RANGOS_PRONOSTICO_MESES)[number]

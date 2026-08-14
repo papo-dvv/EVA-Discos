@@ -6,7 +6,7 @@ import { IsIn, IsInt, IsOptional } from 'class-validator';
 // respuesta. Lista exacta y cerrada (no cualquier entero): rechaza cualquier
 // otro valor con 400 en vez de aceptar rangos arbitrarios sin sentido de
 // negocio (ej. 13, 100).
-export const RANGOS_PRONOSTICO_MESES = [12, 24, 36, 48, 60] as const;
+export const RANGOS_PRONOSTICO_MESES = [12, 24, 36, 48, 60, 77] as const;
 export type RangoPronosticoMeses = (typeof RANGOS_PRONOSTICO_MESES)[number];
 
 export class ProyeccionPronosticoQueryDto {

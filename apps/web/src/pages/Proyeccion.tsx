@@ -171,6 +171,7 @@ export function Proyeccion() {
             cargando={pronostico.isLoading}
             rango={rangoPronostico}
             onCambiarRango={setRangoPronostico}
+            tren={trenEfectivo}
           />
         </main>
 
