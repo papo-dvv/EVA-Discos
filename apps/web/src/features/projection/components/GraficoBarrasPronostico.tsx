@@ -8,6 +8,10 @@ const ANIO_FINAL = 2032
 const ANCHO = 900
 const ALTO = 320
 const MARGEN = { top: 28, right: 28, bottom: 54, left: 56 }
+// Serie temporalmente oculta por decisión operativa. El pronóstico y la
+// tabla lineal siguen calculando/reteniendo reperfilados; basta activar este
+// flag para volver a dibujarla.
+const MOSTRAR_REPERFILADOS = false
 
 type VistaBarras = 'anio' | 'mes'
 type DatoBarra = {
@@ -92,7 +96,11 @@ export function GraficoBarrasPronostico({
   onSeleccionar,
 }: Props) {
   const datos = vista === 'anio' ? datosAnuales(meses) : datosMensuales(meses, anio)
-  const maximo = Math.max(1, ...datos.flatMap((dato) => [dato.reperfilados, dato.cambios]))
+  const maximo = Math.max(
+    1,
+    ...datos.map((dato) => dato.cambios),
+    ...(MOSTRAR_REPERFILADOS ? datos.map((dato) => dato.reperfilados) : []),
+  )
   const anchoUtil = ANCHO - MARGEN.left - MARGEN.right
   const altoUtil = ALTO - MARGEN.top - MARGEN.bottom
   const anchoGrupo = anchoUtil / Math.max(datos.length, 1)
@@ -129,10 +137,12 @@ export function GraficoBarrasPronostico({
       </div>
 
       <div className="mb-3 flex flex-wrap gap-x-4 gap-y-1.5 font-body text-xs text-concreto">
-        <span className="flex items-center gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-sm bg-[color:var(--color-estado-reperfilado)]" />
-          Reperfilados
-        </span>
+        {MOSTRAR_REPERFILADOS && (
+          <span className="flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-sm bg-[color:var(--color-estado-reperfilado)]" />
+            Reperfilados
+          </span>
+        )}
         <span className="flex items-center gap-1.5">
           <span className="h-2.5 w-2.5 rounded-sm bg-[color:var(--color-estado-cambio)]" />
           Cambios
@@ -150,7 +160,7 @@ export function GraficoBarrasPronostico({
             preserveAspectRatio="none"
             className="h-full min-w-[42rem] w-full"
             role="img"
-            aria-label="Reperfilados y cambios proyectados"
+            aria-label="Cambios proyectados"
           >
             {ticks.map((valor) => {
               const y = MARGEN.top + altoUtil - (valor / maximo) * altoUtil
@@ -179,16 +189,20 @@ export function GraficoBarrasPronostico({
                 x: number
                 color: string
               }[] = [
-                {
-                  tipo: 'REPERFILADO',
-                  valor: dato.reperfilados,
-                  x: centro - anchoBarra - 2,
-                  color: 'var(--color-estado-reperfilado)',
-                },
+                ...(MOSTRAR_REPERFILADOS
+                  ? [
+                      {
+                        tipo: 'REPERFILADO' as const,
+                        valor: dato.reperfilados,
+                        x: centro - anchoBarra - 2,
+                        color: 'var(--color-estado-reperfilado)',
+                      },
+                    ]
+                  : []),
                 {
                   tipo: 'CAMBIO',
                   valor: dato.cambios,
-                  x: centro + 2,
+                  x: MOSTRAR_REPERFILADOS ? centro + 2 : centro - anchoBarra / 2,
                   color: 'var(--color-estado-cambio)',
                 },
               ]
