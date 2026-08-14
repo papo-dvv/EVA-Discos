@@ -26,6 +26,14 @@ describe('sumarMeses / mesesEntre', () => {
     expect(mesesEntre(fecha, destino)).toBeCloseTo(5.6, 6);
   });
 
+  it('trunca los días calculados a un decimal sin redondear', () => {
+    const fecha = new Date('2026-01-01T00:00:00.000Z');
+    const destino = sumarMeses(fecha, 5.678);
+    const esperado = new Date(fecha.getTime() + 170.3 * 24 * 60 * 60 * 1000);
+
+    expect(destino.getTime()).toBe(esperado.getTime());
+  });
+
   it('0 meses no mueve la fecha', () => {
     const fecha = new Date('2026-01-01T00:00:00.000Z');
     expect(sumarMeses(fecha, 0).getTime()).toBe(fecha.getTime());

@@ -2,11 +2,17 @@ const MS_POR_DIA = 24 * 60 * 60 * 1000;
 const DIAS_POR_MES_PROYECCION = 30;
 const MS_POR_MES_PROYECCION = DIAS_POR_MES_PROYECCION * MS_POR_DIA;
 
+function truncarAUnDecimal(valor: number): number {
+  return Math.trunc(valor * 10) / 10;
+}
+
 // La tasa es mensual: los meses decimales que salen de
 // (umbralReperfilado - h) / tasaMensual se traducen con meses de 30 días
-// exactos para obtener la fecha estimada de la intervención.
+// y se truncan a un único decimal de día para obtener la fecha estimada de
+// la intervención, sin redondearla hacia adelante.
 export function sumarMeses(fecha: Date, meses: number): Date {
-  return new Date(fecha.getTime() + meses * MS_POR_MES_PROYECCION);
+  const dias = truncarAUnDecimal(meses * DIAS_POR_MES_PROYECCION);
+  return new Date(fecha.getTime() + dias * MS_POR_DIA);
 }
 
 export function mesesEntre(desde: Date, hasta: Date): number {
