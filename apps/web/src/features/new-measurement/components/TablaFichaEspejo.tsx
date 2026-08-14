@@ -66,7 +66,7 @@ export function TablaFichaEspejo({
               {mostrarColumnaMotivo && (
                 <th
                   rowSpan={2}
-                  className="sticky top-0 z-[1] w-28 whitespace-nowrap bg-[color:var(--color-arena-suave)] px-2 py-1.5 text-left text-[0.6875rem] font-semibold uppercase tracking-wide text-concreto"
+                  className="sticky top-0 z-[1] w-[24rem] min-w-[24rem] bg-[color:var(--color-arena-suave)] px-3 py-1.5 text-left text-[0.6875rem] font-semibold uppercase tracking-wide text-concreto"
                 >
                   Motivo/Inválido
                 </th>
@@ -126,15 +126,6 @@ export function TablaFichaEspejo({
 
 function hayMotivo(lado: LadoFilaEspejo): boolean {
   return lado.motivos.length > 0
-}
-
-// Cantidad total de motivos de un eje (los 2 lados juntos) — alimenta el
-// resumen compacto "⚠ N problema(s)" de la columna Motivo/Inválido: el
-// detalle completo (por lado, itemizado) solo aparece en el WarningTooltip al
-// hover/foco, nunca en la celda misma (antes rompía el layout con texto
-// multilínea — ver textoMotivosFila).
-function contarMotivosFila(fila: FilaEspejo): number {
-  return fila.izquierdo.motivos.length + fila.derecho.motivos.length
 }
 
 function tieneMotivo(motivos: MotivoInvalido[], campo: CampoInvalido): boolean {
@@ -250,11 +241,11 @@ function FilaEspejoRow({
   return (
     <tr className="tabla-fila--glass border-b border-concreto/10">
       {mostrarColumnaMotivo && (
-        <td className="whitespace-nowrap px-2 py-1">
+        <td className="w-[24rem] min-w-[24rem] px-3 py-1.5 align-top">
           {hayMotivo(fila.izquierdo) || hayMotivo(fila.derecho) ? (
-            <WarningTooltip texto={textoMotivosFila(fila)} className="inline-flex">
-              <span className="cursor-help font-body text-xs font-semibold text-[color:var(--color-estado-critico)]">
-                ⚠ {contarMotivosFila(fila)} problema{contarMotivosFila(fila) === 1 ? '' : 's'}
+            <WarningTooltip texto={textoMotivosFila(fila)} className="block">
+              <span className="block cursor-help whitespace-normal text-pretty font-body text-xs font-semibold leading-snug text-[color:var(--color-estado-critico)]">
+                ⚠ {textoMotivosFila(fila)}
               </span>
             </WarningTooltip>
           ) : (
