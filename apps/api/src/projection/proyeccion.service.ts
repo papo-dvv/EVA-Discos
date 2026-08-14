@@ -104,6 +104,7 @@ export interface PronosticoMesApi {
 export interface EventoPronosticoApi {
   tipo: TipoEventoPronostico;
   fechaEstimada: string;
+  pendiente: boolean;
   fechaUltimaMedicion: string;
   diasHastaEvento: number;
   trenNumero: number;
@@ -113,6 +114,7 @@ export interface EventoPronosticoApi {
 interface EventoPronosticoCalculado {
   tipo: TipoEventoPronostico;
   fechaEstimada: Date;
+  pendiente: boolean;
   fechaUltimaMedicion: Date;
   trenNumero: number;
   posiciones: PosicionDisco[];
@@ -491,11 +493,16 @@ export class ProyeccionService {
       tasasPorTipoCoche,
     );
     const eventos = new Map<string, EventoPronosticoCalculado>();
+    const hoy = new Date();
+    const inicioMesActual = new Date(
+      Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth(), 1),
+    );
 
     const agregar = (
       clave: string,
       tipo: TipoEventoPronostico,
       fechaEstimada: Date,
+      pendiente: boolean,
       disco: ProyeccionDisco,
     ) => {
       const existente = eventos.get(clave);
@@ -506,11 +513,18 @@ export class ProyeccionService {
         if (disco.fechaUltimaMedicion > existente.fechaUltimaMedicion) {
           existente.fechaUltimaMedicion = disco.fechaUltimaMedicion;
         }
+        if (fechaEstimada < existente.fechaEstimada) {
+          existente.fechaEstimada = fechaEstimada;
+          existente.pendiente = pendiente;
+        } else if (pendiente) {
+          existente.pendiente = true;
+        }
         return;
       }
       eventos.set(clave, {
         tipo,
         fechaEstimada,
+        pendiente,
         fechaUltimaMedicion: disco.fechaUltimaMedicion,
         trenNumero: trenPorDiscId.get(disco.discId)!,
         posiciones: [disco.posicion],
@@ -522,10 +536,12 @@ export class ProyeccionService {
       const primerReperfilado =
         override?.reperfilado?.cicloMasProximo ?? disco.ciclosReperfilado[0];
       if (primerReperfilado) {
+        const pendiente = this.esPendiente(disco, 'REPERFILADO') && primerReperfilado.fechaEstimada < inicioMesActual;
         agregar(
           `${this.claveEje(disco.posicion)}|REPERFILADO|1`,
           'REPERFILADO',
-          primerReperfilado.fechaEstimada,
+          pendiente ? hoy : primerReperfilado.fechaEstimada,
+          pendiente,
           disco,
         );
       }
@@ -534,22 +550,34 @@ export class ProyeccionService {
           `${disco.discId}|REPERFILADO|${ciclo.numero}`,
           'REPERFILADO',
           ciclo.fechaEstimada,
+          false,
           disco,
         );
       }
 
       const cambio = override?.cambio?.cicloMasProximo ?? disco.cicloCambio;
       if (cambio) {
+        const pendiente = this.esPendiente(disco, 'CAMBIO') && cambio.fechaEstimada < inicioMesActual;
         agregar(
           `${this.claveEje(disco.posicion)}|CAMBIO`,
           'CAMBIO',
-          cambio.fechaEstimada,
+          pendiente ? hoy : cambio.fechaEstimada,
+          pendiente,
           disco,
         );
       }
     }
 
     return [...eventos.values()];
+  }
+
+  private esPendiente(
+    disco: ProyeccionDisco,
+    tipo: TipoEventoPronostico,
+  ): boolean {
+    return tipo === 'REPERFILADO'
+      ? disco.estado === 'REPERFILADO'
+      : disco.estado === 'CAMBIO' || disco.estado === 'CRITICO';
   }
 
   private agregarMes(

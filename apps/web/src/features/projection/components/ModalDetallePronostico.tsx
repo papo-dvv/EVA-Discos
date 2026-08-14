@@ -75,6 +75,7 @@ export function ModalDetallePronostico({ tren, periodo, tipo, onCerrar }: Props)
                     <td className="px-2 py-1.5 font-data text-concreto-oscuro">{evento.fechaEstimada}</td>
                     <td className="px-2 py-1.5 font-semibold text-concreto-oscuro">
                       {evento.tipo === 'CAMBIO' ? 'Cambio' : 'Reperfilado'}
+                      {evento.pendiente && <span className="ml-1 text-[color:var(--color-estado-seguimiento)]">pendiente</span>}
                     </td>
                     <td className="px-2 py-1.5 text-right font-data text-concreto-oscuro">{evento.trenNumero}</td>
                     <td className="px-2 py-1.5 text-concreto-oscuro">{evento.posiciones[0]?.tipoCoche}</td>

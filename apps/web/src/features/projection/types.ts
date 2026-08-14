@@ -125,6 +125,7 @@ export type TipoEventoPronostico = 'REPERFILADO' | 'CAMBIO'
 export interface EventoPronostico {
   tipo: TipoEventoPronostico
   fechaEstimada: string
+  pendiente: boolean
   fechaUltimaMedicion: string
   diasHastaEvento: number
   trenNumero: number
