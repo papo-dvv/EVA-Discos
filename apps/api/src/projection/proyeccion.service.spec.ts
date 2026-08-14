@@ -899,7 +899,7 @@ describe('ProyeccionService.obtenerPronostico', () => {
     }
   });
 
-  it('un disco no proyectable mantiene su estado ACTUAL fijo en los 12 meses', async () => {
+  it('un disco CRITICO no proyectable se cuenta como Cambio pendiente en el mes actual', async () => {
     jest.useFakeTimers().setSystemTime(new Date('2026-01-15T00:00:00.000Z'));
 
     const discos = [discoBrakeFixture({ id: 'd1', trenNumero: 1 })];
@@ -914,7 +914,7 @@ describe('ProyeccionService.obtenerPronostico', () => {
     } as unknown as PrismaService;
     const proyeccion = proyeccionFixture({
       discId: 'd1',
-      estado: 'CAMBIO',
+      estado: 'CRITICO',
       proyectable: false,
       motivo: 'Sin datos suficientes...',
       tasaMensual: null,
@@ -933,10 +933,10 @@ describe('ProyeccionService.obtenerPronostico', () => {
     );
     const meses = await service.obtenerPronostico({ meses: 12 });
 
-    for (const mes of meses) {
-      expect(mes.desgloseEstado.cambio).toBe(1);
+    for (const [indice, mes] of meses.entries()) {
+      expect(mes.desgloseEstado.critico).toBe(1);
       expect(mes.reperfilados).toBe(0);
-      expect(mes.cambios).toBe(0);
+      expect(mes.cambios).toBe(indice === 0 ? 1 : 0);
     }
   });
 

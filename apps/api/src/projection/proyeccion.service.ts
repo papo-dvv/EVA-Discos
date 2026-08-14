@@ -494,9 +494,6 @@ export class ProyeccionService {
     );
     const eventos = new Map<string, EventoPronosticoCalculado>();
     const hoy = new Date();
-    const inicioMesActual = new Date(
-      Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth(), 1),
-    );
 
     const agregar = (
       clave: string,
@@ -513,7 +510,7 @@ export class ProyeccionService {
         if (disco.fechaUltimaMedicion > existente.fechaUltimaMedicion) {
           existente.fechaUltimaMedicion = disco.fechaUltimaMedicion;
         }
-        if (fechaEstimada < existente.fechaEstimada) {
+        if (!existente.pendiente && fechaEstimada < existente.fechaEstimada) {
           existente.fechaEstimada = fechaEstimada;
           existente.pendiente = pendiente;
         } else if (pendiente) {
@@ -535,13 +532,21 @@ export class ProyeccionService {
       const override = overrides.get(disco.discId);
       const primerReperfilado =
         override?.reperfilado?.cicloMasProximo ?? disco.ciclosReperfilado[0];
-      if (primerReperfilado) {
-        const pendiente = this.esPendiente(disco, 'REPERFILADO') && primerReperfilado.fechaEstimada < inicioMesActual;
+      const reperfiladoPendiente = this.esPendiente(disco, 'REPERFILADO');
+      if (reperfiladoPendiente) {
         agregar(
           `${this.claveEje(disco.posicion)}|REPERFILADO|1`,
           'REPERFILADO',
-          pendiente ? hoy : primerReperfilado.fechaEstimada,
-          pendiente,
+          hoy,
+          true,
+          disco,
+        );
+      } else if (primerReperfilado) {
+        agregar(
+          `${this.claveEje(disco.posicion)}|REPERFILADO|1`,
+          'REPERFILADO',
+          primerReperfilado.fechaEstimada,
+          false,
           disco,
         );
       }
@@ -556,13 +561,21 @@ export class ProyeccionService {
       }
 
       const cambio = override?.cambio?.cicloMasProximo ?? disco.cicloCambio;
-      if (cambio) {
-        const pendiente = this.esPendiente(disco, 'CAMBIO') && cambio.fechaEstimada < inicioMesActual;
+      const cambioPendiente = this.esPendiente(disco, 'CAMBIO');
+      if (cambioPendiente) {
         agregar(
           `${this.claveEje(disco.posicion)}|CAMBIO`,
           'CAMBIO',
-          pendiente ? hoy : cambio.fechaEstimada,
-          pendiente,
+          hoy,
+          true,
+          disco,
+        );
+      } else if (cambio) {
+        agregar(
+          `${this.claveEje(disco.posicion)}|CAMBIO`,
+          'CAMBIO',
+          cambio.fechaEstimada,
+          false,
           disco,
         );
       }
