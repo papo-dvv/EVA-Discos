@@ -6,12 +6,11 @@ function truncarAUnDecimal(valor: number): number {
   return Math.trunc(valor * 10) / 10;
 }
 
-// La tasa es mensual: los meses decimales que salen de
-// (umbralReperfilado - h) / tasaMensual se traducen con meses de 30 días
-// y se truncan a un único decimal de día para obtener la fecha estimada de
-// la intervención, sin redondearla hacia adelante.
+// La tasa es mensual: primero se trunca a un decimal el resultado de
+// (umbralReperfilado - h) / tasaMensual; recién después se multiplica por
+// 30 días para obtener la fecha estimada, sin redondearla hacia adelante.
 export function sumarMeses(fecha: Date, meses: number): Date {
-  const dias = truncarAUnDecimal(meses * DIAS_POR_MES_PROYECCION);
+  const dias = truncarAUnDecimal(meses) * DIAS_POR_MES_PROYECCION;
   return new Date(fecha.getTime() + dias * MS_POR_DIA);
 }
 
