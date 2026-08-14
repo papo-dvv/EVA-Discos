@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
+import { BotonVolverInicio } from '../components/BotonVolverInicio'
 import { GlassButton } from '../components/GlassButton'
 import { GlassSurface } from '../components/GlassSurface'
 import { Marca } from '../components/Marca'
@@ -65,12 +66,7 @@ export function MigracionUpload() {
           )}
 
           <div className="mt-6 flex items-center justify-between gap-4">
-            <Link
-              to="/"
-              className="font-body text-xs text-concreto underline underline-offset-2 transition-colors hover:text-concreto-oscuro"
-            >
-              ← Volver al inicio
-            </Link>
+            <BotonVolverInicio />
             <GlassButton type="submit" cargando={cargando} disabled={!file}>
               {cargando ? 'Procesando…' : 'Subir y revisar'}
             </GlassButton>

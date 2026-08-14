@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { BotonVolverInicio } from '../../components/BotonVolverInicio'
 import { GlassField } from '../../components/GlassField'
 import { GlassSurface } from '../../components/GlassSurface'
 import { Marca } from '../../components/Marca'
@@ -27,12 +27,7 @@ export function DevComponentes() {
       <div className="mx-auto max-w-5xl">
         <GlassSurface className="sticky top-4 z-10 flex items-center justify-between rounded-glass px-5 py-3">
           <Marca tono="oscuro" tamano="condensado" />
-          <Link
-            to="/"
-            className="font-body text-xs text-concreto underline underline-offset-2 transition-colors hover:text-concreto-oscuro"
-          >
-            ← Volver a Inicio
-          </Link>
+          <BotonVolverInicio />
         </GlassSurface>
 
         <header className="mt-8">

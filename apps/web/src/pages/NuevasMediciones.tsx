@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { BotonVolverInicio } from '../components/BotonVolverInicio'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { GlassButton } from '../components/GlassButton'
 import { GlassSurface } from '../components/GlassSurface'
@@ -213,11 +214,14 @@ export function NuevasMediciones() {
   return (
     <PantallaFondo className={fichaId ? 'px-2 py-4 sm:px-3' : 'px-3 py-6 sm:px-5'}>
       <div className={contenedorAncho}>
-        <GlassSurface className="rounded-glass px-6 py-4">
-          <h1 className="font-display text-2xl font-semibold tracking-tight text-concreto-oscuro">
-            Nuevas mediciones
-          </h1>
-          <p className="mt-0.5 font-body text-sm text-concreto">Registro de una ficha de medición individual</p>
+        <GlassSurface className="flex flex-wrap items-center justify-between gap-4 rounded-glass px-6 py-4">
+          <div>
+            <h1 className="font-display text-2xl font-semibold tracking-tight text-concreto-oscuro">
+              Nuevas mediciones
+            </h1>
+            <p className="mt-0.5 font-body text-sm text-concreto">Registro de una ficha de medición individual</p>
+          </div>
+          <BotonVolverInicio />
         </GlassSurface>
 
         {/* Fuera de cualquier GlassSurface a propósito: esas tarjetas usan

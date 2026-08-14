@@ -1,6 +1,6 @@
 import type { SortingState } from '@tanstack/react-table'
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { BotonVolverInicio } from '../components/BotonVolverInicio'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { GlassField } from '../components/GlassField'
 import { GlassSurface } from '../components/GlassSurface'
@@ -135,12 +135,7 @@ export function MedicionesConfirmadas() {
                 <span className="font-data">{preview.data?.total ?? 0}</span> registros
               </p>
             </div>
-            <Link
-              to="/"
-              className="font-body text-xs text-concreto underline underline-offset-2 transition-colors hover:text-concreto-oscuro"
-            >
-              ← Volver al inicio
-            </Link>
+            <BotonVolverInicio />
           </GlassSurface>
 
           {/* Estado de la flota física completa (ver TarjetaUltimaMedicion) —

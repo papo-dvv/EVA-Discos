@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { BotonVolverInicio } from '../components/BotonVolverInicio'
 import { CardFormulas } from '../components/CardFormulas'
 import { GlassSurface } from '../components/GlassSurface'
 import { PantallaFondo } from '../components/PantallaFondo'
@@ -116,12 +116,7 @@ export function Proyeccion() {
                 ))}
               </div>
               <EstadoActualizacionModulo modulo="proyeccion" />
-              <Link
-                to="/"
-                className="font-body text-xs text-concreto underline underline-offset-2 transition-colors hover:text-concreto-oscuro"
-              >
-                ← Volver al inicio
-              </Link>
+              <BotonVolverInicio />
             </div>
           </GlassSurface>
 

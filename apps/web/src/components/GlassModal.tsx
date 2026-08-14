@@ -105,7 +105,7 @@ export function GlassModal({
       ref={overlayRef}
       role="presentation"
       onClick={onCerrar}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4"
       style={{
         background: 'rgba(35, 40, 33, 0.28)',
         backdropFilter: 'blur(6px)',
@@ -118,23 +118,26 @@ export function GlassModal({
         aria-modal="true"
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
-        className={`rounded-glass-lg p-6 ${altoMaximo ? 'flex flex-col' : ''}`.trim()}
+        className="flex flex-col rounded-glass-lg p-5 sm:p-6"
         style={{
           width: ancho,
-          maxWidth: '100%',
-          ...(altoMaximo ? { maxHeight: altoMaximo, overflow: 'hidden' } : {}),
+          maxWidth: 'calc(100vw - 1.5rem)',
+          maxHeight: altoMaximo ?? 'calc(100dvh - 1.5rem)',
+          overflow: 'hidden',
           opacity: visible ? 1 : 0,
           transform: visible ? 'scale(1) translateY(0)' : 'scale(0.96) translateY(8px)',
           transition: 'opacity var(--duracion-base) var(--ease-apple), transform var(--duracion-base) var(--ease-apple)',
         }}
       >
         {titulo && (
-          <h2 className="mb-1 shrink-0 font-display text-lg font-semibold text-concreto-oscuro">{titulo}</h2>
+          <h2 className="mb-1 shrink-0 break-words font-display text-lg font-semibold text-concreto-oscuro">
+            {titulo}
+          </h2>
         )}
         {altoMaximo ? (
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>
         ) : (
-          children
+          <div className="min-h-0 overflow-y-auto break-words pr-1">{children}</div>
         )}
         {footer && <div className="shrink-0">{footer}</div>}
       </GlassSurface>

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { BotonVolverInicio } from '../components/BotonVolverInicio'
 import { GlassSelect } from '../components/GlassSelect'
 import { GlassSurface } from '../components/GlassSurface'
 import { PantallaFondo } from '../components/PantallaFondo'
@@ -111,12 +111,7 @@ export function Trazabilidad() {
           </div>
           <div className="flex flex-wrap items-center gap-4">
             <EstadoActualizacionModulo modulo="trazabilidad" />
-            <Link
-              to="/"
-              className="font-body text-xs text-concreto underline underline-offset-2 transition-colors hover:text-concreto-oscuro"
-            >
-              ← Volver al inicio
-            </Link>
+            <BotonVolverInicio />
           </div>
         </GlassSurface>
 
