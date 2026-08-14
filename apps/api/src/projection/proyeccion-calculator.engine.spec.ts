@@ -17,9 +17,12 @@ const UMBRALES_POR_DEFECTO: UmbralesProyeccion = {
 };
 
 describe('sumarMeses / mesesEntre', () => {
-  it('son inversas entre sí (round-trip)', () => {
+  it('convierte meses decimales en días de 30 días y conserva el round-trip', () => {
     const fecha = new Date('2026-01-01T00:00:00.000Z');
     const destino = sumarMeses(fecha, 5.6);
+    const esperado = new Date(fecha.getTime() + 5.6 * 30 * 24 * 60 * 60 * 1000);
+
+    expect(destino.getTime()).toBe(esperado.getTime());
     expect(mesesEntre(fecha, destino)).toBeCloseTo(5.6, 6);
   });
 

@@ -1,13 +1,16 @@
-const DIAS_POR_MES_PROMEDIO = 365.25 / 12;
 const MS_POR_DIA = 24 * 60 * 60 * 1000;
-const MS_POR_MES_PROMEDIO = DIAS_POR_MES_PROMEDIO * MS_POR_DIA;
+const DIAS_POR_MES_PROYECCION = 30;
+const MS_POR_MES_PROYECCION = DIAS_POR_MES_PROYECCION * MS_POR_DIA;
 
+// La tasa es mensual: los meses decimales que salen de
+// (umbralReperfilado - h) / tasaMensual se traducen con meses de 30 días
+// exactos para obtener la fecha estimada de la intervención.
 export function sumarMeses(fecha: Date, meses: number): Date {
-  return new Date(fecha.getTime() + meses * MS_POR_MES_PROMEDIO);
+  return new Date(fecha.getTime() + meses * MS_POR_MES_PROYECCION);
 }
 
 export function mesesEntre(desde: Date, hasta: Date): number {
-  return (hasta.getTime() - desde.getTime()) / MS_POR_MES_PROMEDIO;
+  return (hasta.getTime() - desde.getTime()) / MS_POR_MES_PROYECCION;
 }
 
 // Límite TÉCNICO de seguridad (no una regla de negocio): evita un bucle
