@@ -35,7 +35,7 @@ export function ModalDetallePronostico({ tren, periodo, tipo, onCerrar }: Props)
       ancho={920}
     >
       <p className="font-body text-sm text-concreto-oscuro">
-        Fechas estimadas y ubicación física de cada disco dentro del período seleccionado.
+        Fechas estimadas y ubicación física de cada eje, con ambos lados cuando corresponde.
       </p>
 
       <div className="mt-3">
@@ -73,15 +73,17 @@ export function ModalDetallePronostico({ tren, periodo, tipo, onCerrar }: Props)
                       {evento.tipo === 'CAMBIO' ? 'Cambio' : 'Reperfilado'}
                     </td>
                     <td className="px-2 py-1.5 text-right font-data text-concreto-oscuro">{evento.trenNumero}</td>
-                    <td className="px-2 py-1.5 text-concreto-oscuro">{evento.posicion.tipoCoche}</td>
+                    <td className="px-2 py-1.5 text-concreto-oscuro">{evento.posiciones[0]?.tipoCoche}</td>
                     <td className="px-2 py-1.5 text-right font-data text-concreto-oscuro">
-                      {evento.posicion.numeroCoche}
+                      {evento.posiciones[0]?.numeroCoche}
                     </td>
-                    <td className="px-2 py-1.5 text-concreto-oscuro">{evento.posicion.bogieCodigo}</td>
+                    <td className="px-2 py-1.5 text-concreto-oscuro">{evento.posiciones[0]?.bogieCodigo}</td>
                     <td className="px-2 py-1.5 text-right font-data text-concreto-oscuro">
-                      {evento.posicion.ejeNumero}
+                      {evento.posiciones[0]?.ejeNumero}
                     </td>
-                    <td className="px-2 py-1.5 capitalize text-concreto-oscuro">{evento.posicion.lado}</td>
+                    <td className="px-2 py-1.5 capitalize text-concreto-oscuro">
+                      {evento.posiciones.map((posicion) => posicion.lado).join(' / ')}
+                    </td>
                   </tr>
                 ))}
               </tbody>

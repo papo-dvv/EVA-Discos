@@ -126,7 +126,7 @@ export interface EventoPronostico {
   tipo: TipoEventoPronostico
   fechaEstimada: string
   trenNumero: number
-  posicion: PosicionDisco
+  posiciones: PosicionDisco[]
 }
 
 // Espejo de RANGOS_PRONOSTICO_MESES (apps/api/src/projection/dto/proyeccion-pronostico-query.dto.ts).

@@ -1058,7 +1058,10 @@ describe('ProyeccionService.obtenerPronostico', () => {
       }),
     ];
     const prisma = {
-      brakeDisc: { findMany: jest.fn().mockResolvedValue(discos) },
+      brakeDisc: {
+        findMany: jest.fn().mockResolvedValue(discos),
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
     } as unknown as PrismaService;
     const calculator = {
       proyectarDisco: jest.fn().mockResolvedValue(
@@ -1116,7 +1119,7 @@ describe('ProyeccionService.obtenerPronostico', () => {
         trenNumero: 7,
       }),
     ]);
-    expect(todos[0].posicion).toEqual(
+    expect(todos[0].posiciones).toEqual([
       expect.objectContaining({
         tipoCoche: 'MB1',
         numeroCoche: 204,
@@ -1124,9 +1127,55 @@ describe('ProyeccionService.obtenerPronostico', () => {
         ejeNumero: 2,
         lado: 'derecho',
       }),
-    );
+    ]);
     expect(cambios).toEqual([
       expect.objectContaining({ tipo: 'CAMBIO', fechaEstimada: '2027-03-25' }),
     ]);
+  });
+
+  it('cuenta una intervención por eje y reúne izquierdo y derecho en el detalle', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-01-15T00:00:00.000Z'));
+    const discos = [
+      discoBrakeFixture({ id: 'izq', trenNumero: 3, lado: 'izquierdo' }),
+      discoBrakeFixture({ id: 'der', trenNumero: 3, lado: 'derecho' }),
+    ];
+    const ciclo = (fechaEstimada: string) => ({
+      numero: 1,
+      mesesHastaFecha: 2,
+      fechaEstimada: new Date(fechaEstimada),
+      hEnEseMomento: 1.6,
+      tEnEseMomento: 3.6,
+      rdAntes: 2,
+      rdDespues: 1.2,
+    });
+    const calculator = {
+      proyectarDisco: jest.fn((discId: string) =>
+        Promise.resolve(
+          proyeccionFixture({
+            discId,
+            posicion: posicion({ lado: discId === 'izq' ? 'izquierdo' : 'derecho' }),
+            ciclosReperfilado: [ciclo(discId === 'izq' ? '2026-03-10T00:00:00.000Z' : '2026-04-10T00:00:00.000Z')],
+            cicloCambio: {
+              mesesHastaFecha: 5,
+              fechaEstimada: new Date(discId === 'izq' ? '2026-06-10T00:00:00.000Z' : '2026-07-10T00:00:00.000Z'),
+            },
+          }),
+        ),
+      ),
+    } as unknown as ProyeccionCalculatorService;
+    const service = new ProyeccionService(
+      { brakeDisc: { findMany: jest.fn().mockResolvedValue(discos) } } as unknown as PrismaService,
+      crearRate(),
+      calculator,
+      crearBrakeDiscRules(),
+    );
+
+    const meses = await service.obtenerPronostico({ meses: 12 });
+    const detalle = await service.obtenerDetallePronostico({ periodo: '2026-03' });
+
+    expect(meses.find((mes) => mes.mes === '2026-03')!.reperfilados).toBe(1);
+    expect(meses.find((mes) => mes.mes === '2026-06')!.cambios).toBe(1);
+    expect(detalle).toHaveLength(1);
+    expect(detalle[0].posiciones.map((posicion) => posicion.lado).sort()).toEqual(['derecho', 'izquierdo']);
   });
 });
