@@ -114,14 +114,6 @@ function CeldaFecha({
   return <span className="text-concreto">—</span>
 }
 
-function BadgeTruncado() {
-  return (
-    <WarningTooltip texto="Llegó al tope de 5 ciclos de reperfilado sin caer en condición de cambio — revisar manualmente.">
-      <span className="tabla-chip tabla-chip--seguimiento">5+ ciclos</span>
-    </WarningTooltip>
-  )
-}
-
 type Props = {
   rows: FilaProyeccion[]
   mostrarColumnaTren: boolean
@@ -348,7 +340,6 @@ function construirColumnas(
       header: 'Siguiente cambio',
       cell: ({ row }) => {
         const fila = row.original
-        if (fila.truncado) return <BadgeTruncado />
         return (
           <CeldaFecha
             fecha={fila.cicloCambio?.fechaEstimada ?? null}

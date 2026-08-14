@@ -1,5 +1,7 @@
 import { GlassSurface } from '../../../components/GlassSurface'
-import type { DesgloseEstado, PronosticoMes } from '../types'
+import { ScrollArea } from '../../../components/ScrollArea'
+import { SegmentedControl } from '../../../components/SegmentedControl'
+import type { DesgloseEstado, PronosticoMes, RangoPronosticoMeses } from '../types'
 
 const SEGMENTOS: { clave: keyof DesgloseEstado; etiqueta: string; color: string }[] = [
   { clave: 'ok', etiqueta: 'OK', color: 'var(--color-estado-ok)' },
@@ -46,21 +48,37 @@ function Leyenda() {
   )
 }
 
+// Etiquetas en años/meses (no "24 meses") — más legible para el usuario que
+// piensa el rango en términos de años, salvo el propio caso de 12.
+const OPCIONES_RANGO: { valor: `${RangoPronosticoMeses}`; etiqueta: string }[] = [
+  { valor: '12', etiqueta: '12 meses' },
+  { valor: '24', etiqueta: '2 años' },
+  { valor: '36', etiqueta: '3 años' },
+  { valor: '48', etiqueta: '4 años' },
+  { valor: '60', etiqueta: '5 años' },
+]
+
 type Props = {
   meses?: PronosticoMes[]
   cargando: boolean
+  rango: RangoPronosticoMeses
+  onCambiarRango: (rango: RangoPronosticoMeses) => void
 }
 
-// Pronóstico a 12 meses: una fila por mes calendario (empezando hoy), con
-// cuántos reperfilados/cambios se proyectan en ese mes y el desglose de
-// estado AMPLIADO de la flota a esa fecha (H/Rd interpolados, no el estado
-// actual — ver ProyeccionService.obtenerPronostico12Meses en el backend).
-export function TablaPronostico12Meses({ meses, cargando }: Props) {
+// Pronóstico: una fila por mes calendario (empezando hoy) hasta el rango
+// elegido (12/24/36/48/60 meses, ver ProyeccionPronosticoQueryDto en el
+// backend), con cuántos reperfilados/cambios se proyectan en ese mes y el
+// desglose de estado AMPLIADO de la flota a esa fecha (H/Rd interpolados, no
+// el estado actual — ver ProyeccionService.obtenerPronostico). Agregación
+// siempre MENSUAL sin importar el rango: cambiar el selector solo cambia
+// cuántas filas trae la respuesta — hasta 60 para el caso de 5 años, con
+// scroll vertical interno en vez de paginación.
+export function TablaPronostico({ meses, cargando, rango, onCambiarRango }: Props) {
   return (
     <GlassSurface fuerte className="mt-4 overflow-hidden rounded-glass p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h3 className="font-display text-base font-semibold text-concreto-oscuro">Pronóstico a 12 meses</h3>
+          <h3 className="font-display text-base font-semibold text-concreto-oscuro">Pronóstico</h3>
           <p className="mt-0.5 font-body text-xs text-concreto">
             Reperfilados y cambios proyectados, mes a mes, sobre el alcance actual.
           </p>
@@ -68,23 +86,33 @@ export function TablaPronostico12Meses({ meses, cargando }: Props) {
         <Leyenda />
       </div>
 
+      <SegmentedControl
+        ariaLabel="Rango del pronóstico"
+        opciones={OPCIONES_RANGO}
+        valor={String(rango) as `${RangoPronosticoMeses}`}
+        onCambiar={(v) => onCambiarRango(Number(v) as RangoPronosticoMeses)}
+        className="mb-3"
+      />
+
       {cargando ? (
         <p className="font-body text-sm text-concreto">Cargando…</p>
       ) : !meses || meses.length === 0 ? (
         <p className="font-body text-sm text-concreto">Sin datos de pronóstico.</p>
       ) : (
-        <div className="overflow-x-auto">
+        <ScrollArea ejes="both" viewportClassName="max-h-[64vh]">
           <table className="w-full min-w-[36rem] border-collapse text-left font-body text-sm">
             <thead>
               <tr className="border-b border-concreto/20">
-                <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-concreto">Mes</th>
-                <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-concreto">
+                <th className="sticky top-0 z-[1] bg-[color:var(--color-arena-suave)] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-concreto">
+                  Mes
+                </th>
+                <th className="sticky top-0 z-[1] bg-[color:var(--color-arena-suave)] px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-concreto">
                   Reperfilados
                 </th>
-                <th className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-concreto">
+                <th className="sticky top-0 z-[1] bg-[color:var(--color-arena-suave)] px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-concreto">
                   Cambios
                 </th>
-                <th className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-concreto">
+                <th className="sticky top-0 z-[1] bg-[color:var(--color-arena-suave)] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-concreto">
                   Estado proyectado de la flota
                 </th>
               </tr>
@@ -102,7 +130,7 @@ export function TablaPronostico12Meses({ meses, cargando }: Props) {
               ))}
             </tbody>
           </table>
-        </div>
+        </ScrollArea>
       )}
     </GlassSurface>
   )

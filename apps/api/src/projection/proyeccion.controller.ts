@@ -25,8 +25,11 @@ export class ProyeccionController {
     return this.proyeccion.obtenerPromedioPorVagon();
   }
 
-  @Get('pronostico-12-meses')
-  pronostico12Meses(@Query() query: ProyeccionPronosticoQueryDto) {
-    return this.proyeccion.obtenerPronostico12Meses(query);
+  // meses: 12/24/36/48/60 (default 12 si se omite) — ver
+  // ProyeccionPronosticoQueryDto. Reemplaza al viejo /pronostico-12-meses,
+  // fijo a 12.
+  @Get('pronostico')
+  pronostico(@Query() query: ProyeccionPronosticoQueryDto) {
+    return this.proyeccion.obtenerPronostico(query);
   }
 }

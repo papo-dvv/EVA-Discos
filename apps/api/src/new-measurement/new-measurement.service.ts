@@ -36,6 +36,27 @@ export interface ResumenCargaMedicion {
   discrepanciasRd: DiscrepanciaRd[];
 }
 
+// Respuesta de POST .../upload cuando el CSV coincide EXACTAMENTE (fecha +
+// kilometraje + cada H/T de cada disco presente) con la última ficha
+// CONFIRMADA de ese mismo tren — ver NewMeasurementService.buscarDuplicadoExacto.
+// La ficha borrador NO se crea todavía: el usuario debe reintentar con
+// forzar=true (UploadCsvDto) para continuar de todos modos.
+export interface ResultadoDuplicadoDetectado {
+  duplicadoDetectado: true;
+  fichaConfirmadaId: string;
+  fecha: string;
+  kilometraje: number;
+  tren: number;
+}
+
+// Tolerancia para comparar H/T contra el histórico confirmado — mismo
+// criterio que EPSILON_DISCREPANCIA_RD del parser, evita falsos negativos por
+// redondeo de punto flotante entre el valor guardado y el recién parseado.
+const EPSILON_COMPARACION_DUPLICADO = 1e-6;
+function valoresIguales(a: number, b: number): boolean {
+  return Math.abs(a - b) < EPSILON_COMPARACION_DUPLICADO;
+}
+
 export interface ResumenFichaManual {
   fichaId: string;
   trenNumero: number;
@@ -70,7 +91,7 @@ export class NewMeasurementService {
     archivo: Express.Multer.File,
     dto: UploadCsvDto,
     usuarioId: string,
-  ): Promise<ResumenCargaMedicion> {
+  ): Promise<ResumenCargaMedicion | ResultadoDuplicadoDetectado> {
     validarMotivoImplementado(dto.motivo);
     if (!archivo?.buffer?.length) {
       throw new BadRequestException('No se recibió ningún archivo.');
@@ -107,6 +128,25 @@ export class NewMeasurementService {
 
     const fechaFicha = resultado.filas[0].fecha;
 
+    // Punto 1 del enunciado: detección de duplicado exacto contra la última
+    // ficha CONFIRMADA de este mismo tren. Sin forzar=true (punto 2), un
+    // duplicado detectado corta acá — la ficha borrador no se crea todavía.
+    const duplicado = await this.buscarDuplicadoExacto(
+      tren.numero,
+      fechaFicha,
+      resultado.metadata.kilometraje,
+      resultado.filas,
+    );
+    if (duplicado && !dto.forzar) {
+      return {
+        duplicadoDetectado: true,
+        fichaConfirmadaId: duplicado.id,
+        fecha: fechaFicha.toISOString().slice(0, 10),
+        kilometraje: resultado.metadata.kilometraje,
+        tren: tren.numero,
+      };
+    }
+
     const { fichaId, fileId } = await this.prisma.$transaction(
       async (tx) => {
         const uploadedFile = await tx.uploadedFile.create({
@@ -130,6 +170,11 @@ export class NewMeasurementService {
             actividad: ACTIVIDAD_BAJO_BASTIDOR,
             trenOriginalCsv: tren.numero,
             kilometrajeOriginalCsv: resultado.metadata.kilometraje!,
+            // true solo cuando forzar=true SÍ pisó una detección de
+            // duplicado real (punto 2) — bloquea POST .../validate hasta que
+            // el usuario edite algo (ver NewMeasurementValidationService.
+            // verificar y NewMeasurementPreviewService).
+            esPosibleDuplicado: duplicado !== null,
           },
         });
 
@@ -220,6 +265,50 @@ export class NewMeasurementService {
       kilometraje: dto.kilometraje,
       esqueleto: generarEsqueleto48(numerosCoche),
     };
+  }
+
+  // Busca la ficha CONFIRMADA (uploadedFile.status='committed') más reciente
+  // de este tren y la compara contra el CSV recién subido: duplicado exacto
+  // solo si fecha Y kilometraje coinciden Y cada disco presente en el CSV
+  // tiene el mismo H/T que su equivalente confirmado (identidad por eje
+  // global + lado, igual que el resto del módulo — ver resolverIdentidadPorEje).
+  // Un disco del CSV sin equivalente confirmado (o con H/T distinto) descarta
+  // el duplicado de inmediato; discos que la ficha confirmada tenga de más no
+  // importan (el enunciado solo exige que los discos PRESENTES coincidan).
+  private async buscarDuplicadoExacto(
+    trenNumero: number,
+    fechaFicha: Date,
+    kilometraje: number,
+    filas: FilaNuevaMedicion[],
+  ): Promise<{ id: string } | null> {
+    const ultimaConfirmada = await this.prisma.measurementSheet.findFirst({
+      where: { trenNumero, uploadedFile: { status: 'committed' } },
+      orderBy: [{ fechaFicha: 'desc' }, { createdAt: 'desc' }],
+    });
+    if (!ultimaConfirmada?.uploadedFileId) return null;
+    if (ultimaConfirmada.fechaFicha.getTime() !== fechaFicha.getTime()) {
+      return null;
+    }
+    if (!valoresIguales(Number(ultimaConfirmada.kilometraje), kilometraje)) {
+      return null;
+    }
+
+    const confirmados = await this.prisma.scanRecord.findMany({
+      where: { fileId: ultimaConfirmada.uploadedFileId },
+    });
+
+    const todosCoinciden = filas.every((fila) => {
+      const referencia = confirmados.find(
+        (r) => r.ejeExcel === fila.ejeNumero && r.ubicacionExcel === fila.lado,
+      );
+      return (
+        referencia !== undefined &&
+        valoresIguales(Number(referencia.tValue), fila.tValue) &&
+        valoresIguales(Number(referencia.hValue), fila.hValue)
+      );
+    });
+
+    return todosCoinciden ? { id: ultimaConfirmada.id } : null;
   }
 
   private async crearPlaceholdersFicha(

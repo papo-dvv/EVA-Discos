@@ -1,11 +1,11 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { obtenerPromedioPorTren, obtenerTraceabilitySeries, obtenerTraceabilitySummary } from './api'
-import type { TraceabilityScopeParams, TraceabilitySeriesParams } from './types'
+import type { PromedioPorTrenParams, TraceabilityScopeParams, TraceabilitySeriesParams } from './types'
 
 const claves = {
   summary: (scope: TraceabilityScopeParams) => ['traceability', 'summary', scope] as const,
   series: (params: TraceabilitySeriesParams) => ['traceability', 'series', params] as const,
-  promedioPorTren: (tren?: number) => ['traceability', 'promedio-por-tren', tren ?? 'flota'] as const,
+  promedioPorTren: (params: PromedioPorTrenParams) => ['traceability', 'promedio-por-tren', params] as const,
 }
 
 // El scope (tren/tipoCoche/bogieCodigo) SÍ recalcula todo en el backend
@@ -32,13 +32,15 @@ export function useTraceabilitySeries(params: TraceabilitySeriesParams) {
   })
 }
 
-// Sin tren -> toda la flota. Nunca depende del scope de tipoCoche/bogieCodigo
-// ni de filtrarPorRangoKm (ver TraceabilityService.obtenerPromedioPorTren en
-// el backend) — por eso es un query independiente, con su propia clave, en
-// vez de colgar del mismo `scope` que summary/series.
-export function usePromedioPorTren(tren?: number) {
+// Siempre trae los 39 trenes (T06–T44) — nunca depende del scope de
+// tren/tipoCoche/bogieCodigo (ver TraceabilityService.obtenerPromedioPorTren
+// en el backend), por eso es un query independiente, con su propia clave, en
+// vez de colgar del mismo `scope` que summary/series. filtrarPorRangoKm SÍ
+// se comparte con el switch de la pantalla (a diferencia de la versión
+// previa de este endpoint, ahora respeta ese toggle).
+export function usePromedioPorTren(params: PromedioPorTrenParams) {
   return useQuery({
-    queryKey: claves.promedioPorTren(tren),
-    queryFn: () => obtenerPromedioPorTren(tren),
+    queryKey: claves.promedioPorTren(params),
+    queryFn: () => obtenerPromedioPorTren(params),
   })
 }

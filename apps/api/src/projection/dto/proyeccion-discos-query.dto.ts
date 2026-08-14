@@ -68,7 +68,8 @@ export class ProyeccionDiscosQueryDto {
   siguienteReperfiladoHasta?: string;
 
   // Rango de fecha del ciclo de cambio (columna "Siguiente Cambio"). Un disco
-  // truncado (sin cicloCambio) nunca matchea este filtro cuando está activo.
+  // no proyectable (sin cicloCambio, ver ProyeccionDisco.proyectable) nunca
+  // matchea este filtro cuando está activo.
   @IsOptional()
   @IsISO8601()
   siguienteCambioDesde?: string;

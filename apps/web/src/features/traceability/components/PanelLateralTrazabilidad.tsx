@@ -1,18 +1,24 @@
-import type { PromedioPorVagon } from '../../projection/types'
-import { PanelPromedioPorVagon } from '../../projection/components/PanelPromedioPorVagon'
+import { useState } from 'react'
+import { GlassSurface } from '../../../components/GlassSurface'
+import { SegmentedControl } from '../../../components/SegmentedControl'
 import type {
   AsimetriaResumen,
   ClasificacionAsimetria,
   ConsensoLimites,
   EstadisticasGenerales,
   MetodoDescrito,
-  PromedioPorTren,
-  PromedioRangoKm,
 } from '../types'
 import { PanelEstadisticasTrazabilidad } from './PanelEstadisticasTrazabilidad'
 import { PanelMetodosTrazabilidad } from './PanelMetodosTrazabilidad'
 import { PanelPromedioPorTren } from './PanelPromedioPorTren'
-import { PanelPromedioRangoKm } from './PanelPromedioRangoKm'
+
+type Vista = 'metodos' | 'estadisticas' | 'tren'
+
+const OPCIONES_VISTA: { valor: Vista; etiqueta: string }[] = [
+  { valor: 'metodos', etiqueta: 'Métodos' },
+  { valor: 'estadisticas', etiqueta: 'Estadísticas' },
+  { valor: 'tren', etiqueta: 'Tren' },
+]
 
 type Props = {
   conteo: number
@@ -23,24 +29,26 @@ type Props = {
   clasificacionAsimetria: ClasificacionAsimetria | null
   estadisticas: EstadisticasGenerales
   asimetria: AsimetriaResumen
+  paresTrasRecorte: number
   conteoTotalHistorico: number
   conteoMostradoEnPeriodo: number
   etiquetaPeriodo: string
-  promedioRangoKm: PromedioRangoKm
-  promedioPorTren?: PromedioPorTren
-  promedioPorTrenCargando: boolean
-  promedioPorVagon?: PromedioPorVagon[]
-  promedioPorVagonCargando: boolean
+  // Promedio por tren SÍ respeta este switch (a diferencia de Promedio por
+  // tipo de coche, que ya no vive en esta pantalla — ver PanelPromedioPorTren
+  // y PanelPromedioPorVagon en Proyección).
+  filtrarPorRangoKm: boolean
 }
 
-// Compuesto único, reutilizado tanto en el bloque apilado (xl:hidden) como en
-// la columna lateral (xl:block) de Trazabilidad.tsx — evita duplicar este
-// layout cada vez más largo dos veces en la página. Dos zonas bien separadas:
-// arriba, todo lo que SÍ reacciona al switch "Considerar solo rango de km
-// habitual" (Métodos y límites al lado de Estadísticas generales, que ya
-// incluye Asimetría); abajo, los 3 promedios que SIEMPRE corren sobre el
-// conjunto completo, con una nota explícita para que no se lean como
-// contradictorios cuando el switch está desactivado y estas cards no cambian.
+// Antes eran 4 cards apiladas en 2 filas de grid (Métodos y límites /
+// Estadísticas generales / Promedio por tren / Promedio por tipo de coche) —
+// demasiado para el ojo de un vistazo. Ahora es UN solo bloque glass con un
+// ToggleSegment de 3 opciones arriba del título de cada card: Métodos |
+// Estadísticas | Tren. Solo se muestra la card seleccionada; las otras 2
+// quedan montadas pero `hidden` (no desmontadas) para no perder su estado ni
+// disparar un refetch de más cada vez que se alterna. "Promedio por tipo de
+// coche" queda fuera de este bloque — "Tren" ocupa la posición donde vivía
+// antes; ese promedio sigue disponible tal cual en Proyección (ver
+// PanelPromedioPorVagon), sin cambios.
 export function PanelLateralTrazabilidad({
   conteo,
   gauss,
@@ -50,18 +58,25 @@ export function PanelLateralTrazabilidad({
   clasificacionAsimetria,
   estadisticas,
   asimetria,
+  paresTrasRecorte,
   conteoTotalHistorico,
   conteoMostradoEnPeriodo,
   etiquetaPeriodo,
-  promedioRangoKm,
-  promedioPorTren,
-  promedioPorTrenCargando,
-  promedioPorVagon,
-  promedioPorVagonCargando,
+  filtrarPorRangoKm,
 }: Props) {
+  const [vista, setVista] = useState<Vista>('metodos')
+
   return (
-    <div className="space-y-4">
-      <div className="grid gap-4 sm:grid-cols-2">
+    <GlassSurface fuerte className="rounded-glass p-4">
+      <SegmentedControl
+        ariaLabel="Vista: métodos y límites, estadísticas generales o promedio por tren"
+        opciones={OPCIONES_VISTA}
+        valor={vista}
+        onCambiar={setVista}
+        className="mb-4"
+      />
+
+      <div hidden={vista !== 'metodos'}>
         <PanelMetodosTrazabilidad
           conteo={conteo}
           gauss={gauss}
@@ -70,31 +85,22 @@ export function PanelLateralTrazabilidad({
           consenso={consenso}
           clasificacionAsimetria={clasificacionAsimetria}
         />
+      </div>
+
+      <div hidden={vista !== 'estadisticas'}>
         <PanelEstadisticasTrazabilidad
           estadisticas={estadisticas}
           asimetria={asimetria}
+          paresTrasRecorte={paresTrasRecorte}
           conteoTotalHistorico={conteoTotalHistorico}
           conteoMostradoEnPeriodo={conteoMostradoEnPeriodo}
           etiquetaPeriodo={etiquetaPeriodo}
         />
       </div>
 
-      <div>
-        <p className="mb-3 border-t border-concreto/15 pt-3 font-body text-[0.6875rem] font-semibold uppercase tracking-[0.1em] text-concreto">
-          No afectado por el filtro de rango de km
-        </p>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <PanelPromedioRangoKm promedioRangoKm={promedioRangoKm} />
-          {promedioPorTrenCargando || !promedioPorTren ? (
-            <p className="font-body text-sm text-concreto">Cargando…</p>
-          ) : (
-            <PanelPromedioPorTren promedioPorTren={promedioPorTren} />
-          )}
-          <div className="sm:col-span-2">
-            <PanelPromedioPorVagon datos={promedioPorVagon} cargando={promedioPorVagonCargando} />
-          </div>
-        </div>
+      <div hidden={vista !== 'tren'}>
+        <PanelPromedioPorTren filtrarPorRangoKm={filtrarPorRangoKm} />
       </div>
-    </div>
+    </GlassSurface>
   )
 }

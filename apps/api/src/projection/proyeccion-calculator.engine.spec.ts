@@ -4,6 +4,7 @@ import {
   interpolarEnFecha,
   mesesEntre,
   proyectarCiclos,
+  ProyeccionNoConvergeError,
   sumarMeses,
   type UmbralesProyeccion,
 } from './proyeccion-calculator.engine';
@@ -89,32 +90,85 @@ describe('proyectarCiclos', () => {
     // (<=0.4) -> YA NO es viable: pasa a cambio, y el ciclo NO se agrega a
     // ciclosReperfilado (sigue en longitud 1).
     expect(resultado.ciclosReperfilado).toHaveLength(1);
-    expect(resultado.cicloCambio).not.toBeNull();
     // mesesHastaFecha = 5 (ciclo1) + 10 (crecimiento ciclo2) + 8
     // (rdAntes/tasaMensual = 0.8/0.1, interpolación sin cambios) = 23.
-    expect(resultado.cicloCambio!.mesesHastaFecha).toBeCloseTo(23, 6);
-    expect(resultado.truncado).toBe(false);
+    expect(resultado.cicloCambio.mesesHastaFecha).toBeCloseTo(23, 6);
   });
 
-  it('si no llega a condición de cambio en 5 ciclos, se marca truncado=true', () => {
+  // Punto 1 del enunciado: se elimina el tope de 5 ciclos. Umbrales elegidos
+  // para que hagan falta exactamente 8 reperfilados viables antes de que el
+  // 9° ya no lo sea (ver cálculo cycle-by-cycle en el comentario del test).
+  it('sin cap de ciclos: con una tasa de desgaste baja, sigue más allá de 5 reperfilados hasta la condición real de Cambio (8 ciclos)', () => {
     const umbrales: UmbralesProyeccion = {
       hUmbralReperfilado: 1.0,
-      reperfiladoDescuentoRd: 0.1,
+      reperfiladoDescuentoRd: 0.5,
       rdUmbralSeguimiento: 0.0,
       rdUmbralCambioProyeccion: 0.0,
     };
     const resultado = proyectarCiclos(
-      { h: 0.5, rd: 100, fecha: new Date('2026-01-01T00:00:00.000Z') },
+      { h: 0.5, rd: 5.0, fecha: new Date('2026-01-01T00:00:00.000Z') },
       0.1,
       umbrales,
     );
 
-    expect(resultado.ciclosReperfilado).toHaveLength(5);
+    // rdDespues decrece 0.5 por ciclo (4.0, 3.5, 3.0, 2.5, 2.0, 1.5, 1.0,
+    // 0.5) -- viable en los 8 primeros (>0.0), el 9° (0.0) ya no lo es y
+    // pasa a cicloCambio en su lugar: ciclosReperfilado devuelve el detalle
+    // COMPLETO de los 8, sin capar a 5.
+    expect(resultado.ciclosReperfilado).toHaveLength(8);
     expect(resultado.ciclosReperfilado.map((c) => c.numero)).toEqual([
-      1, 2, 3, 4, 5,
+      1, 2, 3, 4, 5, 6, 7, 8,
     ]);
-    expect(resultado.cicloCambio).toBeNull();
-    expect(resultado.truncado).toBe(true);
+    expect(resultado.ciclosReperfilado[7].rdDespues).toBeCloseTo(0.5, 6);
+
+    // cicloCambio SIEMPRE se calcula (nunca null) -- acá converge recién en
+    // el que sería el ciclo 9: mesesHastaFecha = 75 (8 ciclos: 5 + 7*10) +
+    // 10 (crecimiento del 9°) + 5 (rdAntes/tasaMensual = 0.5/0.1) = 90.
+    expect(resultado.cicloCambio.mesesHastaFecha).toBeCloseTo(90, 6);
+  });
+
+  // Salvaguarda técnica (no de negocio, ver comentario en el motor): sin una
+  // tasa positiva, H nunca cruzaría el umbral de reperfilado -- el motor
+  // debe cortar con un error claro en vez de colgarse o devolver
+  // Infinity/NaN silenciosamente.
+  it('tasa de desgaste 0 (H aún no llegó al umbral): lanza ProyeccionNoConvergeError en vez de colgarse', () => {
+    expect(() =>
+      proyectarCiclos(
+        { h: 0.2, rd: 5.0, fecha: new Date('2026-01-01T00:00:00.000Z') },
+        0,
+        UMBRALES_POR_DEFECTO,
+      ),
+    ).toThrow(ProyeccionNoConvergeError);
+  });
+
+  it('tasa de desgaste negativa: lanza ProyeccionNoConvergeError', () => {
+    expect(() =>
+      proyectarCiclos(
+        { h: 0.2, rd: 5.0, fecha: new Date('2026-01-01T00:00:00.000Z') },
+        -0.1,
+        UMBRALES_POR_DEFECTO,
+      ),
+    ).toThrow(ProyeccionNoConvergeError);
+  });
+
+  // Otro caso patológico distinto de tasa<=0: un reperfiladoDescuentoRd=0
+  // nunca reduce Rd entre ciclos (T no pierde nada al "reperfilarse") -> los
+  // ciclos se repiten IDÉNTICOS para siempre. Acá el límite técnico de
+  // seguridad (no la detección de tasa<=0) es lo que corta el cálculo.
+  it('reperfiladoDescuentoRd=0 (Rd nunca decrece entre ciclos): alcanza el límite técnico de seguridad y lanza el mismo error', () => {
+    const umbrales: UmbralesProyeccion = {
+      hUmbralReperfilado: 1.0,
+      reperfiladoDescuentoRd: 0,
+      rdUmbralSeguimiento: 0.4,
+      rdUmbralCambioProyeccion: 0.4,
+    };
+    expect(() =>
+      proyectarCiclos(
+        { h: 0.5, rd: 5.0, fecha: new Date('2026-01-01T00:00:00.000Z') },
+        0.1,
+        umbrales,
+      ),
+    ).toThrow(ProyeccionNoConvergeError);
   });
 
   it('H ya en o sobre el umbral (disco ya en REPERFILADO): 0 meses, sin fecha en el pasado', () => {

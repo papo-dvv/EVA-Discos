@@ -53,10 +53,10 @@ export interface FilaProyeccion {
   proyectable: boolean
   motivo: string | null
   ciclosReperfilado: CicloReperfilado[]
+  // Siempre presente cuando proyectable=true — el backend ya no trunca el
+  // cálculo (sin cap de ciclos de reperfilado, ver ProyeccionCalculatorEngine
+  // en el backend): null SOLO cuando proyectable=false.
   cicloCambio: CicloCambio | null
-  // true = llegó al tope de 5 ciclos sin caer en condición de cambio — el
-  // backend no proyecta más allá, cicloCambio queda null.
-  truncado: boolean
 }
 
 export interface ProyeccionDiscosResult {
@@ -119,3 +119,7 @@ export interface PronosticoMes {
   cambios: number
   desgloseEstado: DesgloseEstado
 }
+
+// Espejo de RANGOS_PRONOSTICO_MESES (apps/api/src/projection/dto/proyeccion-pronostico-query.dto.ts).
+export const RANGOS_PRONOSTICO_MESES = [12, 24, 36, 48, 60] as const
+export type RangoPronosticoMeses = (typeof RANGOS_PRONOSTICO_MESES)[number]

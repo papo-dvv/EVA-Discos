@@ -227,7 +227,7 @@ function EstadoValidezChip({ esValido, comentario }: { esValido: boolean; coment
   }
   return (
     <WarningTooltip texto={comentario}>
-      <span className="tabla-chip tabla-chip--seguimiento">{comentario}</span>
+      <span className="tabla-chip tabla-chip--seguimiento tabla-chip--envolver">{comentario}</span>
     </WarningTooltip>
   )
 }

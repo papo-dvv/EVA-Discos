@@ -1,4 +1,4 @@
-import type { PosicionEsqueleto, PreviewRow } from './types'
+import type { EstadoDisco, MotivoInvalido, PosicionEsqueleto, PreviewRow } from './types'
 
 // Construye las 24 filas "espejo" (una por eje, izquierdo|Coche|derecho) de
 // la tabla de la ficha a partir de las 48 posiciones posibles (esqueleto,
@@ -16,12 +16,20 @@ export interface LadoFilaEspejo {
   tValue: number | null
   hValue: number | null
   rdValue: number | null
+  // Estado calculado del disco (BrakeDiscRulesEngine.clasificarEstadoConReperfilado,
+  // backend) — alimenta el chip de Estado de la columna "Observación" en
+  // TablaFichaEspejo. null en una fila vacía (todavía sin T/H).
+  estadoCalculado: EstadoDisco | null
   // Flags de validación cruzada automática de ESTE disco (ver
   // NewMeasurementValidationService) — siempre false en una fila vacía o en
   // una fila de una tabla de solo-lectura (comparativa histórica).
   tInvalido: boolean
   rdInvalido: boolean
-  excluidaDelCommit: boolean
+  // Espejo legible de tInvalido/rdInvalido — alimenta la columna
+  // "Motivo/Inválido" y el resaltado por celda de TablaFichaEspejo. Vacío en
+  // una fila vacía o de solo lectura. kmInvalido/fechaInvalido (a nivel
+  // ficha, no de esta fila) viajan aparte — ver PreviewFichaResult.
+  motivos: MotivoInvalido[]
 }
 
 export interface FilaEspejo {
@@ -41,9 +49,10 @@ function ladoVacio(pos: PosicionEsqueleto): LadoFilaEspejo {
     tValue: null,
     hValue: null,
     rdValue: null,
+    estadoCalculado: null,
     tInvalido: false,
     rdInvalido: false,
-    excluidaDelCommit: false,
+    motivos: [],
   }
 }
 
@@ -55,9 +64,10 @@ function ladoDeFila(pos: PosicionEsqueleto, fila: PreviewRow): LadoFilaEspejo {
     tValue: fila.tValue,
     hValue: fila.hValue,
     rdValue: fila.rdValue,
+    estadoCalculado: fila.estadoCalculado,
     tInvalido: fila.tInvalido,
     rdInvalido: fila.rdInvalido,
-    excluidaDelCommit: fila.excluidaDelCommit,
+    motivos: fila.motivos,
   }
 }
 

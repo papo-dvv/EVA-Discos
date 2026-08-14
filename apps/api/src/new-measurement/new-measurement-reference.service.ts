@@ -1,5 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import type { ScanRecord } from '../../generated/prisma';
+import type {
+  MeasurementSheetInstrumento,
+  MeasurementSheetTecnico,
+  ScanRecord,
+} from '../../generated/prisma';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   aPreviewRow,
@@ -39,8 +43,26 @@ export interface ReferenciaUltimaFicha {
   fechaFicha: string;
   kilometraje: number;
   responsable: string | null;
+  // P.T. (Puesto de Trabajo) de ESA ficha histórica — ver comentario en
+  // MeasurementSheet.ptCodigo. Exclusivo de 'ultima_ficha' (igual que
+  // tecnicos/instrumentos/ingMr*): 'ultima_medicion' no tiene P.T. porque no
+  // proviene de ninguna ficha real.
+  ptCodigo: string | null;
   esqueleto: PosicionEsqueleto[];
   rows: PreviewRow[];
+  // Exclusivo de 'ultima_ficha' (ver comentario en obtener): a diferencia de
+  // 'ultima_medicion' —que no proviene de ninguna ficha real, solo de
+  // ScanRecords individuales—, acá SÍ hay una ficha histórica completa detrás,
+  // así que el frontend puede mostrar estas secciones en modo solo-lectura
+  // (ver ModalMedicionAnterior). Mismas 2 tablas que FichaDetalle.tecnicos/
+  // instrumentos.
+  responsableMantenimientoFirma: string | null;
+  responsableMantenimientoFecha: string | null;
+  ingMrNombre: string | null;
+  ingMrFirma: string | null;
+  ingMrFecha: string | null;
+  tecnicos: MeasurementSheetTecnico[];
+  instrumentos: MeasurementSheetInstrumento[];
 }
 
 export type ResultadoReferencia =
@@ -109,12 +131,20 @@ export class NewMeasurementReferenceService {
     });
     if (!ficha || !ficha.uploadedFileId) return { disponible: false };
 
-    const [filas, numerosCoche] = await Promise.all([
+    const [filas, numerosCoche, tecnicos, instrumentos] = await Promise.all([
       this.prisma.scanRecord.findMany({
         where: { fileId: ficha.uploadedFileId },
         orderBy: [{ ordenFisico: 'asc' }],
       }),
       resolverNumerosCochePorTren(this.prisma, trenId),
+      this.prisma.measurementSheetTecnico.findMany({
+        where: { measurementSheetId: ficha.id },
+        orderBy: { posicion: 'asc' },
+      }),
+      this.prisma.measurementSheetInstrumento.findMany({
+        where: { measurementSheetId: ficha.id },
+        orderBy: { posicion: 'asc' },
+      }),
     ]);
 
     return {
@@ -123,8 +153,20 @@ export class NewMeasurementReferenceService {
       fechaFicha: ficha.fechaFicha.toISOString().slice(0, 10),
       kilometraje: Number(ficha.kilometraje),
       responsable: ficha.responsableMantenimientoNombre,
+      ptCodigo: ficha.ptCodigo,
       esqueleto: generarEsqueleto48(numerosCoche),
       rows: filas.map(aPreviewRow),
+      responsableMantenimientoFirma: ficha.responsableMantenimientoFirma,
+      responsableMantenimientoFecha: ficha.responsableMantenimientoFecha
+        ? ficha.responsableMantenimientoFecha.toISOString().slice(0, 10)
+        : null,
+      ingMrNombre: ficha.ingMrNombre,
+      ingMrFirma: ficha.ingMrFirma,
+      ingMrFecha: ficha.ingMrFecha
+        ? ficha.ingMrFecha.toISOString().slice(0, 10)
+        : null,
+      tecnicos,
+      instrumentos,
     };
   }
 }

@@ -1,6 +1,7 @@
 import { apiClient } from '../../lib/apiClient'
 import type {
-  PromedioPorTren,
+  PromedioPorTrenItem,
+  PromedioPorTrenParams,
   TraceabilityScopeParams,
   TraceabilitySeriesParams,
   TraceabilitySeriesResponse,
@@ -21,9 +22,9 @@ export async function obtenerTraceabilitySeries(
   return data
 }
 
-export async function obtenerPromedioPorTren(tren?: number): Promise<PromedioPorTren> {
-  const { data } = await apiClient.get<PromedioPorTren>('/traceability/promedio-por-tren', {
-    params: tren !== undefined ? { tren } : undefined,
-  })
+export async function obtenerPromedioPorTren(
+  params: PromedioPorTrenParams,
+): Promise<PromedioPorTrenItem[]> {
+  const { data } = await apiClient.get<PromedioPorTrenItem[]>('/traceability/promedio-por-tren', { params })
   return data
 }

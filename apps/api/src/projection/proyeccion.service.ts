@@ -66,7 +66,6 @@ export interface ProyeccionDiscoApi {
   motivo: string | null;
   ciclosReperfilado: CicloReperfiladoApi[];
   cicloCambio: CicloCambioApi | null;
-  truncado: boolean;
 }
 
 export interface ProyeccionDiscosResult {
@@ -352,13 +351,16 @@ export class ProyeccionService {
     }));
   }
 
-  // Agrega, mes a mes (12 meses calendario desde hoy), cuántos discos del
-  // scope tienen un reperfilado o un cambio proyectado cayendo en ese mes, y
-  // el desglose de estado AMPLIADO proyectado de la flota en ese punto (con
-  // el H/Rd interpolados a esa fecha, no el estado actual). A diferencia de
-  // /discos, acá SÍ hace falta proyectar TODOS los discos del scope (no solo
-  // una página): cada uno aporta a la suma de todos los meses.
-  async obtenerPronostico12Meses(
+  // Agrega, mes a mes (rango calendario desde hoy, ver q.meses — 12/24/36/
+  // 48/60, ProyeccionPronosticoQueryDto), cuántos discos del scope tienen un
+  // reperfilado o un cambio proyectado cayendo en ese mes, y el desglose de
+  // estado AMPLIADO proyectado de la flota en ese punto (con el H/Rd
+  // interpolados a esa fecha, no el estado actual). Agregación siempre
+  // MENSUAL sin importar el rango elegido — mismo shape de response, solo
+  // cambia la cantidad de filas. A diferencia de /discos, acá SÍ hace falta
+  // proyectar TODOS los discos del scope (no solo una página): cada uno
+  // aporta a la suma de todos los meses.
+  async obtenerPronostico(
     q: ProyeccionPronosticoQueryDto,
   ): Promise<PronosticoMesApi[]> {
     const discosEnScope = await this.resolverDiscosEnScope({ tren: q.tren });
@@ -374,14 +376,18 @@ export class ProyeccionService {
       )
     ).filter((p): p is ProyeccionDisco => p !== null);
 
-    const meses = generarMesesForecast(new Date());
-    return meses.map((mes) => this.agregarMes(mes, proyecciones, evaluador));
+    const hoy = new Date();
+    const meses = generarMesesForecast(hoy, q.meses);
+    return meses.map((mes) =>
+      this.agregarMes(mes, proyecciones, evaluador, hoy),
+    );
   }
 
   private agregarMes(
     mes: MesForecast,
     discos: ProyeccionDisco[],
     evaluador: BrakeDiscRulesEngine,
+    hoy: Date,
   ): PronosticoMesApi {
     let reperfilados = 0;
     let cambios = 0;
@@ -403,7 +409,7 @@ export class ProyeccionService {
       ) {
         cambios += 1;
       }
-      conteo[this.estadoProyectadoEnMes(disco, mes, evaluador)] += 1;
+      conteo[this.estadoProyectadoEnMes(disco, mes, evaluador, hoy)] += 1;
     }
 
     return {
@@ -428,8 +434,25 @@ export class ProyeccionService {
     disco: ProyeccionDisco,
     mes: MesForecast,
     evaluador: BrakeDiscRulesEngine,
+    hoy: Date,
   ): EstadoDiscoAmpliado {
     if (!disco.proyectable || disco.tasaMensual === null) return disco.estado;
+
+    // proyectarCiclos asume que el reperfilado ocurre INSTANTÁNEAMENTE apenas
+    // H cruza el umbral (sin tiempo de permanencia) — para un disco que YA
+    // está sobre el umbral en su última medición real, esto colapsa su
+    // primer ciclo al día mismo de esa medición, así que interpolarEnFecha
+    // jamás devuelve REPERFILADO, ni siquiera para el mes en curso: el disco
+    // "ya fue reperfilado" en el modelo antes de que el pronóstico arranque.
+    // En el mes en curso (el que contiene "hoy") sí hay un dato real y no
+    // solo interpolado: si el disco está en REPERFILADO ahora mismo (según
+    // su última medición), todavía no fue atendido en la realidad, así que
+    // se prioriza ese estado real por sobre el interpolado. Los meses
+    // futuros siguen sin poder representar el tiempo de permanencia en
+    // REPERFILADO — limitación del motor de proyección, no de este parche.
+    if (disco.estado === 'REPERFILADO' && fechaCaeEnMes(hoy, mes)) {
+      return 'REPERFILADO';
+    }
 
     const punto = interpolarEnFecha(
       { h: disco.h, rd: disco.rd, fecha: disco.fechaUltimaMedicion },
@@ -658,7 +681,6 @@ export class ProyeccionService {
         : p.cicloCambio
           ? this.cicloCambioApi(p.cicloCambio, null)
           : null,
-      truncado: p.truncado,
     };
   }
 

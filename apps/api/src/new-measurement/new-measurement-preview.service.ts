@@ -39,7 +39,10 @@ import {
   generarEsqueleto48,
   type PosicionEsqueleto,
 } from './new-measurement-esqueleto';
-import { NewMeasurementValidationService } from './new-measurement-validation.service';
+import {
+  NewMeasurementValidationService,
+  type FlagsFichaNivelRaiz,
+} from './new-measurement-validation.service';
 
 // kilometraje/kilometrajeOriginalCsv se exponen como number (nunca el
 // Prisma.Decimal crudo de MeasurementSheet): un Decimal serializa a STRING en
@@ -56,7 +59,12 @@ export interface FichaDetalle extends Omit<
   instrumentos: MeasurementSheetInstrumento[];
 }
 
-export interface PreviewMedicionResult extends PreviewResult {
+// kmInvalido/fechaInvalido viajan a nivel RAÍZ acá también (ver
+// FlagsFichaNivelRaiz) — nunca replicados dentro de cada fila de `rows` (ver
+// PreviewRow en scan-record-query.ts, que solo expone tInvalido/rdInvalido
+// por fila): mismo criterio que ResumenVerificacion (POST .../validate).
+export interface PreviewMedicionResult
+  extends PreviewResult, FlagsFichaNivelRaiz {
   ficha: FichaDetalle;
   esqueleto: PosicionEsqueleto[];
 }
@@ -79,7 +87,7 @@ export class NewMeasurementPreviewService {
     q: PreviewQueryDto,
   ): Promise<PreviewMedicionResult> {
     const ficha = await this.cargarFicha(fichaId);
-    const [detalle, preview, numerosCoche] = await Promise.all([
+    const [detalle, preview, numerosCoche, flagsRaiz] = await Promise.all([
       this.conDetalle(ficha),
       buscarScanRecordsPaginado(
         this.prisma,
@@ -87,10 +95,14 @@ export class NewMeasurementPreviewService {
         q,
       ),
       this.numerosCochePorFicha(ficha),
+      // kmInvalido/fechaInvalido a nivel raíz — NUNCA por fila (ver
+      // PreviewMedicionResult y motivosInvalidosDeFila en scan-record-query.ts).
+      this.validationService.obtenerFlagsRaiz(fichaId),
     ]);
     return {
       ficha: detalle,
       esqueleto: generarEsqueleto48(numerosCoche),
+      ...flagsRaiz,
       ...preview,
     };
   }
@@ -144,6 +156,7 @@ export class NewMeasurementPreviewService {
     if (dto.responsableMantenimientoNombre !== undefined)
       cambios.responsableMantenimientoNombre =
         dto.responsableMantenimientoNombre;
+    if (dto.ptCodigo !== undefined) cambios.ptCodigo = dto.ptCodigo;
     if (dto.responsableMantenimientoFirma !== undefined)
       cambios.responsableMantenimientoFirma = dto.responsableMantenimientoFirma;
     if (dto.responsableMantenimientoFecha !== undefined)
@@ -154,6 +167,18 @@ export class NewMeasurementPreviewService {
     if (dto.ingMrFirma !== undefined) cambios.ingMrFirma = dto.ingMrFirma;
     if (dto.ingMrFecha !== undefined)
       cambios.ingMrFecha = new Date(dto.ingMrFecha);
+
+    // Punto 4 del enunciado: cualquier edición de la ficha (header, firmas,
+    // técnicos o instrumentos) resetea un duplicado detectado en la carga —
+    // deja de ser, por definición, un duplicado exacto en cuanto algo cambia
+    // (ver NewMeasurementValidationService.verificar).
+    const tocaAlgo =
+      Object.keys(cambios).length > 0 ||
+      (dto.tecnicos?.length ?? 0) > 0 ||
+      (dto.instrumentos?.length ?? 0) > 0;
+    if (tocaAlgo && ficha.esPosibleDuplicado) {
+      cambios.esPosibleDuplicado = false;
+    }
 
     await this.prisma.$transaction(async (tx) => {
       if (Object.keys(cambios).length > 0) {
@@ -341,10 +366,11 @@ export class NewMeasurementPreviewService {
       });
       // Editar una fila desactualiza la última verificación (ver
       // NewMeasurementValidationService.verificar) — obliga a un nuevo
-      // POST .../validate antes de poder bloquear la tabla.
+      // POST .../validate antes de poder bloquear la tabla. También resetea
+      // un duplicado detectado en la carga (punto 4 del enunciado).
       await tx.measurementSheet.update({
         where: { id: fichaId },
-        data: { verificado: false },
+        data: { verificado: false, esPosibleDuplicado: false },
       });
       return upd;
     });
@@ -443,7 +469,7 @@ export class NewMeasurementPreviewService {
       // editarFila — ver comentario ahí.
       await tx.measurementSheet.update({
         where: { id: fichaId },
-        data: { verificado: false },
+        data: { verificado: false, esPosibleDuplicado: false },
       });
       return fila;
     });
@@ -500,7 +526,7 @@ export class NewMeasurementPreviewService {
       // editarFila — ver comentario ahí.
       await tx.measurementSheet.update({
         where: { id: fichaId },
-        data: { verificado: false },
+        data: { verificado: false, esPosibleDuplicado: false },
       });
     });
 

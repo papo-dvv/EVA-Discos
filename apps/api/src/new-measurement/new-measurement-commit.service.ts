@@ -22,6 +22,14 @@ export interface ResumenCancelacionMedicion {
   cancelado: boolean;
 }
 
+export interface ResumenReset {
+  fichaId: string;
+  // Nuevo uploaded_file "técnico" que reemplaza al anterior (ver reiniciar) —
+  // measurement_sheet.uploadedFileId ya apunta acá.
+  fileId: string;
+  registrosEliminados: number;
+}
+
 @Injectable()
 export class NewMeasurementCommitService {
   constructor(
@@ -49,6 +57,11 @@ export class NewMeasurementCommitService {
     if (!ficha.responsableMantenimientoNombre?.trim()) {
       throw new UnprocessableEntityException(
         'Falta el responsable de mantenimiento — es obligatorio para confirmar la ficha.',
+      );
+    }
+    if (!ficha.ptCodigo?.trim()) {
+      throw new UnprocessableEntityException(
+        'Falta el P.T. (Puesto de Trabajo) — es obligatorio para confirmar la ficha.',
       );
     }
     if (!ficha.tablaBloqueada) {
@@ -90,16 +103,14 @@ export class NewMeasurementCommitService {
       );
     }
 
-    // Filas marcadas excluidaDelCommit=true (ver NewMeasurementValidationService.
-    // verificar) siguieron inválidas tras la última re-evaluación: quedan
-    // fuera del commit SIN borrarse — su disc_id nunca se resuelve y por lo
-    // tanto nunca aparecen como "confirmadas" (ver SOLO_CONFIRMADOS en
-    // scan-records.service.ts).
-    const filasAConfirmar = filas.filter((f) => !f.excluidaDelCommit);
-
+    // Modelo binario (ver NewMeasurementValidationService.verificar): no
+    // existe un camino de "commit parcial" — tablaBloqueada=true ya implica
+    // que la última verificación encontró todoValido=true (ninguna fila con
+    // t/rd/km/fecha inválido), así que TODAS las filas de la ficha se
+    // confirman siempre, sin filtrar ninguna.
     const discIdPorFila = new Map<string, string>();
     const wagonCache = new Map<string, string>();
-    for (const fila of filasAConfirmar) {
+    for (const fila of filas) {
       const wagonUnitId = await this.resolverWagonUnitId(
         fila,
         tren.id,
@@ -111,7 +122,7 @@ export class NewMeasurementCommitService {
 
     await this.prisma.$transaction(async (tx) => {
       await Promise.all(
-        filasAConfirmar.map((fila) =>
+        filas.map((fila) =>
           tx.scanRecord.update({
             where: { id: fila.id },
             data: {
@@ -190,6 +201,100 @@ export class NewMeasurementCommitService {
     });
 
     return { fichaId, cancelado: true };
+  }
+
+  // "Resubir CSV" / "Reiniciar ficha": vacía la tabla de mediciones actual
+  // (borrador CSV o manual, da igual) para que el usuario empiece de nuevo
+  // SIN perder el fichaId — a diferencia de cancelar(), que borra la ficha
+  // entera. Deja la ficha lista para un nuevo POST .../upload o para
+  // completar el esqueleto a mano de nuevo (POST .../records por fila) —
+  // ambos flujos ya asumen measurement_sheet.uploadedFileId resuelto y
+  // uploadedFile.status='review' (ver NewMeasurementPreviewService.cargarFicha),
+  // por eso acá se crea un archivo técnico nuevo en vez de dejarlo en null.
+  async reiniciar(fichaId: string, usuarioId: string): Promise<ResumenReset> {
+    const ficha = await this.prisma.measurementSheet.findUnique({
+      where: { id: fichaId },
+    });
+    if (!ficha) {
+      throw new NotFoundException('Ficha de medición no encontrada.');
+    }
+
+    const fileIdAnterior = ficha.uploadedFileId;
+    if (fileIdAnterior) {
+      const file = await this.prisma.uploadedFile.findUnique({
+        where: { id: fileIdAnterior },
+      });
+      if (file?.status === 'committed') {
+        throw new ConflictException(
+          'Esta ficha ya fue confirmada y no puede reiniciarse.',
+        );
+      }
+    }
+
+    const registrosEliminados = fileIdAnterior
+      ? await this.prisma.scanRecord.count({
+          where: { fileId: fileIdAnterior },
+        })
+      : 0;
+
+    const fileId = await this.prisma.$transaction(async (tx) => {
+      if (fileIdAnterior) {
+        // scan_records se borra explícito (no solo confiando en el ON DELETE
+        // CASCADE de uploaded_files -> scan_records, ver schema) para que
+        // registrosEliminados sea exacto y el efecto quede documentado acá.
+        // El archivo técnico anterior se borra después: se lleva en cascada
+        // lo que quede de scan_edit_log de esa carga (ON DELETE CASCADE) y
+        // deja measurement_sheet.uploadedFileId en NULL por un instante (ON
+        // DELETE SET NULL) hasta el update de abajo, dentro de la MISMA
+        // transacción — igual criterio que NewMeasurementCommitService.cancelar.
+        await tx.scanRecord.deleteMany({ where: { fileId: fileIdAnterior } });
+        await tx.uploadedFile.delete({ where: { id: fileIdAnterior } });
+      }
+
+      // Mismo "archivo técnico" que NewMeasurementService.crearManual: incluso
+      // en modo CSV, la ficha reiniciada necesita un uploaded_file para que
+      // scan_records.file_id (NOT NULL) tenga dónde colgar la próxima carga o
+      // fila agregada a mano.
+      const nuevoArchivo = await tx.uploadedFile.create({
+        data: {
+          filename: `Ficha reiniciada — Tren ${ficha.trenNumero}`,
+          tipoCarga: 'ficha_medicion_individual',
+          uploadedBy: usuarioId,
+          status: 'review',
+          totalRows: 0,
+          validRows: 0,
+          invalidRows: 0,
+        },
+      });
+
+      await tx.measurementSheet.update({
+        where: { id: fichaId },
+        data: {
+          uploadedFileId: nuevoArchivo.id,
+          verificado: false,
+          tablaBloqueada: false,
+        },
+      });
+
+      await tx.scanEditLog.create({
+        data: {
+          fileId: nuevoArchivo.id,
+          scanRecordId: null,
+          etapa: 'pre_commit',
+          campoEditado: 'ficha_reiniciada',
+          valorAnterior: JSON.stringify({
+            fileIdAnterior,
+            registrosEliminados,
+          }),
+          valorNuevo: null,
+          usuarioId,
+        },
+      });
+
+      return nuevoArchivo.id;
+    });
+
+    return { fichaId, fileId, registrosEliminados };
   }
 
   private async resolverWagonUnitId(

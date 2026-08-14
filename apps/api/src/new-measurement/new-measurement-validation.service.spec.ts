@@ -8,6 +8,8 @@ interface FakeFicha {
   kilometraje: number;
   fechaFicha: Date;
   verificado: boolean;
+  ptCodigo: string | null;
+  esPosibleDuplicado: boolean;
 }
 
 interface FakeScanRecord {
@@ -27,7 +29,37 @@ interface FakeScanRecord {
   fechaInvalido: boolean;
   tInvalido: boolean;
   rdInvalido: boolean;
-  excluidaDelCommit: boolean;
+  // Mismo campo que ScanRecord.ordenFisico (ver common/orden-fisico.ts) — el
+  // fake de scanRecord.findMany lo usa para simular el orderBy real de
+  // ORDEN_FISICO_DEFECTO, ver compararPorOrderBy más abajo.
+  ordenFisico: number;
+}
+
+// Simula el orderBy real de Prisma (array de { campo: 'asc'|'desc' }) sobre
+// el fake en memoria — necesario para probar que recalcularFlags/verificar
+// piden ORDEN_FISICO_DEFECTO de verdad, no solo que "funcionan" con el orden
+// de inserción del array de fixtures (que por sí solo no probaría nada).
+function compararPorOrderBy(
+  orderBy: Record<string, 'asc' | 'desc'>[],
+  a: FakeScanRecord,
+  b: FakeScanRecord,
+): number {
+  for (const criterio of orderBy) {
+    const [campo, dir] = Object.entries(criterio)[0] as [
+      keyof FakeScanRecord,
+      'asc' | 'desc',
+    ];
+    const va = a[campo];
+    const vb = b[campo];
+    const cmp =
+      va instanceof Date && vb instanceof Date
+        ? va.getTime() - vb.getTime()
+        : typeof va === 'number' && typeof vb === 'number'
+          ? va - vb
+          : String(va).localeCompare(String(vb));
+    if (cmp !== 0) return dir === 'asc' ? cmp : -cmp;
+  }
+  return 0;
 }
 
 // Fake de PrismaService con estado en memoria real (mismo patrón que
@@ -46,6 +78,10 @@ function crearEntorno(opts: {
     kilometraje: 120000,
     fechaFicha: new Date('2026-03-01'),
     verificado: false,
+    // Con valor por defecto (obligatorio recién en bloquear()): los tests que
+    // no ejercitan esa regla en particular no necesitan setearlo.
+    ptCodigo: 'PT-001',
+    esPosibleDuplicado: false,
     ...opts.ficha,
   };
   let scanRecords: FakeScanRecord[] = opts.scanRecords ?? [];
@@ -63,8 +99,22 @@ function crearEntorno(opts: {
       }),
     },
     scanRecord: {
-      findMany: jest.fn(({ where }: { where: { fileId: string } }) =>
-        Promise.resolve(scanRecords.filter((r) => r.fileId === where.fileId)),
+      findMany: jest.fn(
+        ({
+          where,
+          orderBy,
+        }: {
+          where: { fileId: string };
+          orderBy?: Record<string, 'asc' | 'desc'>[];
+        }) => {
+          const filtradas = scanRecords.filter(
+            (r) => r.fileId === where.fileId,
+          );
+          const resultado = orderBy
+            ? [...filtradas].sort((a, b) => compararPorOrderBy(orderBy, a, b))
+            : filtradas;
+          return Promise.resolve(resultado);
+        },
       ),
       findFirst: jest.fn(
         ({
@@ -73,8 +123,19 @@ function crearEntorno(opts: {
           where: {
             trenNumero?: number;
             discId?: string | { not: null };
+            fileId?: string;
           };
         }) => {
+          // where.fileId (ver obtenerFlagsRaiz): consulta plana por ficha,
+          // sin el requisito de "confirmada" (discId no nulo) que sí aplica
+          // a las búsquedas de referencia histórica de abajo.
+          if (where.fileId !== undefined) {
+            const candidatos = scanRecords.filter(
+              (r) => r.fileId === where.fileId,
+            );
+            return Promise.resolve(candidatos[0] ?? null);
+          }
+
           let candidatos = scanRecords.filter((r) => r.discId !== null);
           if (where.trenNumero !== undefined) {
             candidatos = candidatos.filter(
@@ -189,7 +250,7 @@ function filaBase(overrides: Partial<FakeScanRecord>): FakeScanRecord {
     fechaInvalido: false,
     tInvalido: false,
     rdInvalido: false,
-    excluidaDelCommit: false,
+    ordenFisico: 0,
     ...overrides,
   };
 }
@@ -288,7 +349,7 @@ describe('NewMeasurementValidationService.recalcularFlags', () => {
 });
 
 describe('NewMeasurementValidationService.verificar', () => {
-  it('excluye del commit SOLO las filas que siguen inválidas tras la re-evaluación', async () => {
+  it('filasExcluidas lista SOLO las filas que siguen inválidas (problema propio t/rd) tras la re-evaluación', async () => {
     const referenciaDiscoEje1 = filaBase({
       id: 'referencia-disco-eje1',
       fileId: 'file-anterior',
@@ -334,16 +395,34 @@ describe('NewMeasurementValidationService.verificar', () => {
     const service = new NewMeasurementValidationService(prisma as never);
 
     const resumen = await service.verificar('ficha-1');
+    if ('duplicado' in resumen)
+      throw new Error('no debería bloquear por duplicado');
 
     expect(resumen.todoValido).toBe(false);
     expect(resumen.filasIncluidas).toBe(1);
     expect(resumen.filasExcluidas).toHaveLength(1);
-    expect(resumen.filasExcluidas[0].id).toBe('fila-2');
+    expect(resumen.filasExcluidas[0].recordId).toBe('fila-2');
+    expect(resumen.filasExcluidas[0].eje).toBe(2);
+    expect(resumen.filasExcluidas[0].lado).toBe('izquierdo');
+    // Motivo legible por campo, no solo el string plano de antes.
+    expect(resumen.filasExcluidas[0].motivos).toEqual([
+      {
+        campo: 't',
+        motivo:
+          'Espesor medido (T) mayor al último valor registrado para este disco',
+      },
+    ]);
+    // Sin discrepancia de km/fecha en este fixture (ninguna fila la trae).
+    expect(resumen.kmInvalido).toBeNull();
+    expect(resumen.fechaInvalido).toBeNull();
 
+    // Persistidos: tInvalido de fila-1 se corrigió a false, fila-2 sigue true.
     const filas = scanRecordsRef().filter((r) => r.id.startsWith('fila-'));
-    expect(filas.find((f) => f.id === 'fila-1')?.excluidaDelCommit).toBe(false);
-    expect(filas.find((f) => f.id === 'fila-2')?.excluidaDelCommit).toBe(true);
-    expect(fichaRef().verificado).toBe(true);
+    expect(filas.find((f) => f.id === 'fila-1')?.tInvalido).toBe(false);
+    expect(filas.find((f) => f.id === 'fila-2')?.tInvalido).toBe(true);
+    // Modelo binario: con al menos 1 fila inválida, verificado NUNCA queda en
+    // true (ver punto 3 del enunciado — antes se ponía true incondicional).
+    expect(fichaRef().verificado).toBe(false);
   });
 
   it('todoValido=true y verificado=true cuando ninguna fila queda inválida', async () => {
@@ -354,11 +433,148 @@ describe('NewMeasurementValidationService.verificar', () => {
     const service = new NewMeasurementValidationService(prisma as never);
 
     const resumen = await service.verificar('ficha-1');
+    if ('duplicado' in resumen)
+      throw new Error('no debería bloquear por duplicado');
 
     expect(resumen.todoValido).toBe(true);
     expect(resumen.filasExcluidas).toHaveLength(0);
     expect(resumen.filasIncluidas).toBe(1);
     expect(fichaRef().verificado).toBe(true);
+  });
+
+  it('kmInvalido/fechaInvalido a nivel ficha viajan con motivo legible ÚNICAMENTE en la raíz de la response, nunca replicados por fila', async () => {
+    const referenciaTren = filaBase({
+      id: 'referencia-tren',
+      fileId: 'file-anterior',
+      discId: 'disco-otro',
+      fecha: new Date('2026-03-15'),
+      kilometraje: 150000,
+    });
+    // fila1 no tiene NINGÚN problema propio (t/rd) — su única discrepancia es
+    // la de la ficha (km/fecha), que es a nivel FICHA, no de esta fila.
+    const fila1 = filaBase({ id: 'fila-1' });
+    const { prisma, fichaRef } = crearEntorno({
+      // kilometraje < referencia Y fecha < referencia -> ambos flags activos.
+      ficha: { kilometraje: 120000, fechaFicha: new Date('2026-03-01') },
+      scanRecords: [referenciaTren, fila1],
+    });
+    const service = new NewMeasurementValidationService(prisma as never);
+
+    const resumen = await service.verificar('ficha-1');
+    if ('duplicado' in resumen)
+      throw new Error('no debería bloquear por duplicado');
+
+    expect(resumen.kmInvalido).toEqual({
+      motivo: 'Kilometraje menor al último registrado para este tren',
+    });
+    expect(resumen.fechaInvalido).toEqual({
+      motivo: 'Fecha anterior a la última medición registrada para este tren',
+    });
+    // Bug corregido (punto 2 del enunciado): fila-1 NO aparece en
+    // filasExcluidas — kilometraje/fecha nunca se repiten por fila, solo
+    // viajan una vez, a nivel raíz (arriba).
+    expect(resumen.filasExcluidas).toHaveLength(0);
+    // Pero todoValido SIGUE en false: un problema de ficha (km/fecha) basta
+    // para bloquear, aunque ninguna fila individual quede "excluida".
+    expect(resumen.todoValido).toBe(false);
+    expect(fichaRef().verificado).toBe(false);
+  });
+
+  it('filasExcluidas viene ordenado por el mismo criterio jerárquico del sistema (ordenFisico ASC), sin importar el orden en que llegan de la base', async () => {
+    // Mismo disco físico (eje1/izquierdo, default de filaBase) para las 3 —
+    // alcanza una sola referencia con T menor para que las 3 salgan
+    // t_invalido, sin tener que armar una identidad distinta por fila.
+    const referenciaDisco = filaBase({
+      id: 'referencia-disco',
+      fileId: 'file-anterior',
+      discId: 'disco-eje1-izquierdo',
+      fecha: new Date('2026-01-01'),
+      tValue: 5,
+      rdValue: 6,
+    });
+    // Insertadas en orden DESCENDENTE de ordenFisico a propósito.
+    const filaAlta = filaBase({
+      id: 'fila-alta',
+      ordenFisico: 3000,
+      tValue: 10,
+    });
+    const filaBaja = filaBase({
+      id: 'fila-baja',
+      ordenFisico: 100,
+      tValue: 10,
+    });
+    const filaMedia = filaBase({
+      id: 'fila-media',
+      ordenFisico: 1500,
+      tValue: 10,
+    });
+    const { prisma } = crearEntorno({
+      scanRecords: [referenciaDisco, filaAlta, filaBaja, filaMedia],
+    });
+    const service = new NewMeasurementValidationService(prisma as never);
+
+    const resumen = await service.verificar('ficha-1');
+    if ('duplicado' in resumen)
+      throw new Error('no debería bloquear por duplicado');
+
+    expect(resumen.filasExcluidas.map((f) => f.recordId)).toEqual([
+      'fila-baja',
+      'fila-media',
+      'fila-alta',
+    ]);
+  });
+});
+
+describe('NewMeasurementValidationService.verificar — bloqueo por duplicado (punto 3)', () => {
+  it('esPosibleDuplicado=true bloquea de inmediato SIN ejecutar la validación cruzada normal', async () => {
+    const filaConProblemaPropio = filaBase({ id: 'fila-1', tInvalido: true });
+    const { prisma, fichaRef } = crearEntorno({
+      ficha: { esPosibleDuplicado: true },
+      scanRecords: [filaConProblemaPropio],
+    });
+    const service = new NewMeasurementValidationService(prisma as never);
+
+    const resumen = await service.verificar('ficha-1');
+
+    expect(resumen).toEqual({
+      todoValido: false,
+      duplicado: true,
+      motivo:
+        'Estas mediciones ya están registradas — la ficha confirmada más reciente de este tren tiene la misma fecha, kilometraje y valores.',
+    });
+    // verificado nunca queda true mientras el duplicado bloquea.
+    expect(fichaRef().verificado).toBe(false);
+    // La validación cruzada normal (recalcularFlags) NUNCA corre en este
+    // camino — ni siquiera se consulta el historial de scan records.
+    expect(prisma.scanRecord.findMany).not.toHaveBeenCalled();
+  });
+
+  it('esPosibleDuplicado=false (ya reseteado tras una edición) vuelve a evaluar T/Rd/Km/Fecha con normalidad', async () => {
+    const referenciaDisco = filaBase({
+      id: 'referencia-disco',
+      fileId: 'file-anterior',
+      discId: 'disco-eje1-izquierdo',
+      fecha: new Date('2026-01-01'),
+      kilometraje: 100000,
+      tValue: 8,
+      rdValue: 6,
+    });
+    const filaInvalida = filaBase({ id: 'fila-1', tValue: 12, rdValue: 3 });
+    const { prisma, fichaRef } = crearEntorno({
+      ficha: { esPosibleDuplicado: false },
+      scanRecords: [referenciaDisco, filaInvalida],
+    });
+    const service = new NewMeasurementValidationService(prisma as never);
+
+    const resumen = await service.verificar('ficha-1');
+
+    if ('duplicado' in resumen) {
+      throw new Error('no debería bloquear por duplicado en este caso');
+    }
+    expect(resumen.todoValido).toBe(false);
+    expect(resumen.filasExcluidas).toHaveLength(1);
+    expect(resumen.filasExcluidas[0].recordId).toBe('fila-1');
+    expect(fichaRef().verificado).toBe(false);
   });
 });
 
@@ -379,5 +595,56 @@ describe('NewMeasurementValidationService.bloquear', () => {
     const resumen = await service.bloquear('ficha-1');
 
     expect(resumen).toEqual({ fichaId: 'ficha-1', tablaBloqueada: true });
+  });
+
+  it('rechaza con 422 si falta el P.T. (pt_codigo null) aunque la ficha esté verificada', async () => {
+    const { prisma } = crearEntorno({
+      ficha: { verificado: true, ptCodigo: null },
+    });
+    const service = new NewMeasurementValidationService(prisma as never);
+
+    await expect(service.bloquear('ficha-1')).rejects.toThrow(
+      UnprocessableEntityException,
+    );
+    await expect(service.bloquear('ficha-1')).rejects.toThrow(/P\.T\./);
+  });
+
+  it('rechaza con 422 si el P.T. es solo espacios aunque la ficha esté verificada', async () => {
+    const { prisma } = crearEntorno({
+      ficha: { verificado: true, ptCodigo: '   ' },
+    });
+    const service = new NewMeasurementValidationService(prisma as never);
+
+    await expect(service.bloquear('ficha-1')).rejects.toThrow(
+      UnprocessableEntityException,
+    );
+  });
+});
+
+describe('NewMeasurementValidationService.obtenerFlagsRaiz', () => {
+  it('lee los flags YA PERSISTIDOS de la ficha (sin recalcular)', async () => {
+    const fila1 = filaBase({
+      id: 'fila-1',
+      kmInvalido: true,
+      fechaInvalido: false,
+    });
+    const { prisma } = crearEntorno({ scanRecords: [fila1] });
+    const service = new NewMeasurementValidationService(prisma as never);
+
+    const flags = await service.obtenerFlagsRaiz('ficha-1');
+
+    expect(flags.kmInvalido).toEqual({
+      motivo: 'Kilometraje menor al último registrado para este tren',
+    });
+    expect(flags.fechaInvalido).toBeNull();
+  });
+
+  it('sin filas todavía, ambos flags quedan null', async () => {
+    const { prisma } = crearEntorno({ scanRecords: [] });
+    const service = new NewMeasurementValidationService(prisma as never);
+
+    const flags = await service.obtenerFlagsRaiz('ficha-1');
+
+    expect(flags).toEqual({ kmInvalido: null, fechaInvalido: null });
   });
 });

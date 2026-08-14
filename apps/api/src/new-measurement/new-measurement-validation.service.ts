@@ -5,6 +5,12 @@ import {
 } from '@nestjs/common';
 import type { LadoDisco, ScanRecord, TipoCoche } from '../../generated/prisma';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  motivosInvalidosDeFila,
+  ORDEN_FISICO_DEFECTO,
+  TEXTO_MOTIVO_INVALIDO,
+  type MotivoInvalido,
+} from '../scan-records/scan-record-query';
 
 // Validación cruzada automática de una ficha de medición individual en
 // borrador (motivo 'Medición' únicamente) contra el historial YA CONFIRMADO
@@ -22,8 +28,8 @@ export class NewMeasurementValidationService {
   constructor(private readonly prisma: PrismaService) {}
 
   // Recalcula y persiste los 4 flags (kmInvalido/fechaInvalido/tInvalido/
-  // rdInvalido) de TODAS las filas de la ficha, sin tocar excluidaDelCommit
-  // ni measurement_sheet.verificado — usado al terminar de crear la ficha
+  // rdInvalido) de TODAS las filas de la ficha, sin tocar
+  // measurement_sheet.verificado — usado al terminar de crear la ficha
   // (carga CSV o cada fila agregada en modo manual) y como primer paso de
   // verificar().
   async recalcularFlags(fichaId: string): Promise<FilaValidada[]> {
@@ -35,9 +41,13 @@ export class NewMeasurementValidationService {
     }
     if (!ficha.uploadedFileId) return [];
 
+    // orderBy: mismo criterio jerárquico ya usado en toda la pantalla (ver
+    // ORDEN_FISICO_DEFECTO) — así filasExcluidas de verificar() sale
+    // pre-ordenado, sin que el frontend tenga que reordenar nada.
     const [filas, tren] = await Promise.all([
       this.prisma.scanRecord.findMany({
         where: { fileId: ficha.uploadedFileId },
+        orderBy: ORDEN_FISICO_DEFECTO,
       }),
       this.prisma.train.findUnique({ where: { numero: ficha.trenNumero } }),
     ]);
@@ -103,53 +113,117 @@ export class NewMeasurementValidationService {
   }
 
   // POST .../validate ("Verificar"): re-evalúa el estado ACTUAL de cada fila
-  // (por si el usuario ya corrigió algo) y marca excluidaDelCommit=true en
-  // toda fila que SIGA con algún flag activo — sin borrarla, sigue visible en
-  // la tabla con su alerta. measurement_sheet.verificado pasa a true recién
-  // acá: es lo único que habilita POST .../lock.
-  async verificar(fichaId: string): Promise<ResumenVerificacion> {
+  // (por si el usuario ya corrigió algo). El modelo es BINARIO: todoValido
+  // solo es true cuando NINGUNA fila tiene un problema propio (t/rd) Y la
+  // ficha no tiene un problema de km/fecha — no existe un camino de "commit
+  // parcial saltando filas inválidas" (ver NewMeasurementCommitService.
+  // confirmar, que ahora siempre procesa TODAS las filas). measurement_sheet.
+  // verificado se fija en ESE MISMO valor (nunca incondicional a true): es lo
+  // único que habilita POST .../lock, así que un problema pendiente (de
+  // cualquiera de los 4 tipos) sigue bloqueando el bloqueo tras un /validate.
+  async verificar(
+    fichaId: string,
+  ): Promise<ResumenVerificacion | ResumenVerificacionDuplicado> {
+    // Punto 3 del enunciado: un duplicado exacto forzado (ver
+    // NewMeasurementService.buscarDuplicadoExacto + UploadCsvDto.forzar)
+    // bloquea de entrada, ANTES de tocar la validación cruzada normal
+    // (recalcularFlags ni siquiera se llama en este caso).
+    const ficha = await this.prisma.measurementSheet.findUnique({
+      where: { id: fichaId },
+    });
+    if (!ficha) {
+      throw new NotFoundException('Ficha de medición no encontrada.');
+    }
+    if (ficha.esPosibleDuplicado) {
+      await this.prisma.measurementSheet.update({
+        where: { id: fichaId },
+        data: { verificado: false },
+      });
+      return {
+        todoValido: false,
+        duplicado: true,
+        motivo:
+          'Estas mediciones ya están registradas — la ficha confirmada más reciente de este tren tiene la misma fecha, kilometraje y valores.',
+      };
+    }
+
     const filas = await this.recalcularFlags(fichaId);
 
-    const actualizaciones = filas.map((f) =>
-      this.prisma.scanRecord.update({
-        where: { id: f.id },
-        data: { excluidaDelCommit: esInvalida(f) },
-      }),
-    );
-
-    await this.prisma.$transaction([
-      ...actualizaciones,
-      this.prisma.measurementSheet.update({
-        where: { id: fichaId },
-        data: { verificado: true },
-      }),
-    ]);
-
+    // filas ya viene ordenado por ORDEN_FISICO_DEFECTO (ver recalcularFlags):
+    // .filter() preserva ese orden, así que filasExcluidas sale pre-ordenado
+    // sin necesidad de un sort aparte acá. Solo lista problemas POR FILA
+    // (t/rd) — kmInvalido/fechaInvalido son a nivel ficha y NUNCA se
+    // duplican acá (ver motivosInvalidosDeFila en scan-record-query.ts).
     const filasExcluidas: FilaExcluida[] = filas
       .filter(esInvalida)
       .map((f) => ({
-        id: f.id,
-        cocheExcel: f.cocheExcel,
-        ejeExcel: f.ejeExcel,
-        ubicacionExcel: f.ubicacionExcel,
-        motivos: [
-          f.kmInvalido ? 'kilometraje' : null,
-          f.fechaInvalido ? 'fecha' : null,
-          f.tInvalido ? 't' : null,
-          f.rdInvalido ? 'rd' : null,
-        ].filter((m): m is string => m !== null),
+        recordId: f.id,
+        eje: f.ejeExcel,
+        lado: f.ubicacionExcel,
+        motivos: motivosInvalidosDeFila(f),
       }));
 
+    // kmInvalido/fechaInvalido son a nivel FICHA/TREN: recalcularFlags les
+    // asigna el MISMO valor a las 4 filas (ver comentario ahí), así que con
+    // al menos una fila alcanza para leerlo — sin filas no hay nada que
+    // reportar todavía.
+    const primeraFila = filas[0];
+    const kmInvalido = primeraFila?.kmInvalido ?? false;
+    const fechaInvalido = primeraFila?.fechaInvalido ?? false;
+    const todoValido =
+      filasExcluidas.length === 0 && !kmInvalido && !fechaInvalido;
+
+    await this.prisma.measurementSheet.update({
+      where: { id: fichaId },
+      data: { verificado: todoValido },
+    });
+
     return {
-      todoValido: filasExcluidas.length === 0,
+      todoValido,
       filasExcluidas,
       filasIncluidas: filas.length - filasExcluidas.length,
+      kmInvalido: kmInvalido
+        ? { motivo: TEXTO_MOTIVO_INVALIDO.kilometraje }
+        : null,
+      fechaInvalido: fechaInvalido
+        ? { motivo: TEXTO_MOTIVO_INVALIDO.fecha }
+        : null,
+    };
+  }
+
+  // Lee (sin recalcular) los flags kmInvalido/fechaInvalido YA PERSISTIDOS de
+  // la ficha — usado por GET .../preview para exponerlos a nivel RAÍZ (nunca
+  // por fila, ver motivosInvalidosDeFila) sin correr todo el pipeline de
+  // recalcularFlags (que además escribe en la base) solo para una lectura.
+  // Mismo criterio que verificar(): con una sola fila alcanza, las ~48
+  // comparten el mismo valor.
+  async obtenerFlagsRaiz(fichaId: string): Promise<FlagsFichaNivelRaiz> {
+    const ficha = await this.prisma.measurementSheet.findUnique({
+      where: { id: fichaId },
+    });
+    if (!ficha?.uploadedFileId) {
+      return { kmInvalido: null, fechaInvalido: null };
+    }
+    const primeraFila = await this.prisma.scanRecord.findFirst({
+      where: { fileId: ficha.uploadedFileId },
+      select: { kmInvalido: true, fechaInvalido: true },
+    });
+    return {
+      kmInvalido: primeraFila?.kmInvalido
+        ? { motivo: TEXTO_MOTIVO_INVALIDO.kilometraje }
+        : null,
+      fechaInvalido: primeraFila?.fechaInvalido
+        ? { motivo: TEXTO_MOTIVO_INVALIDO.fecha }
+        : null,
     };
   }
 
   // POST .../lock ("Bloquear Mediciones"): exige una verificación fresca
   // (verificado=true, sin ediciones posteriores — ver reseteoVerificado en
-  // NewMeasurementPreviewService). No hay endpoint de desbloqueo todavía.
+  // NewMeasurementPreviewService) Y el P.T. (Puesto de Trabajo) completo —
+  // mismo nivel de obligatoriedad que verificado=true, ver
+  // NewMeasurementCommitService.confirmar para el mismo requisito en el
+  // commit final. No hay endpoint de desbloqueo todavía.
   async bloquear(fichaId: string): Promise<ResumenBloqueo> {
     const ficha = await this.prisma.measurementSheet.findUnique({
       where: { id: fichaId },
@@ -160,6 +234,11 @@ export class NewMeasurementValidationService {
     if (!ficha.verificado) {
       throw new UnprocessableEntityException(
         'Debes verificar la ficha (POST .../validate) sin ediciones posteriores antes de poder bloquear la tabla de mediciones.',
+      );
+    }
+    if (!ficha.ptCodigo?.trim()) {
+      throw new UnprocessableEntityException(
+        'Falta el P.T. (Puesto de Trabajo) — es obligatorio para poder bloquear la tabla de mediciones.',
       );
     }
 
@@ -224,17 +303,45 @@ export interface FilaValidada {
 }
 
 export interface FilaExcluida {
-  id: string;
-  cocheExcel: string | null;
-  ejeExcel: number | null;
-  ubicacionExcel: string | null;
-  motivos: string[];
+  recordId: string;
+  eje: number | null;
+  lado: string | null;
+  // Solo motivos POR FILA (t/rd) — ver motivosInvalidosDeFila.
+  motivos: MotivoInvalido[];
 }
 
-export interface ResumenVerificacion {
+// kmInvalido/fechaInvalido aplican a nivel FICHA (no a una fila puntual) —
+// null cuando ese flag no está activo. Compartida entre ResumenVerificacion
+// (POST .../validate) y PreviewMedicionResult (GET .../preview, ver
+// NewMeasurementPreviewService.obtenerPreview + obtenerFlagsRaiz más arriba):
+// mismo par de campos, mismo lugar (raíz de la respuesta) en los 2 endpoints.
+export interface FlagsFichaNivelRaiz {
+  kmInvalido: { motivo: string } | null;
+  fechaInvalido: { motivo: string } | null;
+}
+
+export interface ResumenVerificacion extends FlagsFichaNivelRaiz {
+  // Binario: false si CUALQUIERA de los 4 flags (t/rd por fila, km/fecha a
+  // nivel ficha) sigue activo tras la re-evaluación — es el mismo valor que
+  // measurement_sheet.verificado queda tras este POST (ver más arriba).
   todoValido: boolean;
+  // Ordenado por el mismo criterio jerárquico que el resto del sistema (ver
+  // ORDEN_FISICO_DEFECTO) — listo para renderizar tal cual, sin reordenar.
+  // Solo incluye filas con un problema PROPIO (t/rd): un problema de
+  // km/fecha ya se reporta una única vez arriba, nunca repetido acá fila por
+  // fila (ver motivosInvalidosDeFila).
   filasExcluidas: FilaExcluida[];
   filasIncluidas: number;
+}
+
+// Respuesta exclusiva del bloqueo por duplicado (ver comentario en
+// verificar()) — a propósito NO extiende ResumenVerificacion: no hay
+// filasExcluidas/filasIncluidas/kmInvalido/fechaInvalido que reportar porque
+// la validación cruzada normal ni siquiera corrió.
+export interface ResumenVerificacionDuplicado {
+  todoValido: false;
+  duplicado: true;
+  motivo: string;
 }
 
 export interface ResumenBloqueo {
@@ -242,11 +349,10 @@ export interface ResumenBloqueo {
   tablaBloqueada: boolean;
 }
 
-function esInvalida(f: {
-  kmInvalido: boolean;
-  fechaInvalido: boolean;
-  tInvalido: boolean;
-  rdInvalido: boolean;
-}): boolean {
-  return f.kmInvalido || f.fechaInvalido || f.tInvalido || f.rdInvalido;
+// Determina si una fila entra a filasExcluidas: SOLO por un problema propio
+// (t/rd) — un problema de km/fecha es a nivel ficha y no hace que la fila en
+// sí misma se liste (ver FlagsFichaNivelRaiz), aunque sí tira todoValido a
+// false vía el chequeo aparte en verificar().
+function esInvalida(f: { tInvalido: boolean; rdInvalido: boolean }): boolean {
+  return f.tInvalido || f.rdInvalido;
 }

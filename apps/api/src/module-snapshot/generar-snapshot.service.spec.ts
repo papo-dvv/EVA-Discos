@@ -122,26 +122,19 @@ const RESUMEN_FIXTURE = {
     maximo: 2,
     conteo: 42,
   },
-  promedioRangoKm: {
-    kmMinimo: 7000,
-    kmMaximo: 15000,
-    conteo: 10,
-    confiable: true,
-    consenso: null,
-    conteoLimpio: 10,
-    promedio: 1,
-  },
+  paresTrasRecorte: 42,
   asimetria: { coeficiente: 0.1, clasificacion: 'simetrica' },
 };
 
-const PROMEDIO_POR_TREN_FIXTURE = {
-  tren: null,
-  conteo: 42,
-  confiable: true,
-  consenso: null,
-  conteoLimpio: 40,
-  promedio: 1.23,
-};
+const PROMEDIO_POR_TREN_FIXTURE = [
+  {
+    tren: 6,
+    promedio: 1.23,
+    paresTrasRecorte: 40,
+    conteoParesUsados: 42,
+    datosLimitados: false,
+  },
+];
 
 const PROMEDIO_POR_VAGON_FIXTURE = [{ tipoCoche: 'MA1', tasaPromedio: 0.5 }];
 
@@ -168,7 +161,7 @@ function crearServicios() {
       .fn()
       .mockResolvedValue(PROMEDIO_POR_VAGON_FIXTURE),
     listarDiscos: jest.fn().mockResolvedValue(DISCOS_FIXTURE),
-    obtenerPronostico12Meses: jest.fn().mockResolvedValue(PRONOSTICO_FIXTURE),
+    obtenerPronostico: jest.fn().mockResolvedValue(PRONOSTICO_FIXTURE),
   };
   return { traceabilityFake, proyeccionFake };
 }
@@ -263,7 +256,10 @@ describe('GenerarSnapshotService', () => {
       expect(traceabilityFake.obtenerSummary).toHaveBeenCalledWith({
         filtrarPorRangoKm: true,
       });
-      expect(traceabilityFake.obtenerPromedioPorTren).toHaveBeenCalledWith();
+      expect(traceabilityFake.obtenerPromedioPorTren).toHaveBeenCalledWith(
+        true,
+        false,
+      );
       expect(proyeccionFake.obtenerPromedioPorVagon).toHaveBeenCalledTimes(1);
       expect(creado.datosCompletos).toEqual({
         summary: RESUMEN_FIXTURE,
@@ -287,7 +283,9 @@ describe('GenerarSnapshotService', () => {
         page: 1,
         pageSize: 100_000,
       });
-      expect(proyeccionFake.obtenerPronostico12Meses).toHaveBeenCalledWith({});
+      expect(proyeccionFake.obtenerPronostico).toHaveBeenCalledWith({
+        meses: 12,
+      });
       expect(creado.datosCompletos).toEqual({
         discos: DISCOS_FIXTURE,
         pronostico12Meses: PRONOSTICO_FIXTURE,

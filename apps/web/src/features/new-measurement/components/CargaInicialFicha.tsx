@@ -1,9 +1,11 @@
 import { useState, type FormEvent } from 'react'
+import { ConfirmDialog } from '../../../components/ConfirmDialog'
 import { GlassButton } from '../../../components/GlassButton'
 import { GlassField } from '../../../components/GlassField'
 import { SegmentedControl } from '../../../components/SegmentedControl'
 import { extraerMensajeError } from '../../../lib/extraerMensajeError'
 import { crearFichaManual, subirCsvMedicion } from '../api'
+import type { ResultadoDuplicadoDetectado } from '../types'
 
 // Punto de entrada de una ficha nueva (motivo 'Medición'): subir el .csv de
 // Nextsense/cpo (autocompleta todo el header) o registrar manualmente
@@ -22,6 +24,10 @@ export function CargaInicialFicha({ onCreada }: Props) {
   const [kilometraje, setKilometraje] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [cargando, setCargando] = useState(false)
+  // Punto 2 del enunciado: POST .../upload puede responder duplicadoDetectado
+  // en vez de crear la ficha — se guarda acá para mostrar el modal de
+  // confirmación ANTES de continuar (subirForzado reintenta con forzar=true).
+  const [duplicado, setDuplicado] = useState<ResultadoDuplicadoDetectado | null>(null)
 
   async function subir(event: FormEvent) {
     event.preventDefault()
@@ -30,12 +36,22 @@ export function CargaInicialFicha({ onCreada }: Props) {
     setCargando(true)
     try {
       const resumen = await subirCsvMedicion(file)
+      if ('duplicadoDetectado' in resumen) {
+        setDuplicado(resumen)
+        return
+      }
       onCreada(resumen.fichaId)
     } catch (err) {
       setError(extraerMensajeError(err, 'No se pudo procesar el archivo.'))
     } finally {
       setCargando(false)
     }
+  }
+
+  async function subirForzado() {
+    if (!file) return
+    const resumen = await subirCsvMedicion(file, undefined, true)
+    if (!('duplicadoDetectado' in resumen)) onCreada(resumen.fichaId)
   }
 
   async function crearManual(event: FormEvent) {
@@ -127,6 +143,17 @@ export function CargaInicialFicha({ onCreada }: Props) {
             </GlassButton>
           </div>
         </form>
+      )}
+
+      {duplicado && (
+        <ConfirmDialog
+          titulo="Posible carga duplicada"
+          mensaje={`Este archivo tiene la misma fecha, kilometraje y medidas que la última ficha confirmada del Tren ${duplicado.tren} (${duplicado.fecha}). ¿Estás seguro de que querés subirlo de todas formas?`}
+          textoConfirmar="Sí, continuar"
+          textoCancelar="Cancelar"
+          onConfirm={subirForzado}
+          onCerrar={() => setDuplicado(null)}
+        />
       )}
     </div>
   )

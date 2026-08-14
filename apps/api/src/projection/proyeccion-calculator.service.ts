@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import type { LadoDisco, TipoCoche } from '../../generated/prisma';
 import {
   BrakeDiscRulesEngine,
@@ -9,8 +13,10 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ORDEN_MAS_RECIENTE } from '../scan-records/accion-recomendada.query';
 import {
   proyectarCiclos,
+  ProyeccionNoConvergeError,
   type CicloCambio,
   type CicloReperfilado,
+  type ResultadoProyeccionCiclos,
 } from './proyeccion-calculator.engine';
 import { ProyeccionRateService } from './proyeccion-rate.service';
 
@@ -51,8 +57,9 @@ export interface ProyeccionDisco {
   motivoUltimaMedicion: string;
   responsableUltimaMedicion: string;
   ciclosReperfilado: CicloReperfilado[];
+  // null SOLO cuando proyectable=false (sin tasa) — con proyectable=true,
+  // proyectarCiclos siempre lo calcula (ver comentario en el motor).
   cicloCambio: CicloCambio | null;
-  truncado: boolean;
 }
 
 // Fachada inyectable de la Proyección de Reperfilado y Cambio para UN disco:
@@ -150,20 +157,32 @@ export class ProyeccionCalculatorService {
         motivo: `Sin datos suficientes de tasa de desgaste para el tipo de coche ${posicion.tipoCoche} en el rango de km configurado.`,
         ciclosReperfilado: [],
         cicloCambio: null,
-        truncado: false,
       };
     }
 
-    const resultado = proyectarCiclos(
-      { h, rd, fecha: ultimaMedicion.fecha },
-      tasaMensual,
-      {
-        hUmbralReperfilado: umbrales.hUmbralReperfilado,
-        reperfiladoDescuentoRd: umbrales.reperfiladoDescuentoRd,
-        rdUmbralSeguimiento: umbrales.rdUmbralSeguimiento,
-        rdUmbralCambioProyeccion: umbrales.rdUmbralSeguimiento,
-      },
-    );
+    // ProyeccionNoConvergeError es la salvaguarda TÉCNICA del motor puro
+    // (ver comentario ahí) — en la práctica no debería dispararse nunca
+    // acá, porque tasaMensual<=0 ya quedó filtrado arriba, pero si otra
+    // combinación patológica de umbrales la dispara, se traduce a un 422
+    // claro en vez de un 500 genérico.
+    let resultado: ResultadoProyeccionCiclos;
+    try {
+      resultado = proyectarCiclos(
+        { h, rd, fecha: ultimaMedicion.fecha },
+        tasaMensual,
+        {
+          hUmbralReperfilado: umbrales.hUmbralReperfilado,
+          reperfiladoDescuentoRd: umbrales.reperfiladoDescuentoRd,
+          rdUmbralSeguimiento: umbrales.rdUmbralSeguimiento,
+          rdUmbralCambioProyeccion: umbrales.rdUmbralSeguimiento,
+        },
+      );
+    } catch (err) {
+      if (err instanceof ProyeccionNoConvergeError) {
+        throw new UnprocessableEntityException(err.message);
+      }
+      throw err;
+    }
 
     return {
       ...base,
@@ -171,7 +190,6 @@ export class ProyeccionCalculatorService {
       motivo: null,
       ciclosReperfilado: resultado.ciclosReperfilado,
       cicloCambio: resultado.cicloCambio,
-      truncado: resultado.truncado,
     };
   }
 }

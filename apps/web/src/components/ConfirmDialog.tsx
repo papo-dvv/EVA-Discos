@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { extraerMensajeError } from '../lib/extraerMensajeError'
 import { GlassButton } from './GlassButton'
 import { GlassModal } from './GlassModal'
+import { WarningTooltip } from './WarningTooltip'
 
 // Progreso opcional (ej. lotes de un commit masivo): deja la pieza visual
 // lista para cuando exista polling de progreso real (ver prompt de commit por
@@ -30,6 +31,13 @@ type ConfirmDialogProps = {
   progreso?: ConfirmDialogProgreso | null
   children?: ReactNode
   ancho?: number
+  // Si se define, el botón de confirmar queda deshabilitado (aria-disabled,
+  // sigue enfocable/hoverable — nunca el atributo `disabled`, que apagaría el
+  // WarningTooltip que lo envuelve) mostrando este motivo en un WarningTooltip
+  // — para requisitos previos que el propio modal no resuelve (ej. P.T.
+  // vacío antes de poder bloquear la ficha). null/undefined: el botón
+  // funciona como siempre.
+  motivoConfirmarDeshabilitado?: string | null
 }
 
 // Confirmación reutilizable con estética Liquid Glass (styles.md §4/§9): un
@@ -47,6 +55,7 @@ export function ConfirmDialog({
   progreso = null,
   children,
   ancho,
+  motivoConfirmarDeshabilitado = null,
 }: ConfirmDialogProps) {
   const [cargando, setCargando] = useState(false)
   const [error, setError] = useState<unknown>(null)
@@ -106,7 +115,7 @@ export function ConfirmDialog({
         </p>
       )}
 
-      <div className="mt-5 flex justify-end gap-2">
+      <div className="mt-5 flex flex-wrap justify-end gap-2">
         <GlassButton
           type="button"
           variante="secundario"
@@ -116,19 +125,40 @@ export function ConfirmDialog({
         >
           {textoCancelar}
         </GlassButton>
-        <GlassButton
-          type="button"
-          onClick={manejarConfirmar}
-          cargando={cargando}
-          className="px-5 py-2.5 text-xs"
-          style={
-            esPeligro
-              ? { background: 'var(--color-estado-critico)', borderColor: 'var(--color-estado-critico)' }
-              : undefined
-          }
-        >
-          {cargando ? `${textoConfirmar}…` : textoConfirmar}
-        </GlassButton>
+        {motivoConfirmarDeshabilitado ? (
+          // aria-disabled (nunca `disabled`): un botón nativo disabled no
+          // dispara mouseenter/focus ni en él ni en sus ancestros, así que el
+          // WarningTooltip que lo envuelve jamás llegaría a mostrarse por
+          // hover/teclado — mismo criterio ya usado en SegmentedControl.
+          <WarningTooltip texto={motivoConfirmarDeshabilitado}>
+            <GlassButton
+              type="button"
+              aria-disabled="true"
+              className="cursor-not-allowed px-5 py-2.5 text-xs opacity-60"
+              style={
+                esPeligro
+                  ? { background: 'var(--color-estado-critico)', borderColor: 'var(--color-estado-critico)' }
+                  : undefined
+              }
+            >
+              {textoConfirmar}
+            </GlassButton>
+          </WarningTooltip>
+        ) : (
+          <GlassButton
+            type="button"
+            onClick={manejarConfirmar}
+            cargando={cargando}
+            className="px-5 py-2.5 text-xs"
+            style={
+              esPeligro
+                ? { background: 'var(--color-estado-critico)', borderColor: 'var(--color-estado-critico)' }
+                : undefined
+            }
+          >
+            {cargando ? `${textoConfirmar}…` : textoConfirmar}
+          </GlassButton>
+        )}
       </div>
     </GlassModal>
   )

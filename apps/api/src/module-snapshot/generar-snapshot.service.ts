@@ -106,14 +106,15 @@ export class GenerarSnapshotService {
   // Fleet-wide (scope vacío, filtrarPorRangoKm=true — mismo default que ve
   // la pantalla): límites de los 3 métodos + consenso + estadísticas
   // generales + asimetría (todo dentro de `summary`), más los 2 promedios
-  // que se muestran junto a esas cards (ver PanelLateralTrazabilidad) —
-  // promedio por tren (toda la flota, sin tren seleccionado) y promedio por
-  // tipo de coche (reutilizado de Proyección, el mismo dato que ya consume
-  // la propia pantalla de Trazabilidad vía usePromedioPorVagon).
+  // que se muestran junto a esas cards (ver PanelLateralTrazabilidad) — los
+  // 39 trenes SIN desglose por tipoCoche (incluirDetalle=false, igual que la
+  // card principal de la pantalla) y promedio por tipo de coche (reutilizado
+  // de Proyección, el mismo dato que ya consume la propia pantalla de
+  // Trazabilidad vía usePromedioPorVagon).
   private async calcularTrazabilidad(): Promise<Prisma.InputJsonValue> {
     const [summary, promedioPorTren, promedioPorVagon] = await Promise.all([
       this.traceability.obtenerSummary({ filtrarPorRangoKm: true }),
-      this.traceability.obtenerPromedioPorTren(),
+      this.traceability.obtenerPromedioPorTren(true, false),
       this.proyeccion.obtenerPromedioPorVagon(),
     ]);
     // Cast necesario: Prisma.InputJsonValue es intencionalmente estricto a
@@ -139,7 +140,7 @@ export class GenerarSnapshotService {
         page: 1,
         pageSize: PAGE_SIZE_SNAPSHOT_COMPLETO,
       }),
-      this.proyeccion.obtenerPronostico12Meses({}),
+      this.proyeccion.obtenerPronostico({ meses: 12 }),
       this.proyeccion.obtenerPromedioPorVagon(),
     ]);
     return {

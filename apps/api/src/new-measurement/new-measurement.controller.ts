@@ -165,4 +165,15 @@ export class NewMeasurementController {
   cancelar(@Param('fichaId', ParseUUIDPipe) fichaId: string) {
     return this.commitService.cancelar(fichaId);
   }
+
+  // "Resubir CSV" / "Reiniciar ficha": vacía la tabla de mediciones actual
+  // reutilizando el mismo fichaId, a diferencia de DELETE .../:fichaId
+  // (cancelar), que borra la ficha entera — ver NewMeasurementCommitService.reiniciar.
+  @Post(':fichaId/reset')
+  reiniciar(
+    @Param('fichaId', ParseUUIDPipe) fichaId: string,
+    @CurrentUser() usuario: AuthenticatedUser,
+  ) {
+    return this.commitService.reiniciar(fichaId, usuario.userId);
+  }
 }

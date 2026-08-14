@@ -410,17 +410,19 @@ model ScanRecord {
   // Flags de validación cruzada automática (NewMeasurementModule, ficha en
   // borrador) — ver NewMeasurementValidationService. kmInvalido/fechaInvalido
   // son a nivel FICHA/TREN (mismo valor calculado para todas las filas de la
-  // ficha); tInvalido/rdInvalido son por disco físico individual. Todos en
-  // false por defecto y sin uso fuera de NewMeasurementModule — no afectan la
-  // migración masiva ni las mediciones ya confirmadas. excluidaDelCommit se
-  // fija recién en POST .../validate: una fila que sigue con algún flag activo
-  // tras la re-evaluación queda fuera del commit sin borrarse físicamente (ver
-  // NewMeasurementCommitService.confirmar).
-  kmInvalido        Boolean @default(false) @map("km_invalido")
-  fechaInvalido     Boolean @default(false) @map("fecha_invalido")
-  tInvalido         Boolean @default(false) @map("t_invalido")
-  rdInvalido        Boolean @default(false) @map("rd_invalido")
-  excluidaDelCommit Boolean @default(false) @map("excluida_del_commit")
+  // ficha) y NUNCA se exponen por fila en la API (ver motivosInvalidosDeFila
+  // en scan-record-query.ts) — solo a nivel raíz de la ficha, con su motivo,
+  // en las respuestas de POST .../validate y GET .../preview.
+  // tInvalido/rdInvalido son por disco físico individual, así que sí se
+  // exponen por fila. Todos en false por defecto y sin uso fuera de
+  // NewMeasurementModule — no afectan la migración masiva ni las mediciones
+  // ya confirmadas. El modelo de este módulo es binario (todoValido o no):
+  // no existe un flag de "excluida del commit" — POST .../commit siempre
+  // confirma TODAS las filas de la ficha (ver NewMeasurementCommitService.confirmar).
+  kmInvalido    Boolean @default(false) @map("km_invalido")
+  fechaInvalido Boolean @default(false) @map("fecha_invalido")
+  tInvalido     Boolean @default(false) @map("t_invalido")
+  rdInvalido    Boolean @default(false) @map("rd_invalido")
 
   // Orden FÍSICO real de coche+bogie+eje+lado (nunca alfabético) — precalculado
   // por calcularOrdenFisico (ver common/orden-fisico.ts) al insertar la fila
@@ -567,6 +569,14 @@ model MeasurementSheet {
   // exclusivo de fichas con motivo='Medición' (ver NewMeasurementService).
   actividad      String   @db.VarChar(200)
 
+  // P.T. (Puesto de Trabajo) — texto libre alfanumérico, sin formato
+  // restringido por ahora. Nunca lo trae el CSV: siempre ingreso manual (ver
+  // UpdateFichaDto). Obligatorio para bloquear (POST .../lock) Y para
+  // confirmar (POST .../commit) — mismo nivel de obligatoriedad que
+  // verificado=true y responsableMantenimientoNombre respectivamente, ver
+  // NewMeasurementValidationService.bloquear y NewMeasurementCommitService.confirmar.
+  ptCodigo String? @map("pt_codigo") @db.VarChar(100)
+
   // Discrepancia Tren/Kilometraje editado vs. el valor que trajo el CSV —
   // mismo patrón "corregidoPorHoja" de la migración masiva (ver
   // ScanRecord.corregidoPorHoja): se marca pero NUNCA bloquea. Ambos null en
@@ -598,6 +608,17 @@ model MeasurementSheet {
   // El commit final exige responsableMantenimientoNombre Y tablaBloqueada.
   verificado     Boolean @default(false)
   tablaBloqueada Boolean @default(false) @map("tabla_bloqueada")
+
+  // Detección de duplicado exacto (POST .../upload): se marca true cuando el
+  // usuario forzó la carga (?forzar=true) pese a que el CSV coincidía
+  // exactamente (fecha + kilometraje + cada H/T de cada disco presente) con
+  // la última ficha CONFIRMADA de ese tren — ver NewMeasurementService.
+  // Mientras esté en true, POST .../validate bloquea de entrada SIN correr
+  // la validación cruzada normal (ver NewMeasurementValidationService.
+  // verificar). Se resetea a false automáticamente en cuanto el usuario edita
+  // cualquier fila o el header (ver NewMeasurementPreviewService): a partir
+  // de ahí deja de ser, por definición, un duplicado exacto.
+  esPosibleDuplicado Boolean @default(false) @map("es_posible_duplicado")
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 

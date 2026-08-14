@@ -1,4 +1,7 @@
-import { NotFoundException } from '@nestjs/common';
+import {
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import type { PrismaService } from '../prisma/prisma.service';
 import { UMBRALES_POR_DEFECTO } from '../brake-disc-rules/umbrales';
 import type { BrakeDiscRulesService } from '../brake-disc-rules/brake-disc-rules.service';
@@ -93,7 +96,6 @@ describe('ProyeccionCalculatorService.proyectarDisco', () => {
     expect(resultado!.motivo).toContain('MA1');
     expect(resultado!.ciclosReperfilado).toEqual([]);
     expect(resultado!.cicloCambio).toBeNull();
-    expect(resultado!.truncado).toBe(false);
     // Los datos ACTUALES (medición real) igual viajan, no se pierden.
     expect(resultado!.h).toBe(0.2);
     expect(resultado!.rd).toBe(5.0);
@@ -145,5 +147,29 @@ describe('ProyeccionCalculatorService.proyectarDisco', () => {
     );
     const resultado = await service.proyectarDisco('disco-1', { MA1: null });
     expect(resultado!.proyectable).toBe(false);
+  });
+
+  // tasaMensual<=0 ya queda filtrado ANTES de llegar al motor (ver el test
+  // "sin tasa de desgaste" de arriba) — este caso ejercita OTRO camino
+  // patológico (reperfiladoDescuentoRd=0, Rd nunca decrece entre ciclos) que
+  // sí llega al motor con una tasa > 0 y aun así nunca converge: prueba que
+  // ProyeccionNoConvergeError (motor puro) se traduce a un 422 claro para el
+  // cliente HTTP, en vez de un 500 genérico o un cuelgue.
+  it('umbrales que nunca convergen -> ProyeccionNoConvergeError se traduce a UnprocessableEntityException (422)', async () => {
+    const brakeDiscRules = {
+      obtenerUmbrales: jest.fn().mockResolvedValue({
+        ...UMBRALES_POR_DEFECTO,
+        reperfiladoDescuentoRd: 0,
+      }),
+    } as unknown as BrakeDiscRulesService;
+    const service = new ProyeccionCalculatorService(
+      crearPrisma({}),
+      crearRate(0.25).rate,
+      brakeDiscRules,
+    );
+
+    await expect(service.proyectarDisco('disco-1')).rejects.toBeInstanceOf(
+      UnprocessableEntityException,
+    );
   });
 });

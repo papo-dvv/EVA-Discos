@@ -65,7 +65,6 @@ function proyeccionFixture(
     responsableUltimaMedicion: 'Responsable Test',
     ciclosReperfilado: [],
     cicloCambio: null,
-    truncado: false,
     ...overrides,
   };
 }
@@ -823,7 +822,7 @@ describe('ProyeccionService.obtenerPromedioPorVagon', () => {
   });
 });
 
-describe('ProyeccionService.obtenerPronostico12Meses', () => {
+describe('ProyeccionService.obtenerPronostico', () => {
   afterEach(() => {
     jest.useRealTimers();
   });
@@ -874,7 +873,7 @@ describe('ProyeccionService.obtenerPronostico12Meses', () => {
       crearBrakeDiscRules(),
     );
 
-    const meses = await service.obtenerPronostico12Meses({});
+    const meses = await service.obtenerPronostico({ meses: 12 });
 
     expect(meses).toHaveLength(12);
     expect(meses[0].mes).toBe('2026-01');
@@ -932,12 +931,97 @@ describe('ProyeccionService.obtenerPronostico12Meses', () => {
       calculator,
       crearBrakeDiscRules(),
     );
-    const meses = await service.obtenerPronostico12Meses({});
+    const meses = await service.obtenerPronostico({ meses: 12 });
 
     for (const mes of meses) {
       expect(mes.desgloseEstado.cambio).toBe(1);
       expect(mes.reperfilados).toBe(0);
       expect(mes.cambios).toBe(0);
     }
+  });
+
+  // proyectarCiclos asume reperfilado instantáneo apenas H cruza el umbral,
+  // así que interpolarEnFecha nunca devuelve REPERFILADO por sí solo — ni
+  // siquiera para un disco que YA está en ese estado real hoy (ver el
+  // comentario de estadoProyectadoEnMes). Este test cubre el parche: en el
+  // mes que contiene "hoy" se prioriza el estado real por sobre el
+  // interpolado.
+  it('un disco YA en REPERFILADO real se refleja así en el mes en curso, no en los siguientes', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-01-15T00:00:00.000Z'));
+
+    const discos = [discoBrakeFixture({ id: 'd1', trenNumero: 1 })];
+    const prisma = {
+      brakeDisc: {
+        findMany: jest.fn().mockResolvedValue(discos),
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
+    } as unknown as PrismaService;
+    const proyeccion = proyeccionFixture({
+      discId: 'd1',
+      estado: 'REPERFILADO',
+      h: 1.8,
+      t: 6.8,
+      rd: 5.0,
+      fechaUltimaMedicion: new Date('2026-01-01T00:00:00.000Z'),
+      tasaMensual: 0.25,
+      ciclosReperfilado: [
+        {
+          numero: 1,
+          mesesHastaFecha: 0,
+          fechaEstimada: new Date('2026-01-01T00:00:00.000Z'),
+          hEnEseMomento: 1.8,
+          tEnEseMomento: 6.8,
+          rdAntes: 5.0,
+          rdDespues: 4.2,
+        },
+      ],
+      cicloCambio: {
+        mesesHastaFecha: 50,
+        fechaEstimada: new Date('2030-01-01T00:00:00.000Z'),
+      },
+    });
+    const calculator = {
+      proyectarDisco: jest.fn().mockResolvedValue(proyeccion),
+    } as unknown as ProyeccionCalculatorService;
+
+    const service = new ProyeccionService(
+      prisma,
+      crearRate(),
+      calculator,
+      crearBrakeDiscRules(),
+    );
+    const meses = await service.obtenerPronostico({ meses: 12 });
+
+    expect(meses[0].mes).toBe('2026-01');
+    expect(meses[0].desgloseEstado.reperfilado).toBe(1);
+
+    expect(meses[1].mes).toBe('2026-02');
+    expect(meses[1].desgloseEstado.reperfilado).toBe(0);
+  });
+
+  // Punto 2 del enunciado: rango extendido de pronóstico — mismo shape de
+  // response, agregación siempre MENSUAL, solo cambia la cantidad de filas
+  // según `meses` (12/24/36/48/60, ver ProyeccionPronosticoQueryDto).
+  it('meses=60 devuelve 60 filas mensuales (rango de 5 años)', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-01-15T00:00:00.000Z'));
+
+    const prisma = {
+      brakeDisc: { findMany: jest.fn().mockResolvedValue([]) },
+    } as unknown as PrismaService;
+    const calculator = {
+      proyectarDisco: jest.fn(),
+    } as unknown as ProyeccionCalculatorService;
+
+    const service = new ProyeccionService(
+      prisma,
+      crearRate(),
+      calculator,
+      crearBrakeDiscRules(),
+    );
+    const meses = await service.obtenerPronostico({ meses: 60 });
+
+    expect(meses).toHaveLength(60);
+    expect(meses[0].mes).toBe('2026-01');
+    expect(meses[59].mes).toBe('2030-12');
   });
 });
