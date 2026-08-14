@@ -121,30 +121,12 @@ export class NewMeasurementValidationService {
   // verificado se fija en ESE MISMO valor (nunca incondicional a true): es lo
   // único que habilita POST .../lock, así que un problema pendiente (de
   // cualquiera de los 4 tipos) sigue bloqueando el bloqueo tras un /validate.
-  async verificar(
-    fichaId: string,
-  ): Promise<ResumenVerificacion | ResumenVerificacionDuplicado> {
-    // Punto 3 del enunciado: un duplicado exacto forzado (ver
-    // NewMeasurementService.buscarDuplicadoExacto + UploadCsvDto.forzar)
-    // bloquea de entrada, ANTES de tocar la validación cruzada normal
-    // (recalcularFlags ni siquiera se llama en este caso).
+  async verificar(fichaId: string): Promise<ResumenVerificacion> {
     const ficha = await this.prisma.measurementSheet.findUnique({
       where: { id: fichaId },
     });
     if (!ficha) {
       throw new NotFoundException('Ficha de medición no encontrada.');
-    }
-    if (ficha.esPosibleDuplicado) {
-      await this.prisma.measurementSheet.update({
-        where: { id: fichaId },
-        data: { verificado: false },
-      });
-      return {
-        todoValido: false,
-        duplicado: true,
-        motivo:
-          'Estas mediciones ya están registradas — la ficha confirmada más reciente de este tren tiene la misma fecha, kilometraje y valores.',
-      };
     }
 
     const filas = await this.recalcularFlags(fichaId);
@@ -332,16 +314,6 @@ export interface ResumenVerificacion extends FlagsFichaNivelRaiz {
   // fila (ver motivosInvalidosDeFila).
   filasExcluidas: FilaExcluida[];
   filasIncluidas: number;
-}
-
-// Respuesta exclusiva del bloqueo por duplicado (ver comentario en
-// verificar()) — a propósito NO extiende ResumenVerificacion: no hay
-// filasExcluidas/filasIncluidas/kmInvalido/fechaInvalido que reportar porque
-// la validación cruzada normal ni siquiera corrió.
-export interface ResumenVerificacionDuplicado {
-  todoValido: false;
-  duplicado: true;
-  motivo: string;
 }
 
 export interface ResumenBloqueo {

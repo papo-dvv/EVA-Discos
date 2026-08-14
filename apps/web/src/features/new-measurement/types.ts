@@ -117,9 +117,10 @@ export interface ResumenCargaMedicion {
 
 // Respuesta de POST /new-measurement/upload cuando el CSV coincide
 // EXACTAMENTE (fecha + kilometraje + cada H/T de cada disco presente) con la
-// última ficha CONFIRMADA de ese mismo tren — la ficha borrador NO se crea
-// todavía. Reintentar con forzar=true (subirCsvMedicion) para continuar de
-// todos modos — ver CargaInicialFicha.
+// última ficha CONFIRMADA de ese mismo tren — la ficha borrador NUNCA se crea
+// en este caso, sin excepción: no existe ningún camino para forzar esta carga
+// puntual, la única forma de continuar es subir un archivo distinto — ver
+// CargaInicialFicha.
 export interface ResultadoDuplicadoDetectado {
   duplicadoDetectado: true
   fichaConfirmadaId: string
@@ -169,17 +170,6 @@ export interface ResumenVerificacion {
   // kmInvalido/fechaInvalido aplican a nivel FICHA (no a una fila puntual).
   kmInvalido: { motivo: string } | null
   fechaInvalido: { motivo: string } | null
-}
-
-// Respuesta exclusiva del bloqueo por duplicado (ficha cargada con
-// forzar=true tras una advertencia de duplicado exacto — ver
-// ResultadoDuplicadoDetectado): POST .../validate bloquea de entrada, ANTES
-// de correr la validación cruzada normal, así que NO trae filasExcluidas/
-// filasIncluidas/kmInvalido/fechaInvalido.
-export interface ResumenVerificacionDuplicado {
-  todoValido: false
-  duplicado: true
-  motivo: string
 }
 
 // Respuesta de POST /new-measurement/:fichaId/lock.

@@ -9,7 +9,6 @@ interface FakeFicha {
   fechaFicha: Date;
   verificado: boolean;
   ptCodigo: string | null;
-  esPosibleDuplicado: boolean;
 }
 
 interface FakeScanRecord {
@@ -81,7 +80,6 @@ function crearEntorno(opts: {
     // Con valor por defecto (obligatorio recién en bloquear()): los tests que
     // no ejercitan esa regla en particular no necesitan setearlo.
     ptCodigo: 'PT-001',
-    esPosibleDuplicado: false,
     ...opts.ficha,
   };
   let scanRecords: FakeScanRecord[] = opts.scanRecords ?? [];
@@ -395,8 +393,6 @@ describe('NewMeasurementValidationService.verificar', () => {
     const service = new NewMeasurementValidationService(prisma as never);
 
     const resumen = await service.verificar('ficha-1');
-    if ('duplicado' in resumen)
-      throw new Error('no debería bloquear por duplicado');
 
     expect(resumen.todoValido).toBe(false);
     expect(resumen.filasIncluidas).toBe(1);
@@ -433,8 +429,6 @@ describe('NewMeasurementValidationService.verificar', () => {
     const service = new NewMeasurementValidationService(prisma as never);
 
     const resumen = await service.verificar('ficha-1');
-    if ('duplicado' in resumen)
-      throw new Error('no debería bloquear por duplicado');
 
     expect(resumen.todoValido).toBe(true);
     expect(resumen.filasExcluidas).toHaveLength(0);
@@ -461,8 +455,6 @@ describe('NewMeasurementValidationService.verificar', () => {
     const service = new NewMeasurementValidationService(prisma as never);
 
     const resumen = await service.verificar('ficha-1');
-    if ('duplicado' in resumen)
-      throw new Error('no debería bloquear por duplicado');
 
     expect(resumen.kmInvalido).toEqual({
       motivo: 'Kilometraje menor al último registrado para este tren',
@@ -514,8 +506,6 @@ describe('NewMeasurementValidationService.verificar', () => {
     const service = new NewMeasurementValidationService(prisma as never);
 
     const resumen = await service.verificar('ficha-1');
-    if ('duplicado' in resumen)
-      throw new Error('no debería bloquear por duplicado');
 
     expect(resumen.filasExcluidas.map((f) => f.recordId)).toEqual([
       'fila-baja',
@@ -525,31 +515,8 @@ describe('NewMeasurementValidationService.verificar', () => {
   });
 });
 
-describe('NewMeasurementValidationService.verificar — bloqueo por duplicado (punto 3)', () => {
-  it('esPosibleDuplicado=true bloquea de inmediato SIN ejecutar la validación cruzada normal', async () => {
-    const filaConProblemaPropio = filaBase({ id: 'fila-1', tInvalido: true });
-    const { prisma, fichaRef } = crearEntorno({
-      ficha: { esPosibleDuplicado: true },
-      scanRecords: [filaConProblemaPropio],
-    });
-    const service = new NewMeasurementValidationService(prisma as never);
-
-    const resumen = await service.verificar('ficha-1');
-
-    expect(resumen).toEqual({
-      todoValido: false,
-      duplicado: true,
-      motivo:
-        'Estas mediciones ya están registradas — la ficha confirmada más reciente de este tren tiene la misma fecha, kilometraje y valores.',
-    });
-    // verificado nunca queda true mientras el duplicado bloquea.
-    expect(fichaRef().verificado).toBe(false);
-    // La validación cruzada normal (recalcularFlags) NUNCA corre en este
-    // camino — ni siquiera se consulta el historial de scan records.
-    expect(prisma.scanRecord.findMany).not.toHaveBeenCalled();
-  });
-
-  it('esPosibleDuplicado=false (ya reseteado tras una edición) vuelve a evaluar T/Rd/Km/Fecha con normalidad', async () => {
+describe('NewMeasurementValidationService.verificar — T/Rd/Km/Fecha', () => {
+  it('evalúa T/Rd/Km/Fecha con normalidad contra el historial confirmado', async () => {
     const referenciaDisco = filaBase({
       id: 'referencia-disco',
       fileId: 'file-anterior',
@@ -561,16 +528,12 @@ describe('NewMeasurementValidationService.verificar — bloqueo por duplicado (p
     });
     const filaInvalida = filaBase({ id: 'fila-1', tValue: 12, rdValue: 3 });
     const { prisma, fichaRef } = crearEntorno({
-      ficha: { esPosibleDuplicado: false },
       scanRecords: [referenciaDisco, filaInvalida],
     });
     const service = new NewMeasurementValidationService(prisma as never);
 
     const resumen = await service.verificar('ficha-1');
 
-    if ('duplicado' in resumen) {
-      throw new Error('no debería bloquear por duplicado en este caso');
-    }
     expect(resumen.todoValido).toBe(false);
     expect(resumen.filasExcluidas).toHaveLength(1);
     expect(resumen.filasExcluidas[0].recordId).toBe('fila-1');

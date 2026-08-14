@@ -106,6 +106,29 @@ export class NewMeasurementReferenceService {
     const masReciente = confirmados[0];
     const numerosCoche = await resolverNumerosCochePorTren(this.prisma, trenId);
 
+    // ejeExcel/ubicacionExcel del ScanRecord reflejan el texto ORIGINAL con el
+    // que se cargó esa medición — para el historial migrado en bloque desde
+    // Excel eso es texto libre ("disco_freno_22_derecho"), no el 'izquierdo'/
+    // 'derecho' canónico que usa el esqueleto (ver generarEsqueleto48 y
+    // construirFilasEspejo en el frontend, que arma la clave eje|lado para
+    // juntar cada fila con su posición — con texto libre esa clave nunca
+    // matchea y la tabla queda vacía aunque la card del header sí se vea, ya
+    // que esa no depende de este join). discId ya identifica el disco físico
+    // sin ambigüedad, así que acá se resuelve la identidad eje/lado desde el
+    // BrakeDisc real (disc_id -> brake_discs) en vez de confiar en ese texto.
+    const discos = await this.prisma.brakeDisc.findMany({
+      where: { id: { in: [...porDisco.keys()] } },
+    });
+    const discoPorId = new Map(discos.map((d) => [d.id, d]));
+
+    const rows = [...porDisco.values()].map((r) => {
+      const fila = aPreviewRow(r);
+      const disco = discoPorId.get(r.discId!);
+      return disco
+        ? { ...fila, ejeExcel: disco.ejeNumero, ubicacionExcel: disco.lado }
+        : fila;
+    });
+
     return {
       disponible: true,
       tren: trenNumero,
@@ -113,7 +136,7 @@ export class NewMeasurementReferenceService {
       kilometraje: Number(masReciente.kilometraje),
       responsable: masReciente.responsableNombre,
       esqueleto: generarEsqueleto48(numerosCoche),
-      rows: [...porDisco.values()].map(aPreviewRow),
+      rows,
     };
   }
 

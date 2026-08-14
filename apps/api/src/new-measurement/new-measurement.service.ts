@@ -39,8 +39,9 @@ export interface ResumenCargaMedicion {
 // Respuesta de POST .../upload cuando el CSV coincide EXACTAMENTE (fecha +
 // kilometraje + cada H/T de cada disco presente) con la última ficha
 // CONFIRMADA de ese mismo tren — ver NewMeasurementService.buscarDuplicadoExacto.
-// La ficha borrador NO se crea todavía: el usuario debe reintentar con
-// forzar=true (UploadCsvDto) para continuar de todos modos.
+// La ficha borrador NUNCA se crea en este caso: no existe ningún camino para
+// forzar esta carga puntual. El único camino hacia adelante es subir un
+// archivo distinto.
 export interface ResultadoDuplicadoDetectado {
   duplicadoDetectado: true;
   fichaConfirmadaId: string;
@@ -128,16 +129,18 @@ export class NewMeasurementService {
 
     const fechaFicha = resultado.filas[0].fecha;
 
-    // Punto 1 del enunciado: detección de duplicado exacto contra la última
-    // ficha CONFIRMADA de este mismo tren. Sin forzar=true (punto 2), un
-    // duplicado detectado corta acá — la ficha borrador no se crea todavía.
+    // Detección de duplicado exacto contra la última ficha CONFIRMADA de este
+    // mismo tren: un duplicado detectado corta acá, definitivamente — la
+    // ficha borrador nunca se crea para este archivo. No existe ningún
+    // endpoint/parámetro para forzar esta carga puntual; la única forma de
+    // continuar es subir un archivo distinto.
     const duplicado = await this.buscarDuplicadoExacto(
       tren.numero,
       fechaFicha,
       resultado.metadata.kilometraje,
       resultado.filas,
     );
-    if (duplicado && !dto.forzar) {
+    if (duplicado) {
       return {
         duplicadoDetectado: true,
         fichaConfirmadaId: duplicado.id,
@@ -170,11 +173,6 @@ export class NewMeasurementService {
             actividad: ACTIVIDAD_BAJO_BASTIDOR,
             trenOriginalCsv: tren.numero,
             kilometrajeOriginalCsv: resultado.metadata.kilometraje!,
-            // true solo cuando forzar=true SÍ pisó una detección de
-            // duplicado real (punto 2) — bloquea POST .../validate hasta que
-            // el usuario edite algo (ver NewMeasurementValidationService.
-            // verificar y NewMeasurementPreviewService).
-            esPosibleDuplicado: duplicado !== null,
           },
         });
 

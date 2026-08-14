@@ -57,7 +57,7 @@ function DetalleHTRd({
 }) {
   return (
     <p className="mt-0.5 font-data text-[0.6875rem] leading-tight text-concreto">
-      H {h.toFixed(2)} · T {t.toFixed(2)} · Rd {rdAntes.toFixed(2)}→{rdDespues.toFixed(2)}
+      H {h.toFixed(2)} · T {t.toFixed(2)} · Rd {rdAntes.toFixed(2)} ➔ {rdDespues.toFixed(2)}
     </p>
   )
 }

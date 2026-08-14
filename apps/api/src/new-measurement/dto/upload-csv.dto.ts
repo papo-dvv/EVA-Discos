@@ -1,6 +1,4 @@
-import { Transform } from 'class-transformer';
-import { IsBoolean, IsIn, IsOptional } from 'class-validator';
-import { aBoolean } from '../../migration/dto/preview-query.dto';
+import { IsIn, IsOptional } from 'class-validator';
 import {
   MOTIVOS_RECONOCIDOS,
   type MotivoFicha,
@@ -14,13 +12,4 @@ export class UploadCsvDto {
   @IsOptional()
   @IsIn(MOTIVOS_RECONOCIDOS)
   motivo?: MotivoFicha;
-
-  // Reintento del mismo archivo tras una advertencia de duplicado exacto
-  // (ver NewMeasurementService.subirCsv, punto 2 del enunciado): 'true'/'false'
-  // llega como texto en el multipart, igual que el resto de booleanos de
-  // query/body tolerantes del sistema — ver aBoolean.
-  @IsOptional()
-  @Transform(({ value }) => aBoolean(value))
-  @IsBoolean()
-  forzar?: boolean;
 }

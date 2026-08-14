@@ -1,7 +1,7 @@
-import { useState, type FormEvent } from 'react'
-import { ConfirmDialog } from '../../../components/ConfirmDialog'
+import { useRef, useState, type FormEvent } from 'react'
 import { GlassButton } from '../../../components/GlassButton'
 import { GlassField } from '../../../components/GlassField'
+import { GlassModal } from '../../../components/GlassModal'
 import { SegmentedControl } from '../../../components/SegmentedControl'
 import { extraerMensajeError } from '../../../lib/extraerMensajeError'
 import { crearFichaManual, subirCsvMedicion } from '../api'
@@ -14,7 +14,12 @@ import type { ResultadoDuplicadoDetectado } from '../types'
 // MigracionUpload (dropzone), en un panel más chico porque vive embebido en
 // la propia pantalla de Nuevas Mediciones, no en una ruta aparte.
 type Props = {
-  onCreada: (fichaId: string) => void
+  // autoVerificar=true SOLO en el flujo de carga por CSV exitosa (nunca en
+  // modo manual, que arranca con la tabla vacía y no tiene nada que
+  // verificar todavía) — NuevasMediciones.tsx lo usa para disparar
+  // automáticamente la misma verificación que dispararía un click manual en
+  // "Verificar", sin esperar a que el usuario la pida.
+  onCreada: (fichaId: string, autoVerificar?: boolean) => void
 }
 
 export function CargaInicialFicha({ onCreada }: Props) {
@@ -24,10 +29,12 @@ export function CargaInicialFicha({ onCreada }: Props) {
   const [kilometraje, setKilometraje] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [cargando, setCargando] = useState(false)
-  // Punto 2 del enunciado: POST .../upload puede responder duplicadoDetectado
-  // en vez de crear la ficha — se guarda acá para mostrar el modal de
-  // confirmación ANTES de continuar (subirForzado reintenta con forzar=true).
+  // POST .../upload puede responder duplicadoDetectado en vez de crear la
+  // ficha — se guarda acá para mostrar el aviso. Es definitivo: no existe
+  // ningún camino para forzar esta carga puntual, solo cerrar el aviso y
+  // subir un archivo distinto (ver reintentarConOtroArchivo).
   const [duplicado, setDuplicado] = useState<ResultadoDuplicadoDetectado | null>(null)
+  const inputArchivoRef = useRef<HTMLInputElement>(null)
 
   async function subir(event: FormEvent) {
     event.preventDefault()
@@ -40,7 +47,7 @@ export function CargaInicialFicha({ onCreada }: Props) {
         setDuplicado(resumen)
         return
       }
-      onCreada(resumen.fichaId)
+      onCreada(resumen.fichaId, true)
     } catch (err) {
       setError(extraerMensajeError(err, 'No se pudo procesar el archivo.'))
     } finally {
@@ -48,10 +55,14 @@ export function CargaInicialFicha({ onCreada }: Props) {
     }
   }
 
-  async function subirForzado() {
-    if (!file) return
-    const resumen = await subirCsvMedicion(file, undefined, true)
-    if (!('duplicadoDetectado' in resumen)) onCreada(resumen.fichaId)
+  // Único camino hacia adelante tras un duplicado exacto (punto 4 de la
+  // ampliación): cierra el aviso, limpia el archivo elegido y reabre el
+  // selector de inmediato — nunca un botón de "continuar de todas formas".
+  function reintentarConOtroArchivo() {
+    setDuplicado(null)
+    setFile(null)
+    if (inputArchivoRef.current) inputArchivoRef.current.value = ''
+    inputArchivoRef.current?.click()
   }
 
   async function crearManual(event: FormEvent) {
@@ -94,6 +105,7 @@ export function CargaInicialFicha({ onCreada }: Props) {
               {file ? 'Clic para cambiar' : 'Exportado de Nextsense/cpo'}
             </span>
             <input
+              ref={inputArchivoRef}
               type="file"
               accept=".csv"
               className="hidden"
@@ -146,14 +158,23 @@ export function CargaInicialFicha({ onCreada }: Props) {
       )}
 
       {duplicado && (
-        <ConfirmDialog
+        <GlassModal
           titulo="Posible carga duplicada"
-          mensaje={`Este archivo tiene la misma fecha, kilometraje y medidas que la última ficha confirmada del Tren ${duplicado.tren} (${duplicado.fecha}). ¿Estás seguro de que querés subirlo de todas formas?`}
-          textoConfirmar="Sí, continuar"
-          textoCancelar="Cancelar"
-          onConfirm={subirForzado}
-          onCerrar={() => setDuplicado(null)}
-        />
+          onCerrar={reintentarConOtroArchivo}
+          footer={
+            <div className="mt-5 flex justify-end">
+              <GlassButton type="button" onClick={reintentarConOtroArchivo} className="px-5 py-2.5 text-xs">
+                Subir otro CSV
+              </GlassButton>
+            </div>
+          }
+        >
+          <p className="font-body text-sm text-concreto-oscuro">
+            Este archivo tiene la misma fecha, kilometraje y medidas que la última ficha confirmada del Tren{' '}
+            {duplicado.tren} ({duplicado.fecha}). No se puede volver a cargar — subí un archivo distinto para
+            continuar.
+          </p>
+        </GlassModal>
       )}
     </div>
   )

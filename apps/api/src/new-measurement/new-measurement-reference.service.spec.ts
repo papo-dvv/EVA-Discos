@@ -2,6 +2,7 @@ import { NewMeasurementReferenceService } from './new-measurement-reference.serv
 
 function crearEntorno(opts: {
   scanRecords?: unknown[];
+  discos?: unknown[];
   fichaConfirmada?: {
     id: string;
     uploadedFileId: string;
@@ -50,6 +51,9 @@ function crearEntorno(opts: {
     },
     scanRecord: {
       findMany: jest.fn(() => Promise.resolve(scanRecords)),
+    },
+    brakeDisc: {
+      findMany: jest.fn(() => Promise.resolve(opts.discos ?? [])),
     },
     wagonUnit: {
       findMany: jest.fn(() => Promise.resolve([])),
@@ -158,5 +162,139 @@ describe('NewMeasurementReferenceService.obtener — tipo=ultima_medicion', () =
     const resultado = await service.obtener(32, 'ultima_medicion');
 
     expect(resultado).toEqual({ disponible: false });
+  });
+
+  function scanRecordBase(overrides: Partial<Record<string, unknown>>) {
+    return {
+      id: 'sr-1',
+      discId: 'disco-1',
+      responsableNombre: 'Dominic Arrunategui',
+      trenNumero: 32,
+      kilometraje: 1165830,
+      fecha: new Date('2026-06-16'),
+      motivo: 'Medición',
+      tValue: 25,
+      hValue: 24,
+      rdValue: 1,
+      estadoCalculado: 'OK',
+      estadoSugeridoExcel: null,
+      corregidoPorHoja: false,
+      trenOriginalExcel: null,
+      discrepanciaEstadoExcel: false,
+      hojaExcelOrigen: null,
+      cocheExcel: null,
+      numeroCocheExcel: null,
+      bogieExcel: null,
+      ejeExcel: null,
+      ruedaExcel: null,
+      ubicacionExcel: null,
+      observacion: null,
+      tInvalido: false,
+      rdInvalido: false,
+      ...overrides,
+    };
+  }
+
+  // Caso real reportado (Tren 32, 2026-06-16): el header de la comparativa
+  // (fecha/km/responsable) salía bien, pero la tabla de mediciones venía
+  // vacía. Causa: el historial migrado en bloque desde Excel guarda
+  // ubicacion_excel como texto libre ("disco_freno_..._izquierdo"/"...derecho",
+  // ver schema.prisma), no el 'izquierdo'/'derecho' canónico que el frontend
+  // usa para juntar cada fila con su posición del esqueleto (clave eje|lado —
+  // ver construirFilasEspejo). El fix resuelve eje/lado desde el BrakeDisc
+  // real (disc_id), no desde ese texto.
+  it('normaliza eje/lado desde el BrakeDisc real cuando ubicacionExcel es texto libre migrado del Excel', async () => {
+    const scanRecords = [
+      scanRecordBase({
+        id: 'sr-1',
+        discId: 'disco-1',
+        ejeExcel: 22,
+        ubicacionExcel: 'disco_freno_22_derecho',
+      }),
+    ];
+    const discos = [{ id: 'disco-1', ejeNumero: 22, lado: 'derecho' }];
+    const { prisma } = crearEntorno({ scanRecords, discos });
+    const service = new NewMeasurementReferenceService(prisma as never);
+
+    const resultado = await service.obtener(32, 'ultima_medicion');
+
+    expect(resultado.disponible).toBe(true);
+    if (resultado.disponible && 'rows' in resultado) {
+      expect(resultado.rows).toHaveLength(1);
+      expect(resultado.rows[0].ejeExcel).toBe(22);
+      expect(resultado.rows[0].ubicacionExcel).toBe('derecho');
+    }
+  });
+
+  it('conserva ejeExcel/ubicacionExcel tal cual cuando ya vienen canónicos (fichas de NewMeasurementModule)', async () => {
+    const scanRecords = [
+      scanRecordBase({
+        id: 'sr-1',
+        discId: 'disco-1',
+        ejeExcel: 5,
+        ubicacionExcel: 'izquierdo',
+      }),
+    ];
+    const discos = [{ id: 'disco-1', ejeNumero: 5, lado: 'izquierdo' }];
+    const { prisma } = crearEntorno({ scanRecords, discos });
+    const service = new NewMeasurementReferenceService(prisma as never);
+
+    const resultado = await service.obtener(32, 'ultima_medicion');
+
+    expect(resultado.disponible).toBe(true);
+    if (resultado.disponible && 'rows' in resultado) {
+      expect(resultado.rows[0].ejeExcel).toBe(5);
+      expect(resultado.rows[0].ubicacionExcel).toBe('izquierdo');
+    }
+  });
+
+  it('se queda con la medición más reciente de CADA disco aunque no compartan la misma fecha', async () => {
+    const scanRecords = [
+      // Ya ordenados desc por fecha (mismo criterio que produce el orderBy de
+      // Prisma real) — disco-1 tiene 2 mediciones, disco-2 solo 1, en fechas
+      // distintas entre sí.
+      scanRecordBase({
+        id: 'sr-recent-1',
+        discId: 'disco-1',
+        fecha: new Date('2026-06-16'),
+        ejeExcel: 1,
+        ubicacionExcel: 'izquierdo',
+        tValue: 20,
+      }),
+      scanRecordBase({
+        id: 'sr-old-1',
+        discId: 'disco-1',
+        fecha: new Date('2026-01-01'),
+        ejeExcel: 1,
+        ubicacionExcel: 'izquierdo',
+        tValue: 25,
+      }),
+      scanRecordBase({
+        id: 'sr-recent-2',
+        discId: 'disco-2',
+        fecha: new Date('2026-03-10'),
+        ejeExcel: 1,
+        ubicacionExcel: 'derecho',
+        tValue: 22,
+      }),
+    ];
+    const discos = [
+      { id: 'disco-1', ejeNumero: 1, lado: 'izquierdo' },
+      { id: 'disco-2', ejeNumero: 1, lado: 'derecho' },
+    ];
+    const { prisma } = crearEntorno({ scanRecords, discos });
+    const service = new NewMeasurementReferenceService(prisma as never);
+
+    const resultado = await service.obtener(32, 'ultima_medicion');
+
+    expect(resultado.disponible).toBe(true);
+    if (resultado.disponible && 'rows' in resultado) {
+      expect(resultado.rows).toHaveLength(2);
+      const filaDisco1 = resultado.rows.find((r) => r.discId === 'disco-1');
+      expect(filaDisco1?.id).toBe('sr-recent-1');
+      expect(filaDisco1?.tValue).toBe(20);
+      const filaDisco2 = resultado.rows.find((r) => r.discId === 'disco-2');
+      expect(filaDisco2?.id).toBe('sr-recent-2');
+    }
   });
 });

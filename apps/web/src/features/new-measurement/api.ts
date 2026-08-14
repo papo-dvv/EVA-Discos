@@ -16,26 +16,19 @@ import type {
   ResumenFichaManual,
   ResumenReset,
   ResumenVerificacion,
-  ResumenVerificacionDuplicado,
   TipoReferencia,
 } from './types'
 
 // Ficha de medición individual — espejo de features/migration/api.ts, contra
 // /new-measurement en vez de /migration/:fileId.
 
-// forzar=true: reintento del mismo archivo tras una advertencia de duplicado
-// ya aceptada por el usuario (ver ResultadoDuplicadoDetectado/CargaInicialFicha)
-// — el backend crea la ficha borrador normalmente en ese caso, nunca vuelve a
-// responder duplicadoDetectado=true para el mismo archivo.
 export async function subirCsvMedicion(
   file: File,
   motivo?: MotivoFicha,
-  forzar?: boolean,
 ): Promise<ResumenCargaMedicion | ResultadoDuplicadoDetectado> {
   const form = new FormData()
   form.append('file', file)
   if (motivo) form.append('motivo', motivo)
-  if (forzar) form.append('forzar', 'true')
   const { data } = await apiClient.post<ResumenCargaMedicion | ResultadoDuplicadoDetectado>(
     '/new-measurement/upload',
     form,
@@ -103,12 +96,8 @@ export async function eliminarFilaFicha(
   return data
 }
 
-export async function verificarFicha(
-  fichaId: string,
-): Promise<ResumenVerificacion | ResumenVerificacionDuplicado> {
-  const { data } = await apiClient.post<ResumenVerificacion | ResumenVerificacionDuplicado>(
-    `/new-measurement/${fichaId}/validate`,
-  )
+export async function verificarFicha(fichaId: string): Promise<ResumenVerificacion> {
+  const { data } = await apiClient.post<ResumenVerificacion>(`/new-measurement/${fichaId}/validate`)
   return data
 }
 

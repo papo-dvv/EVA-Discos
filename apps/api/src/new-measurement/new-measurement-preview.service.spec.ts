@@ -16,7 +16,6 @@ interface FakeFicha {
   comentariosActividad: string | null;
   verificado: boolean;
   tablaBloqueada: boolean;
-  esPosibleDuplicado: boolean;
 }
 
 // Fake de PrismaService con estado en memoria (mismo patrón que el resto del
@@ -35,7 +34,6 @@ function crearEntorno(overrides: Partial<FakeFicha> = {}) {
     comentariosActividad: null,
     verificado: false,
     tablaBloqueada: false,
-    esPosibleDuplicado: false,
     ...overrides,
   };
   const file = { id: 'file-1', status: 'review' };
@@ -224,47 +222,6 @@ describe('NewMeasurementPreviewService.editarFicha — discrepancia Tren vs CSV'
 
     expect(fichaRef().verificado).toBe(true);
   });
-
-  // Punto 4 del enunciado: editar cualquier valor del header (no solo
-  // Tren/Kilometraje/Fecha) resetea un duplicado detectado en la carga
-  // forzada — ver NewMeasurementValidationService.verificar.
-  it('editar el header con esPosibleDuplicado=true lo resetea a false', async () => {
-    const { prisma, fichaRef } = crearEntorno({ esPosibleDuplicado: true });
-    const brakeDiscRules = {};
-    const validationService = {};
-    const service = new NewMeasurementPreviewService(
-      prisma as never,
-      brakeDiscRules as never,
-      validationService as never,
-    );
-
-    await service.editarFicha(
-      'ficha-1',
-      { comentariosActividad: 'todo bien' },
-      'user-1',
-    );
-
-    expect(fichaRef().esPosibleDuplicado).toBe(false);
-  });
-
-  it('editar la ficha sin esPosibleDuplicado activo no toca el campo (sin escritura de más)', async () => {
-    const { prisma, fichaRef } = crearEntorno({ esPosibleDuplicado: false });
-    const brakeDiscRules = {};
-    const validationService = {};
-    const service = new NewMeasurementPreviewService(
-      prisma as never,
-      brakeDiscRules as never,
-      validationService as never,
-    );
-
-    await service.editarFicha(
-      'ficha-1',
-      { comentariosActividad: 'todo bien' },
-      'user-1',
-    );
-
-    expect(fichaRef().esPosibleDuplicado).toBe(false);
-  });
 });
 
 describe('NewMeasurementPreviewService.editarFila — bloqueo y reseteo de verificado', () => {
@@ -282,7 +239,6 @@ describe('NewMeasurementPreviewService.editarFila — bloqueo y reseteo de verif
       comentariosActividad: null,
       verificado: false,
       tablaBloqueada: false,
-      esPosibleDuplicado: false,
       ...overrides,
     };
     const file = { id: 'file-1', status: 'review' };
@@ -377,33 +333,6 @@ describe('NewMeasurementPreviewService.editarFila — bloqueo y reseteo de verif
     );
 
     expect(fichaRef().verificado).toBe(false);
-  });
-
-  // Punto 4 del enunciado: "editar un solo valor de una fila... resetea
-  // es_posible_duplicado y /validate vuelve a evaluar T/Rd/Km/Fecha
-  // normalmente" — acá se prueba el reseteo; NewMeasurementValidationService.
-  // verificar (spec aparte) prueba que, ya en false, corre la validación
-  // cruzada normal.
-  it('editar un solo valor de una fila con esPosibleDuplicado=true lo resetea a false', async () => {
-    const { prisma, fichaRef } = crearEntornoFila({ esPosibleDuplicado: true });
-    const brakeDiscRules = {};
-    const validationService = {};
-    const service = new NewMeasurementPreviewService(
-      prisma as never,
-      brakeDiscRules as never,
-      validationService as never,
-    );
-
-    expect(fichaRef().esPosibleDuplicado).toBe(true);
-
-    await service.editarFila(
-      'ficha-1',
-      'fila-1',
-      { observacion: 'revisado' },
-      'user-1',
-    );
-
-    expect(fichaRef().esPosibleDuplicado).toBe(false);
   });
 
   it('editar una fila con la tabla bloqueada rechaza con 423', async () => {

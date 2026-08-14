@@ -609,17 +609,6 @@ model MeasurementSheet {
   verificado     Boolean @default(false)
   tablaBloqueada Boolean @default(false) @map("tabla_bloqueada")
 
-  // Detección de duplicado exacto (POST .../upload): se marca true cuando el
-  // usuario forzó la carga (?forzar=true) pese a que el CSV coincidía
-  // exactamente (fecha + kilometraje + cada H/T de cada disco presente) con
-  // la última ficha CONFIRMADA de ese tren — ver NewMeasurementService.
-  // Mientras esté en true, POST .../validate bloquea de entrada SIN correr
-  // la validación cruzada normal (ver NewMeasurementValidationService.
-  // verificar). Se resetea a false automáticamente en cuanto el usuario edita
-  // cualquier fila o el header (ver NewMeasurementPreviewService): a partir
-  // de ahí deja de ser, por definición, un duplicado exacto.
-  esPosibleDuplicado Boolean @default(false) @map("es_posible_duplicado")
-
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   uploadedFile UploadedFile?                 @relation(fields: [uploadedFileId], references: [id])

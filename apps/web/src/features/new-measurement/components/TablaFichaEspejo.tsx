@@ -59,14 +59,14 @@ export function TablaFichaEspejo({
 
   return (
     <GlassSurface fuerte className="mt-4 overflow-hidden rounded-glass">
-      <ScrollArea ejes="both" viewportClassName="max-h-[32rem]">
-        <table className="w-full border-collapse text-left font-body text-[0.8125rem]">
+      <ScrollArea ejes="both" viewportClassName="max-h-[36rem]">
+        <table className="w-full border-collapse text-left font-body text-[0.75rem]">
           <thead>
             <tr className="border-b border-concreto/20">
               {mostrarColumnaMotivo && (
                 <th
                   rowSpan={2}
-                  className="sticky top-0 z-[1] w-48 bg-[color:var(--color-arena-suave)] px-2.5 py-1.5 text-left text-[0.6875rem] font-semibold uppercase tracking-wide text-concreto"
+                  className="sticky top-0 z-[1] w-28 whitespace-nowrap bg-[color:var(--color-arena-suave)] px-2 py-1.5 text-left text-[0.6875rem] font-semibold uppercase tracking-wide text-concreto"
                 >
                   Motivo/Inválido
                 </th>
@@ -128,6 +128,15 @@ function hayMotivo(lado: LadoFilaEspejo): boolean {
   return lado.motivos.length > 0
 }
 
+// Cantidad total de motivos de un eje (los 2 lados juntos) — alimenta el
+// resumen compacto "⚠ N problema(s)" de la columna Motivo/Inválido: el
+// detalle completo (por lado, itemizado) solo aparece en el WarningTooltip al
+// hover/foco, nunca en la celda misma (antes rompía el layout con texto
+// multilínea — ver textoMotivosFila).
+function contarMotivosFila(fila: FilaEspejo): number {
+  return fila.izquierdo.motivos.length + fila.derecho.motivos.length
+}
+
 function tieneMotivo(motivos: MotivoInvalido[], campo: CampoInvalido): boolean {
   return motivos.some((m) => m.campo === campo)
 }
@@ -169,7 +178,7 @@ function Celda({
 }) {
   return (
     <td
-      className={`whitespace-nowrap px-2.5 py-1.5 text-concreto-oscuro ${mono ? 'text-right font-data' : ''} ${className}`.trim()}
+      className={`whitespace-nowrap px-2 py-1 text-concreto-oscuro ${mono ? 'text-right font-data' : ''} ${className}`.trim()}
     >
       {children}
     </td>
@@ -241,8 +250,16 @@ function FilaEspejoRow({
   return (
     <tr className="tabla-fila--glass border-b border-concreto/10">
       {mostrarColumnaMotivo && (
-        <td className="whitespace-normal px-2.5 py-1.5 font-body text-xs text-concreto-oscuro">
-          {textoMotivosFila(fila)}
+        <td className="whitespace-nowrap px-2 py-1">
+          {hayMotivo(fila.izquierdo) || hayMotivo(fila.derecho) ? (
+            <WarningTooltip texto={textoMotivosFila(fila)} className="inline-flex">
+              <span className="cursor-help font-body text-xs font-semibold text-[color:var(--color-estado-critico)]">
+                ⚠ {contarMotivosFila(fila)} problema{contarMotivosFila(fila) === 1 ? '' : 's'}
+              </span>
+            </WarningTooltip>
+          ) : (
+            <span className="font-body text-xs text-concreto">—</span>
+          )}
         </td>
       )}
 
@@ -258,16 +275,16 @@ function FilaEspejoRow({
         resaltado={resaltarTIzq}
       />
       <CampoNumero valor={izq.hValue} onGuardar={izq.guardarH} deshabilitada={deshabilitada} pendiente={izq.pendiente} />
-      <Celda mono>{fila.ejeNumero}</Celda>
-      <Celda mono>{fila.izquierdo.ruedaNumero}</Celda>
+      <Celda mono className="w-9">{fila.ejeNumero}</Celda>
+      <Celda mono className="w-9">{fila.izquierdo.ruedaNumero}</Celda>
 
       <Celda className="bg-white/40 text-center font-semibold">
         {fila.tipoCoche}
         {fila.numeroCoche !== null && <span className="text-concreto"> · {fila.numeroCoche}</span>}
       </Celda>
 
-      <Celda mono>{fila.derecho.ruedaNumero}</Celda>
-      <Celda mono>{fila.ejeNumero}</Celda>
+      <Celda mono className="w-9">{fila.derecho.ruedaNumero}</Celda>
+      <Celda mono className="w-9">{fila.ejeNumero}</Celda>
       <CampoNumero
         valor={der.hValue}
         onGuardar={der.guardarH}
@@ -307,7 +324,7 @@ const CLASE_CHIP_ESTADO: Record<EstadoDisco, string> = {
 // todavía (T/H incompletos) no hay estado que mostrar.
 function CeldaEstado({ estado }: { estado: EstadoDisco | null }) {
   return (
-    <td className="whitespace-nowrap px-2.5 py-1.5">
+    <td className="whitespace-nowrap px-2 py-1">
       {estado ? (
         <span className={`tabla-chip ${CLASE_CHIP_ESTADO[estado]}`}>{estado}</span>
       ) : (
@@ -346,7 +363,7 @@ function CampoNumero({
             if (borrador.trim() !== '' && Number.isFinite(n) && n !== valor) onGuardar(n)
           }}
           placeholder="—"
-          className={`w-16 border px-1.5 py-1 text-right font-data text-xs text-concreto-oscuro transition-colors hover:border-concreto/25 focus:border-verde-institucional focus:bg-white/70 focus:outline-none disabled:opacity-50 ${
+          className={`w-14 border px-1 py-1 text-right font-data text-xs text-concreto-oscuro transition-colors hover:border-concreto/25 focus:border-verde-institucional focus:bg-white/70 focus:outline-none disabled:opacity-50 ${
             resaltado ? CLASE_RESALTADO : 'rounded-lg border-transparent bg-transparent'
           }`.trim()}
         />

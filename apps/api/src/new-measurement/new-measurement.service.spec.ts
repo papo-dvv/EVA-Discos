@@ -210,7 +210,6 @@ describe('NewMeasurementService.subirCsv — detección de duplicado exacto', ()
 
     expect('duplicadoDetectado' in resultado).toBe(false);
     expect(fichasCreadas).toHaveLength(1);
-    expect(fichasCreadas[0].esPosibleDuplicado).toBe(false);
   });
 
   it('CSV con un H/T de un disco distinto al confirmado no dispara duplicado', async () => {
@@ -227,7 +226,6 @@ describe('NewMeasurementService.subirCsv — detección de duplicado exacto', ()
 
     expect('duplicadoDetectado' in resultado).toBe(false);
     expect(fichasCreadas).toHaveLength(1);
-    expect(fichasCreadas[0].esPosibleDuplicado).toBe(false);
   });
 
   it('sin ficha confirmada previa del tren, no dispara duplicado y crea la ficha normalmente', async () => {
@@ -238,39 +236,38 @@ describe('NewMeasurementService.subirCsv — detección de duplicado exacto', ()
 
     expect('duplicadoDetectado' in resultado).toBe(false);
     expect(fichasCreadas).toHaveLength(1);
-    expect(fichasCreadas[0].esPosibleDuplicado).toBe(false);
   });
 
-  it('con forzar=true, crea la ficha borrador normalmente pese al duplicado, marcándola esPosibleDuplicado=true', async () => {
+  // No existe ningún endpoint/parámetro para forzar la carga de un duplicado
+  // exacto (el antiguo forzar=true de UploadCsvDto se eliminó por completo):
+  // un mismo archivo idéntico al último confirmado nunca crea la ficha, sin
+  // importar cuántas veces se reintente subirlo.
+  it('un duplicado exacto nunca crea la ficha, ni siquiera reintentando la misma subida', async () => {
     const { prisma, fichasCreadas } = crearEntorno({
       fichaConfirmada: fichaConfirmadaBase,
       scanRecordsConfirmados: scanRecordsConfirmadosBase,
     });
     const service = crearServicio(prisma);
 
-    const resultado = await service.subirCsv(
+    const primerIntento = await service.subirCsv(
       archivoFixture(),
-      { forzar: true },
+      {},
+      'user-1',
+    );
+    const segundoIntento = await service.subirCsv(
+      archivoFixture(),
+      {},
       'user-1',
     );
 
-    expect('duplicadoDetectado' in resultado).toBe(false);
-    expect(fichasCreadas).toHaveLength(1);
-    expect(fichasCreadas[0].esPosibleDuplicado).toBe(true);
-    expect(fichasCreadas[0].trenNumero).toBe(32);
-  });
-
-  it('forzar=true SIN que haya habido duplicado real no marca esPosibleDuplicado', async () => {
-    const { prisma, fichasCreadas } = crearEntorno(); // sin ficha confirmada previa
-    const service = crearServicio(prisma);
-
-    const resultado = await service.subirCsv(
-      archivoFixture(),
-      { forzar: true },
-      'user-1',
-    );
-
-    expect('duplicadoDetectado' in resultado).toBe(false);
-    expect(fichasCreadas[0].esPosibleDuplicado).toBe(false);
+    expect(primerIntento).toEqual({
+      duplicadoDetectado: true,
+      fichaConfirmadaId: 'ficha-confirmada-1',
+      fecha: '2026-01-15',
+      kilometraje: 125000,
+      tren: 32,
+    });
+    expect(segundoIntento).toEqual(primerIntento);
+    expect(fichasCreadas).toHaveLength(0);
   });
 });

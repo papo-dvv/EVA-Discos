@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { GlassButton } from '../components/GlassButton'
@@ -7,6 +7,7 @@ import { PantallaFondo } from '../components/PantallaFondo'
 import { SegmentedControl } from '../components/SegmentedControl'
 import { WarningTooltip } from '../components/WarningTooltip'
 import { CargaInicialFicha } from '../features/new-measurement/components/CargaInicialFicha'
+import { ConteoEstadosFicha } from '../features/new-measurement/components/ConteoEstadosFicha'
 import { FooterFicha } from '../features/new-measurement/components/FooterFicha'
 import { HeaderFicha } from '../features/new-measurement/components/HeaderFicha'
 import { ModalFilasConProblemas } from '../features/new-measurement/components/ModalFilasConProblemas'
@@ -22,11 +23,7 @@ import {
   useReiniciarFicha,
   useVerificarFicha,
 } from '../features/new-measurement/queries'
-import type {
-  MotivoFicha,
-  ResumenVerificacion,
-  ResumenVerificacionDuplicado,
-} from '../features/new-measurement/types'
+import type { MotivoFicha, ResumenVerificacion } from '../features/new-measurement/types'
 import { extraerMensajeError } from '../lib/extraerMensajeError'
 
 const MOTIVO_OPCIONES: {
@@ -62,25 +59,20 @@ function juntarConY(items: string[]): string {
   return `${items.slice(0, -1).join(', ')} y ${items.at(-1)}`
 }
 
-// Punto 4 del enunciado (fix): "✅ Ficha verificada — lista para bloquear."
-// es EXCLUSIVO de todoValido=true — ya no se muestra incondicional según
-// ficha.verificado sin más (antes de este fix técnicamente coincidía, pero
-// dejaba sin mensaje específico el caso con problemas). resultadoVerificacion
-// es la última response de /validate (ver estado de la página, se mantiene
-// tras cerrar el modal) — con problemas, sólo las filas propias (t/rd) suman
-// al conteo mostrado; un problema de sólo Kilometraje/Fecha (0 filas propias)
-// tiene su propio mensaje, ya que esas 2 alertas viven en el header. Un
-// duplicado detectado (ver ModalDuplicadoVerificacion más abajo) tiene su
-// propio motivo, tal cual lo manda el backend.
+// "✅ Ficha verificada — lista para bloquear." es EXCLUSIVO de
+// todoValido=true — no se muestra incondicional según ficha.verificado sin
+// más (dejaría sin mensaje específico el caso con problemas).
+// resultadoVerificacion es la última response de /validate (ver estado de la
+// página, se mantiene tras cerrar el modal) — con problemas, sólo las filas
+// propias (t/rd) suman al conteo mostrado; un problema de sólo Kilometraje/
+// Fecha (0 filas propias) tiene su propio mensaje, ya que esas 2 alertas
+// viven en el header.
 function mensajeEstadoVerificacion(
   tablaBloqueada: boolean,
   verificado: boolean,
-  resultadoVerificacion: ResumenVerificacion | ResumenVerificacionDuplicado | null,
+  resultadoVerificacion: ResumenVerificacion | null,
 ): string {
   if (tablaBloqueada) return '🔒 Tabla de mediciones bloqueada.'
-  if (resultadoVerificacion && 'duplicado' in resultadoVerificacion) {
-    return `⚠ ${resultadoVerificacion.motivo}`
-  }
   if (resultadoVerificacion && !resultadoVerificacion.todoValido) {
     const n = resultadoVerificacion.filasExcluidas.length
     return n > 0
@@ -109,12 +101,17 @@ export function NuevasMediciones() {
   // solo la reemplaza una nueva verificación, o un reinicio de la ficha —
   // así "Corregir manualmente" puede cerrar el modal sin que la tabla pierda
   // el reordenamiento/resaltado que ese mismo resultado habilita.
-  const [resultadoVerificacion, setResultadoVerificacion] = useState<
-    ResumenVerificacion | ResumenVerificacionDuplicado | null
-  >(null)
+  const [resultadoVerificacion, setResultadoVerificacion] = useState<ResumenVerificacion | null>(null)
   // Visibilidad del modal de resultado, independiente de resultadoVerificacion
   // (ver comentario arriba).
   const [modalAbierto, setModalAbierto] = useState(false)
+  // fichaId pendiente de auto-verificar apenas termine de cargar (ver
+  // manejarFichaCreada/efecto más abajo) — SOLO se setea desde el flujo de
+  // carga por CSV (CargaInicialFicha.onCreada con autoVerificar=true), nunca
+  // en modo manual. Vive en un ref (no en query param ni router state) para
+  // no depender de cómo React Router decida remontar o no este componente
+  // entre /nuevas-mediciones y /nuevas-mediciones/:fichaId.
+  const autoVerificarPendiente = useRef<string | null>(null)
 
   const preview = useFichaPreview(fichaId ?? '', { page: 1, pageSize: 100 })
   const editarFicha = useEditarFicha(fichaId ?? '')
@@ -181,14 +178,41 @@ export function NuevasMediciones() {
     setResultadoVerificacion(null)
   }
 
+  // onCreada de CargaInicialFicha (carga inicial y reupload tras un reset):
+  // navega a la ficha recién creada y, si vino de un CSV (autoVerificar),
+  // marca su id como pendiente — el efecto de abajo dispara la misma
+  // verificación que un click manual en "Verificar" apenas la URL cambia a
+  // ese fichaId, sin esperar a que el usuario la pida.
+  function manejarFichaCreada(id: string, autoVerificar = false, opciones?: { replace?: boolean }) {
+    if (autoVerificar) autoVerificarPendiente.current = id
+    navigate(`/nuevas-mediciones/${id}`, opciones)
+  }
+
+  // Dispara UNA sola vez por ficha (guardado en el propio ref, que se limpia
+  // apenas se consume) — no depende de que `preview` ya haya cargado: verificar()
+  // solo necesita el fichaId, ya disponible desde la URL.
+  useEffect(() => {
+    if (!fichaId || autoVerificarPendiente.current !== fichaId) return
+    autoVerificarPendiente.current = null
+    verificar()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fichaId])
+
   const responsableVacio = !ficha?.responsableMantenimientoNombre?.trim()
   const ptVacio = !ficha?.ptCodigo?.trim()
   const tablaBloqueada = ficha?.tablaBloqueada ?? false
   const puedeConfirmar = tablaBloqueada && !responsableVacio && !ptVacio
 
+  // Punto 1 de la ampliación: la vista previa de la ficha (una vez creada)
+  // usa un layout full-bleed, sin los márgenes/max-width habituales del
+  // resto de la app — le da a la tabla el máximo espacio horizontal
+  // disponible. La pantalla de entrada (motivo + CargaInicialFicha, sin
+  // fichaId todavía) conserva el layout centrado de siempre.
+  const contenedorAncho = fichaId ? 'w-full' : 'mx-auto max-w-[75rem]'
+
   return (
-    <PantallaFondo className="px-3 py-6 sm:px-5">
-      <div className="mx-auto max-w-[75rem]">
+    <PantallaFondo className={fichaId ? 'px-2 py-4 sm:px-3' : 'px-3 py-6 sm:px-5'}>
+      <div className={contenedorAncho}>
         <GlassSurface className="rounded-glass px-6 py-4">
           <h1 className="font-display text-2xl font-semibold tracking-tight text-concreto-oscuro">
             Nuevas mediciones
@@ -212,7 +236,7 @@ export function NuevasMediciones() {
 
         {motivo === 'Medición' && !fichaId && (
           <GlassSurface fuerte className="mt-4 rounded-glass-lg p-6 sm:p-8">
-            <CargaInicialFicha onCreada={(id) => navigate(`/nuevas-mediciones/${id}`)} />
+            <CargaInicialFicha onCreada={(id, autoVerificar) => manejarFichaCreada(id, autoVerificar)} />
           </GlassSurface>
         )}
 
@@ -252,11 +276,39 @@ export function NuevasMediciones() {
                     <p className="mb-4 font-body text-sm text-concreto">
                       La ficha se reinició — subí un nuevo archivo .csv para continuar (o cambiá a registro manual).
                     </p>
-                    <CargaInicialFicha onCreada={(id) => navigate(`/nuevas-mediciones/${id}`, { replace: true })} />
+                    <CargaInicialFicha
+                      onCreada={(id, autoVerificar) => manejarFichaCreada(id, autoVerificar, { replace: true })}
+                    />
                   </GlassSurface>
                 ) : (
                   <>
-                    <GlassSurface fuerte className="mt-3 rounded-glass-lg p-5 sm:p-6">
+                    {/* Punto 6 de la ampliación: la card de Verificar (botón +
+                        mensaje de resultado) queda DEBAJO del toggle Medición
+                        Anterior/Cancelar Ficha de arriba, ANTES del header y
+                        la tabla — así el estado de verificación y las 5 cards
+                        de conteo (ver ConteoEstadosFicha) quedan siempre
+                        visibles apenas se entra a la ficha, sin tener que
+                        bajar hasta después de la tabla. */}
+                    <GlassSurface fuerte className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-glass p-4">
+                      <p className="font-body text-sm text-concreto-oscuro">
+                        {mensajeEstadoVerificacion(tablaBloqueada, ficha.verificado, resultadoVerificacion)}
+                      </p>
+                      {!tablaBloqueada && (
+                        <GlassButton
+                          type="button"
+                          variante="secundario"
+                          onClick={verificar}
+                          cargando={verificarFicha.isPending}
+                          className="text-xs"
+                        >
+                          Verificar
+                        </GlassButton>
+                      )}
+                    </GlassSurface>
+
+                    <ConteoEstadosFicha rows={rows} />
+
+                    <GlassSurface fuerte className="mt-4 rounded-glass-lg p-5 sm:p-6">
                       <HeaderFicha
                         ficha={ficha}
                         onGuardar={(c) => editarFicha.mutate(c)}
@@ -274,23 +326,6 @@ export function NuevasMediciones() {
                       deshabilitada={tablaBloqueada}
                       resaltarInvalidos={resultadoVerificacion !== null}
                     />
-
-                    <GlassSurface fuerte className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-glass p-4">
-                      <p className="font-body text-sm text-concreto-oscuro">
-                        {mensajeEstadoVerificacion(tablaBloqueada, ficha.verificado, resultadoVerificacion)}
-                      </p>
-                      {!tablaBloqueada && (
-                        <GlassButton
-                          type="button"
-                          variante="secundario"
-                          onClick={verificar}
-                          cargando={verificarFicha.isPending}
-                          className="text-xs"
-                        >
-                          Verificar
-                        </GlassButton>
-                      )}
-                    </GlassSurface>
 
                     <GlassSurface fuerte className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-glass p-4">
                       <p className="font-body text-sm font-semibold text-concreto-oscuro">
@@ -368,60 +403,38 @@ export function NuevasMediciones() {
         />
       )}
 
-      {/* Punto 1 del enunciado: 2 modales DISTINTOS según el resultado de
-          /validate, no uno solo con textos condicionales — todoValido=true
-          sigue siendo Bloquear Mediciones/Cancelar; con filas con problemas,
-          el modal cambia por completo (punto 6: ModalFilasConProblemas, con
-          Corregir manualmente/Resubir CSV o Reiniciar ficha — ya NO existe
-          "bloquear igual, se confirman solo las filas válidas": el modelo es
-          binario, ver punto 3). Un tercer caso (punto 3 de la ampliación):
-          duplicado=true bloquea de entrada, sin filas que corregir — "Editar
-          de todas formas" simplemente cierra el modal (deja la tabla
-          editable; cualquier edición resetea el duplicado en el backend). */}
-      {modalAbierto && resultadoVerificacion && 'duplicado' in resultadoVerificacion && (
+      {/* 2 modales DISTINTOS según el resultado de /validate, no uno solo con
+          textos condicionales: todoValido=true es Bloquear Mediciones/
+          Cancelar; con filas con problemas, el modal cambia por completo
+          (ModalFilasConProblemas, con Corregir manualmente/Resubir CSV o
+          Reiniciar ficha — el modelo es binario, no existe "bloquear igual,
+          se confirman solo las filas válidas"). */}
+      {modalAbierto && resultadoVerificacion && resultadoVerificacion.todoValido && (
         <ConfirmDialog
-          titulo="Medición duplicada"
-          mensaje={resultadoVerificacion.motivo}
-          variante="danger"
-          textoConfirmar={esOrigenCsv ? 'Resubir CSV' : 'Reiniciar ficha'}
-          textoCancelar="Editar de todas formas"
-          onConfirm={reiniciar}
+          titulo="Todos los datos están OK"
+          mensaje="¿Bloquear la tabla de mediciones? La tabla y el header (Fecha/Tren/Kilometraje/P.T.) pasan a solo lectura y se habilita el footer."
+          textoConfirmar="Bloquear Mediciones"
+          textoCancelar="Cancelar"
+          motivoConfirmarDeshabilitado={
+            ptVacio
+              ? 'Completa el P.T. (Puesto de Trabajo) en el header para poder bloquear la tabla de mediciones.'
+              : null
+          }
+          onConfirm={async () => {
+            await bloquearFicha.mutateAsync()
+          }}
           onCerrar={() => setModalAbierto(false)}
         />
       )}
 
-      {modalAbierto &&
-        resultadoVerificacion &&
-        !('duplicado' in resultadoVerificacion) &&
-        resultadoVerificacion.todoValido && (
-          <ConfirmDialog
-            titulo="Todos los datos están OK"
-            mensaje="¿Bloquear la tabla de mediciones? La tabla y el header (Fecha/Tren/Kilometraje/P.T.) pasan a solo lectura y se habilita el footer."
-            textoConfirmar="Bloquear Mediciones"
-            textoCancelar="Cancelar"
-            motivoConfirmarDeshabilitado={
-              ptVacio
-                ? 'Completa el P.T. (Puesto de Trabajo) en el header para poder bloquear la tabla de mediciones.'
-                : null
-            }
-            onConfirm={async () => {
-              await bloquearFicha.mutateAsync()
-            }}
-            onCerrar={() => setModalAbierto(false)}
-          />
-        )}
-
-      {modalAbierto &&
-        resultadoVerificacion &&
-        !('duplicado' in resultadoVerificacion) &&
-        !resultadoVerificacion.todoValido && (
-          <ModalFilasConProblemas
-            resumen={resultadoVerificacion}
-            esOrigenCsv={esOrigenCsv}
-            onCorregir={() => setModalAbierto(false)}
-            onReiniciar={reiniciar}
-          />
-        )}
+      {modalAbierto && resultadoVerificacion && !resultadoVerificacion.todoValido && (
+        <ModalFilasConProblemas
+          resumen={resultadoVerificacion}
+          esOrigenCsv={esOrigenCsv}
+          onCorregir={() => setModalAbierto(false)}
+          onReiniciar={reiniciar}
+        />
+      )}
 
       {medicionAnteriorAbierta && ficha && (
         <ModalMedicionAnterior

@@ -168,18 +168,6 @@ export class NewMeasurementPreviewService {
     if (dto.ingMrFecha !== undefined)
       cambios.ingMrFecha = new Date(dto.ingMrFecha);
 
-    // Punto 4 del enunciado: cualquier edición de la ficha (header, firmas,
-    // técnicos o instrumentos) resetea un duplicado detectado en la carga —
-    // deja de ser, por definición, un duplicado exacto en cuanto algo cambia
-    // (ver NewMeasurementValidationService.verificar).
-    const tocaAlgo =
-      Object.keys(cambios).length > 0 ||
-      (dto.tecnicos?.length ?? 0) > 0 ||
-      (dto.instrumentos?.length ?? 0) > 0;
-    if (tocaAlgo && ficha.esPosibleDuplicado) {
-      cambios.esPosibleDuplicado = false;
-    }
-
     await this.prisma.$transaction(async (tx) => {
       if (Object.keys(cambios).length > 0) {
         await tx.measurementSheet.update({
@@ -366,11 +354,10 @@ export class NewMeasurementPreviewService {
       });
       // Editar una fila desactualiza la última verificación (ver
       // NewMeasurementValidationService.verificar) — obliga a un nuevo
-      // POST .../validate antes de poder bloquear la tabla. También resetea
-      // un duplicado detectado en la carga (punto 4 del enunciado).
+      // POST .../validate antes de poder bloquear la tabla.
       await tx.measurementSheet.update({
         where: { id: fichaId },
-        data: { verificado: false, esPosibleDuplicado: false },
+        data: { verificado: false },
       });
       return upd;
     });
@@ -469,7 +456,7 @@ export class NewMeasurementPreviewService {
       // editarFila — ver comentario ahí.
       await tx.measurementSheet.update({
         where: { id: fichaId },
-        data: { verificado: false, esPosibleDuplicado: false },
+        data: { verificado: false },
       });
       return fila;
     });
@@ -526,7 +513,7 @@ export class NewMeasurementPreviewService {
       // editarFila — ver comentario ahí.
       await tx.measurementSheet.update({
         where: { id: fichaId },
-        data: { verificado: false, esPosibleDuplicado: false },
+        data: { verificado: false },
       });
     });
 
