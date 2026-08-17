@@ -95,6 +95,22 @@ const ESQUEMA_RESPUESTA = {
 export class ReprofilingGeminiService {
   constructor(private readonly config: ConfigService) {}
 
+  private obtenerEstado(error: unknown): number {
+    if (typeof error === 'object' && error !== null && 'status' in error) {
+      const estado = Number(error.status);
+      if (Number.isFinite(estado)) return estado;
+    }
+    if (error instanceof Error) {
+      const coincidencia = error.message.match(/(?:"code"\s*:\s*|\b)(429|503)\b/);
+      if (coincidencia) return Number(coincidencia[1]);
+    }
+    return 0;
+  }
+
+  private esperar(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
   async leer(archivo: Express.Multer.File): Promise<ResultadoOcrReperfilado> {
     const apiKey = this.config.get<string>('GEMINI_API_KEY')?.trim();
     if (!apiKey) {
@@ -128,30 +144,39 @@ No confundas las columnas ANTES con DESPUÉS. No uses Rugosidad Ra como hValue. 
 El lado izquierdo está a la izquierda del bloque central EJE/RUEDA/COCHE y el derecho a la derecha. Usa el número de EJE impreso en el centro para asignar cada fila. Convierte coma decimal a punto. Fecha en YYYY-MM-DD y horas en HH:mm. Confianza de 0 a 100 por fila. Agrega una advertencia específica por cada zona dudosa o recortada.`;
 
     try {
-      const respuesta = await ai.models.generateContent({
-        model:
-          this.config.get<string>('GEMINI_VISION_MODEL')?.trim() ||
-          'gemini-3.5-flash',
-        contents: [
-          {
-            role: 'user',
-            parts: [
-              { text: prompt },
+      let respuesta: Awaited<ReturnType<typeof ai.models.generateContent>>;
+      for (let intento = 1; ; intento += 1) {
+        try {
+          respuesta = await ai.models.generateContent({
+            model:
+              this.config.get<string>('GEMINI_VISION_MODEL')?.trim() ||
+              'gemini-3.5-flash',
+            contents: [
               {
-                inlineData: {
-                  data: imagen.toString('base64'),
-                  mimeType: 'image/jpeg',
-                },
+                role: 'user',
+                parts: [
+                  { text: prompt },
+                  {
+                    inlineData: {
+                      data: imagen.toString('base64'),
+                      mimeType: 'image/jpeg',
+                    },
+                  },
+                ],
               },
             ],
-          },
-        ],
-        config: {
-          temperature: 0,
-          responseMimeType: 'application/json',
-          responseJsonSchema: ESQUEMA_RESPUESTA,
-        },
-      });
+            config: {
+              temperature: 0,
+              responseMimeType: 'application/json',
+              responseJsonSchema: ESQUEMA_RESPUESTA,
+            },
+          });
+          break;
+        } catch (error) {
+          if (this.obtenerEstado(error) !== 503 || intento >= 3) throw error;
+          await this.esperar(intento * 1000);
+        }
+      }
       if (!respuesta.text) throw new Error('Gemini no devolvió datos.');
       const datos = JSON.parse(respuesta.text) as RespuestaGemini;
       const unicas = new Map(
@@ -177,13 +202,15 @@ El lado izquierdo está a la izquierda del bloque central EJE/RUEDA/COCHE y el d
         textoReconocido: `Gemini Vision: ${datos.tipoFormato}`,
       };
     } catch (error) {
-      const estado =
-        typeof error === 'object' && error !== null && 'status' in error
-          ? Number(error.status)
-          : 0;
+      const estado = this.obtenerEstado(error);
       if (estado === 429) {
         throw new ServiceUnavailableException(
           'Gemini está configurado, pero la cuota disponible fue excedida. Revisa la facturación o los límites del proyecto de Google.',
+        );
+      }
+      if (estado === 503) {
+        throw new ServiceUnavailableException(
+          'Gemini está temporalmente saturado. Se intentó leer la fotografía tres veces; vuelve a intentarlo en unos minutos o usa Registrar manualmente.',
         );
       }
       const mensaje =
