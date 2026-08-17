@@ -17,6 +17,8 @@ export interface LadoFilaEspejo {
   hValue: number | null
   rdValue: number | null
   rugosidadRa: number | null
+  reperfiladoTAntes: number | null
+  reperfiladoHAntes: number | null
   // Estado calculado del disco (BrakeDiscRulesEngine.clasificarEstadoConReperfilado,
   // backend) — alimenta el chip de Estado de la columna "Observación" en
   // TablaFichaEspejo. null en una fila vacía (todavía sin T/H).
@@ -51,6 +53,8 @@ function ladoVacio(pos: PosicionEsqueleto): LadoFilaEspejo {
     hValue: null,
     rdValue: null,
     rugosidadRa: null,
+    reperfiladoTAntes: null,
+    reperfiladoHAntes: null,
     estadoCalculado: null,
     tInvalido: false,
     rdInvalido: false,
@@ -67,6 +71,8 @@ function ladoDeFila(pos: PosicionEsqueleto, fila: PreviewRow): LadoFilaEspejo {
     hValue: fila.hValue,
     rdValue: fila.rdValue,
     rugosidadRa: fila.rugosidadRa,
+    reperfiladoTAntes: fila.reperfiladoTAntes,
+    reperfiladoHAntes: fila.reperfiladoHAntes,
     estadoCalculado: fila.estadoCalculado,
     tInvalido: fila.tInvalido,
     rdInvalido: fila.rdInvalido,

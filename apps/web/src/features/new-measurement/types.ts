@@ -278,6 +278,8 @@ export interface AgregarFilaFicha {
   hValue: number
   tValue: number
   rugosidadRa?: number | null
+  reperfiladoTAntes?: number
+  reperfiladoHAntes?: number
   fecha?: string
   observacion?: string
 }
@@ -288,6 +290,8 @@ export interface EditarFilaFicha {
   hValue?: number
   tValue?: number
   rugosidadRa?: number
+  reperfiladoTAntes?: number
+  reperfiladoHAntes?: number
   ejeNumero?: number
   lado?: 'izquierdo' | 'derecho'
   observacion?: string

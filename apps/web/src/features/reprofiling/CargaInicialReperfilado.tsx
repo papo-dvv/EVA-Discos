@@ -121,8 +121,13 @@ export function CargaInicialReperfilado({
         fechaHoraFin,
       })
       for (const fila of ocr.filas) {
-        const { confianza: _confianza, ...medicion } = fila
-        await agregarFilaFicha(ficha.fichaId, medicion)
+        const { confianza: _confianza, tAntes, hAntes, ...medicion } = fila
+        await agregarFilaFicha(ficha.fichaId, {
+          ...medicion,
+          reperfiladoTAntes: tAntes,
+          reperfiladoHAntes: hAntes,
+          rugosidadRa: medicion.tValue - medicion.hValue,
+        })
       }
       onCreada(ficha.fichaId)
     } catch (err) {

@@ -289,6 +289,10 @@ export class NewMeasurementPreviewService {
     if (dto.fecha !== undefined) cambios.fecha = new Date(dto.fecha);
     if (dto.observacion !== undefined) cambios.observacion = dto.observacion;
     if (dto.rugosidadRa !== undefined) cambios.rugosidadRa = dto.rugosidadRa;
+    if (dto.reperfiladoTAntes !== undefined)
+      cambios.reperfiladoTAntes = dto.reperfiladoTAntes;
+    if (dto.reperfiladoHAntes !== undefined)
+      cambios.reperfiladoHAntes = dto.reperfiladoHAntes;
 
     if (dto.ejeNumero !== undefined || dto.lado !== undefined) {
       const ejeFinal = dto.ejeNumero ?? original.ejeExcel!;
@@ -334,6 +338,7 @@ export class NewMeasurementPreviewService {
       const rd = evaluador.calcularRd(t, h);
       if (dto.tValue !== undefined) cambios.tValue = dto.tValue;
       if (dto.hValue !== undefined) cambios.hValue = dto.hValue;
+      cambios.rugosidadRa = t - h;
       cambios.rdValue = rd;
       cambios.estadoCalculado = evaluador.clasificarEstadoConReperfilado(rd, h);
     }
@@ -436,6 +441,8 @@ export class NewMeasurementPreviewService {
           ruedaExcel: ruedaNumero,
           observacion: dto.observacion ?? null,
           rugosidadRa: dto.rugosidadRa ?? null,
+          reperfiladoTAntes: dto.reperfiladoTAntes ?? null,
+          reperfiladoHAntes: dto.reperfiladoHAntes ?? null,
           ordenFisico: calcularOrdenFisico({
             tipoCoche: identidad.tipoCoche,
             bogieCodigo: identidad.bogieCodigo,

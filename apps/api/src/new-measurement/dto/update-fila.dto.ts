@@ -38,6 +38,16 @@ export class UpdateFilaDto {
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
+  reperfiladoTAntes?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  reperfiladoHAntes?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
   rugosidadRa?: number;
 
   @IsOptional()

@@ -4,7 +4,6 @@ import { ScrollArea } from '../../../components/ScrollArea'
 import { useSyncedState } from '../../../hooks/useSyncedState'
 import { construirFilasEspejo, type LadoFilaEspejo } from '../filaEspejo'
 import { useAgregarFilaFicha, useEditarFilaFicha } from '../queries'
-import type { ValorPrevioDisco } from '../referenciaAnterior'
 import type { PosicionEsqueleto, PreviewRow } from '../types'
 
 type Lado = 'izquierdo' | 'derecho'
@@ -13,7 +12,6 @@ type Props = {
   fichaId: string
   esqueleto: PosicionEsqueleto[]
   rows: PreviewRow[]
-  referenciaPorEjeLado?: Map<string, ValorPrevioDisco>
   deshabilitada?: boolean
 }
 
@@ -23,7 +21,6 @@ export function TablaFichaReperfilado({
   fichaId,
   esqueleto,
   rows,
-  referenciaPorEjeLado,
   deshabilitada = false,
 }: Props) {
   const filas = useMemo(
@@ -38,8 +35,8 @@ export function TablaFichaReperfilado({
           Control disco de freno
         </h2>
         <p className="mt-0.5 font-body text-xs text-concreto">
-          Antes del reperfilado: última medición confirmada · Después: valores
-          obtenidos en torno fosa
+          Completa los cinco cuadros de cada lado. R.A. se obtiene
+          automáticamente con los valores posteriores al reperfilado.
         </p>
       </div>
       <ScrollArea ejes="both" viewportClassName="max-h-[36rem]">
@@ -81,19 +78,27 @@ export function TablaFichaReperfilado({
               <th className="px-2 py-2">Cóncavo (mm)</th>
               <th className="px-2 py-2">Espesor (mm)</th>
               <th className="px-2 py-2">Cóncavo (mm)</th>
-              <th className="px-2 py-2">Ra (µm)</th>
+              <th className="border-l-2 border-concreto/25 px-2 py-2">
+                R.A. (mm)
+              </th>
               <th className="px-2 py-2">Espesor (mm)</th>
               <th className="px-2 py-2">Cóncavo (mm)</th>
               <th className="px-2 py-2">Espesor (mm)</th>
               <th className="px-2 py-2">Cóncavo (mm)</th>
-              <th className="px-2 py-2">Ra (µm)</th>
+              <th className="border-l-2 border-concreto/25 px-2 py-2">
+                R.A. (mm)
+              </th>
             </tr>
           </thead>
           <tbody>
             {filas.map((fila) => (
               <tr
                 key={fila.ejeNumero}
-                className="tabla-fila--glass border-b border-concreto/10"
+                className={`tabla-fila--glass border-b border-concreto/10 ${
+                  (fila.ejeNumero - 1) % 4 === 0
+                    ? 'border-t-4 border-t-concreto/30'
+                    : ''
+                }`}
               >
                 <td className="px-2.5 py-1.5 font-semibold text-concreto-oscuro">
                   {fila.bogieCodigo}
@@ -103,9 +108,6 @@ export function TablaFichaReperfilado({
                   eje={fila.ejeNumero}
                   lado="izquierdo"
                   datos={fila.izquierdo}
-                  previo={referenciaPorEjeLado?.get(
-                    `${fila.ejeNumero}|izquierdo`,
-                  )}
                   deshabilitada={deshabilitada}
                 />
                 <td className="px-3 py-1.5 text-center font-data text-concreto-oscuro">
@@ -120,9 +122,6 @@ export function TablaFichaReperfilado({
                   eje={fila.ejeNumero}
                   lado="derecho"
                   datos={fila.derecho}
-                  previo={referenciaPorEjeLado?.get(
-                    `${fila.ejeNumero}|derecho`,
-                  )}
                   deshabilitada={deshabilitada}
                 />
               </tr>
@@ -133,7 +132,7 @@ export function TablaFichaReperfilado({
       <div className="grid grid-cols-1 gap-2 border-t border-concreto/15 bg-white/35 px-5 py-3 font-body text-xs text-concreto sm:grid-cols-3">
         <span>Espesor posterior &gt; 0,3 mm</span>
         <span>Desgaste cóncavo ≤ 2,0 mm</span>
-        <span>Rugosidad Ra: valor independiente leído de la ficha (µm)</span>
+        <span>R.A. automático = Espesor después − Cóncavo después</span>
       </div>
     </GlassSurface>
   )
@@ -144,31 +143,33 @@ function LadoReperfilado({
   eje,
   lado,
   datos,
-  previo,
   deshabilitada,
 }: {
   fichaId: string
   eje: number
   lado: Lado
   datos: LadoFilaEspejo
-  previo?: ValorPrevioDisco
   deshabilitada: boolean
 }) {
   const agregar = useAgregarFilaFicha(fichaId)
   const editar = useEditarFilaFicha(fichaId)
-  // El archivo cargado en Reperfilado contiene los valores obtenidos por el
-  // equipo tras el trabajo: T/H deben aparecer directamente en "Después".
-  // "Antes" viene de la última medición confirmada; los campos *_Antes solo
-  // quedan como respaldo para fichas antiguas creadas por el flujo legado.
   const [t, setT] = useSyncedState(datos.tValue)
   const [h, setH] = useSyncedState(datos.hValue)
-  const [ra, setRa] = useSyncedState(datos.rugosidadRa)
-  const previoReal = previo
+  const [tAntes, setTAntes] = useSyncedState(datos.reperfiladoTAntes)
+  const [hAntes, setHAntes] = useSyncedState(datos.reperfiladoHAntes)
 
-  function guardar(campo: 'tValue' | 'hValue' | 'rugosidadRa', valor: number) {
+  function guardar(
+    campo:
+      | 'tValue'
+      | 'hValue'
+      | 'reperfiladoTAntes'
+      | 'reperfiladoHAntes',
+    valor: number,
+  ) {
     if (campo === 'tValue') setT(valor)
     if (campo === 'hValue') setH(valor)
-    if (campo === 'rugosidadRa') setRa(valor)
+    if (campo === 'reperfiladoTAntes') setTAntes(valor)
+    if (campo === 'reperfiladoHAntes') setHAntes(valor)
     const tFinal = campo === 'tValue' ? valor : t
     const hFinal = campo === 'hValue' ? valor : h
     if (datos.recordId) {
@@ -181,15 +182,27 @@ function LadoReperfilado({
         lado,
         tValue: tFinal,
         hValue: hFinal,
-        rugosidadRa: campo === 'rugosidadRa' ? valor : ra,
+        reperfiladoTAntes:
+          campo === 'reperfiladoTAntes' ? valor : (tAntes ?? undefined),
+        reperfiladoHAntes:
+          campo === 'reperfiladoHAntes' ? valor : (hAntes ?? undefined),
+        rugosidadRa: tFinal - hFinal,
       })
     }
   }
 
   return (
     <>
-      <ValorPrevio valor={previoReal?.tValue} />
-      <ValorPrevio valor={previoReal?.hValue} />
+      <Campo
+        valor={tAntes}
+        onGuardar={(v) => guardar('reperfiladoTAntes', v)}
+        disabled={deshabilitada}
+      />
+      <Campo
+        valor={hAntes}
+        onGuardar={(v) => guardar('reperfiladoHAntes', v)}
+        disabled={deshabilitada}
+      />
       <Campo
         valor={t}
         onGuardar={(v) => guardar('tValue', v)}
@@ -201,19 +214,15 @@ function LadoReperfilado({
         disabled={deshabilitada}
         invalido={h !== null && h > 2}
       />
-      <Campo
-        valor={ra}
-        onGuardar={(v) => guardar('rugosidadRa', v)}
-        disabled={deshabilitada}
-      />
+      <ValorCalculado valor={t !== null && h !== null ? t - h : null} />
     </>
   )
 }
 
-function ValorPrevio({ valor }: { valor?: number }) {
+function ValorCalculado({ valor }: { valor: number | null }) {
   return (
-    <td className="bg-white/25 px-2 py-1.5 text-right font-data text-concreto">
-      {valor === undefined ? '—' : valor.toFixed(2)}
+    <td className="border-l-2 border-concreto/20 bg-white/25 px-2 py-1.5 text-right font-data text-concreto-oscuro">
+      {valor === null ? '—' : valor.toFixed(2)}
     </td>
   )
 }

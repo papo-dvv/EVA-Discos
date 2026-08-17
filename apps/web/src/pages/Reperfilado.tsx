@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { GlassButton } from '../components/GlassButton'
@@ -14,10 +14,8 @@ import {
   useConfirmarFicha,
   useEditarFicha,
   useFichaPreview,
-  useReferenciaFicha,
   useVerificarFicha,
 } from '../features/new-measurement/queries'
-import { construirMapaReferenciaPorEjeLado } from '../features/new-measurement/referenciaAnterior'
 import { descargarPdfReperfilado } from '../features/new-measurement/api'
 import {
   guardarFichaActiva,
@@ -48,18 +46,6 @@ export function Reperfilado() {
   const cancelar = useCancelarFicha(fichaId ?? '')
   const ficha = preview.data?.ficha
   const rows = preview.data?.rows ?? []
-  const referencia = useReferenciaFicha(ficha?.trenNumero, 'ultima_medicion')
-  const referenciaDisponible =
-    referencia.data?.disponible && 'fecha' in referencia.data
-      ? referencia.data
-      : undefined
-  const referenciaPorEjeLado = useMemo(
-    () =>
-      referenciaDisponible
-        ? construirMapaReferenciaPorEjeLado(referenciaDisponible.rows)
-        : undefined,
-    [referenciaDisponible],
-  )
   const tablaBloqueada = ficha?.tablaBloqueada ?? false
   const responsableVacio = !ficha?.responsableMantenimientoNombre?.trim()
   const cabeceraIncompleta =
@@ -196,7 +182,6 @@ export function Reperfilado() {
                 fichaId={fichaId}
                 esqueleto={preview.data.esqueleto}
                 rows={rows}
-                referenciaPorEjeLado={referenciaPorEjeLado}
                 deshabilitada={tablaBloqueada}
               />
               <GlassSurface

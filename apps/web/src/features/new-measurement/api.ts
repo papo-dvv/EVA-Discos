@@ -59,9 +59,10 @@ export interface ResultadoOcrReperfilado {
   filas: Array<{
     ejeNumero: number
     lado: 'izquierdo' | 'derecho'
+    tAntes: number
+    hAntes: number
     tValue: number
     hValue: number
-    rugosidadRa: number | null
     confianza: number
   }>
   advertencias: string[]
