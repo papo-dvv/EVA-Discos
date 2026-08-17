@@ -35,8 +35,8 @@ export function TablaFichaReperfilado({
           Control disco de freno
         </h2>
         <p className="mt-0.5 font-body text-xs text-concreto">
-          Completa los cinco cuadros de cada lado. R.A. se obtiene
-          automáticamente con los valores posteriores al reperfilado.
+          Completa los cinco cuadros en blanco de cada lado con los valores de
+          la ficha física.
         </p>
       </div>
       <ScrollArea ejes="both" viewportClassName="max-h-[36rem]">
@@ -79,14 +79,14 @@ export function TablaFichaReperfilado({
               <th className="px-2 py-2">Espesor (mm)</th>
               <th className="px-2 py-2">Cóncavo (mm)</th>
               <th className="border-l-2 border-concreto/25 px-2 py-2">
-                R.A. (mm)
+                R.A. (µm)
               </th>
               <th className="px-2 py-2">Espesor (mm)</th>
               <th className="px-2 py-2">Cóncavo (mm)</th>
               <th className="px-2 py-2">Espesor (mm)</th>
               <th className="px-2 py-2">Cóncavo (mm)</th>
               <th className="border-l-2 border-concreto/25 px-2 py-2">
-                R.A. (mm)
+                R.A. (µm)
               </th>
             </tr>
           </thead>
@@ -132,7 +132,7 @@ export function TablaFichaReperfilado({
       <div className="grid grid-cols-1 gap-2 border-t border-concreto/15 bg-white/35 px-5 py-3 font-body text-xs text-concreto sm:grid-cols-3">
         <span>Espesor posterior &gt; 0,3 mm</span>
         <span>Desgaste cóncavo ≤ 2,0 mm</span>
-        <span>R.A. automático = Espesor después − Cóncavo después</span>
+        <span>R.A. se registra desde la ficha, sin valores predeterminados</span>
       </div>
     </GlassSurface>
   )
@@ -157,19 +157,22 @@ function LadoReperfilado({
   const [h, setH] = useSyncedState(datos.hValue)
   const [tAntes, setTAntes] = useSyncedState(datos.reperfiladoTAntes)
   const [hAntes, setHAntes] = useSyncedState(datos.reperfiladoHAntes)
+  const [ra, setRa] = useSyncedState(datos.rugosidadRa)
 
   function guardar(
     campo:
       | 'tValue'
       | 'hValue'
       | 'reperfiladoTAntes'
-      | 'reperfiladoHAntes',
+      | 'reperfiladoHAntes'
+      | 'rugosidadRa',
     valor: number,
   ) {
     if (campo === 'tValue') setT(valor)
     if (campo === 'hValue') setH(valor)
     if (campo === 'reperfiladoTAntes') setTAntes(valor)
     if (campo === 'reperfiladoHAntes') setHAntes(valor)
+    if (campo === 'rugosidadRa') setRa(valor)
     const tFinal = campo === 'tValue' ? valor : t
     const hFinal = campo === 'hValue' ? valor : h
     if (datos.recordId) {
@@ -186,7 +189,7 @@ function LadoReperfilado({
           campo === 'reperfiladoTAntes' ? valor : (tAntes ?? undefined),
         reperfiladoHAntes:
           campo === 'reperfiladoHAntes' ? valor : (hAntes ?? undefined),
-        rugosidadRa: tFinal - hFinal,
+        rugosidadRa: campo === 'rugosidadRa' ? valor : (ra ?? undefined),
       })
     }
   }
@@ -214,16 +217,12 @@ function LadoReperfilado({
         disabled={deshabilitada}
         invalido={h !== null && h > 2}
       />
-      <ValorCalculado valor={t !== null && h !== null ? t - h : null} />
+      <Campo
+        valor={ra}
+        onGuardar={(v) => guardar('rugosidadRa', v)}
+        disabled={deshabilitada}
+      />
     </>
-  )
-}
-
-function ValorCalculado({ valor }: { valor: number | null }) {
-  return (
-    <td className="border-l-2 border-concreto/20 bg-white/25 px-2 py-1.5 text-right font-data text-concreto-oscuro">
-      {valor === null ? '—' : valor.toFixed(2)}
-    </td>
   )
 }
 
