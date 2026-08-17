@@ -59,16 +59,6 @@ export function TablaFichaReperfilado({
   const porcentaje = totalLados
     ? Math.round((ladosCompletos / totalLados) * 100)
     : 0
-  const fueraDeLimite = filas.reduce((total, fila) => {
-    const lados = [fila.izquierdo, fila.derecho]
-    return total + lados.filter((lado) =>
-      (lado.reperfiladoTAntes !== null && lado.reperfiladoTAntes <= 0) ||
-      (lado.reperfiladoHAntes !== null && lado.reperfiladoHAntes > 2) ||
-      (lado.tValue !== null && lado.tValue <= 0.3) ||
-      (lado.hValue !== null && lado.hValue > 2) ||
-      (lado.rugosidadRa !== null && lado.rugosidadRa !== RUGOSIDAD_RA_OBJETIVO),
-    ).length
-  }, 0)
   const filasVisibles = soloPendientes
     ? filas.filter(
         (fila) =>
@@ -122,10 +112,9 @@ export function TablaFichaReperfilado({
             </div>
           </div>
         </div>
-        {(totalLados - ladosCompletos > 0 || fueraDeLimite > 0) && (
+        {totalLados - ladosCompletos > 0 && (
           <div role="alert" className="mt-3 flex flex-wrap gap-x-5 gap-y-1 rounded-2xl border border-amber-600/20 bg-amber-50/60 px-4 py-2.5 text-xs text-amber-900">
             {totalLados - ladosCompletos > 0 && <span>⚠ Faltan {totalLados - ladosCompletos} posiciones por completar.</span>}
-            {fueraDeLimite > 0 && <span>⚠ {fueraDeLimite} posiciones tienen al menos un valor fuera del límite.</span>}
           </div>
         )}
       </div>
@@ -319,22 +308,19 @@ function LadoReperfilado({
   const [h, setH] = useSyncedState(datos.hValue)
   const [tAntes, setTAntes] = useSyncedState(datos.reperfiladoTAntes)
   const [hAntes, setHAntes] = useSyncedState(datos.reperfiladoHAntes)
-  const [ra, setRa] = useSyncedState(datos.rugosidadRa)
 
   function guardar(
     campo:
       | 'tValue'
       | 'hValue'
       | 'reperfiladoTAntes'
-      | 'reperfiladoHAntes'
-      | 'rugosidadRa',
+      | 'reperfiladoHAntes',
     valor: number,
   ) {
     if (campo === 'tValue') setT(valor)
     if (campo === 'hValue') setH(valor)
     if (campo === 'reperfiladoTAntes') setTAntes(valor)
     if (campo === 'reperfiladoHAntes') setHAntes(valor)
-    if (campo === 'rugosidadRa') setRa(valor)
     const tFinal = campo === 'tValue' ? valor : t
     const hFinal = campo === 'hValue' ? valor : h
     if (datos.recordId) {
@@ -362,31 +348,26 @@ function LadoReperfilado({
         valor={tAntes}
         onGuardar={(v) => guardar('reperfiladoTAntes', v)}
         disabled={deshabilitada}
-        invalido={tAntes !== null && tAntes <= 0}
       />
       <Campo
         valor={hAntes}
         onGuardar={(v) => guardar('reperfiladoHAntes', v)}
         disabled={deshabilitada}
-        invalido={hAntes !== null && hAntes > 2}
       />
       <Campo
         valor={t}
         onGuardar={(v) => guardar('tValue', v)}
         disabled={deshabilitada}
-        invalido={(t !== null && t <= 0.3) || datos.tInvalido || datos.rdInvalido}
       />
       <Campo
         valor={h}
         onGuardar={(v) => guardar('hValue', v)}
         disabled={deshabilitada}
-        invalido={(h !== null && h > 2) || datos.rdInvalido}
       />
       <Campo
         valor={datos.recordId || t !== null || h !== null ? RUGOSIDAD_RA_OBJETIVO : null}
-        onGuardar={(v) => guardar('rugosidadRa', v)}
+        onGuardar={() => undefined}
         disabled
-        invalido={ra !== null && ra !== RUGOSIDAD_RA_OBJETIVO}
       />
     </>
   )
