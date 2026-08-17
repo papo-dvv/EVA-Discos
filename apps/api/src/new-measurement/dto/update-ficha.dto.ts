@@ -68,11 +68,25 @@ export class InstrumentoDto {
   observaciones?: string;
 }
 
+export class CodigosCocheDto {
+  @IsOptional() @Type(() => Number) @IsInt() MA1?: number;
+  @IsOptional() @Type(() => Number) @IsInt() MB1?: number;
+  @IsOptional() @Type(() => Number) @IsInt() MB3?: number;
+  @IsOptional() @Type(() => Number) @IsInt() REM?: number;
+  @IsOptional() @Type(() => Number) @IsInt() MB2?: number;
+  @IsOptional() @Type(() => Number) @IsInt() MA2?: number;
+}
+
 // Edición de la cabecera de la ficha: header autocompletado (Tren/
 // Kilometraje/Fecha, editables — ver punto 2 del enunciado), conformidad,
 // firmas y catálogos fijos de técnicos/instrumentos. Todo opcional: se envía
 // solo lo que cambia.
 export class UpdateFichaDto {
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CodigosCocheDto)
+  codigosCoche?: CodigosCocheDto;
+
   @IsOptional()
   @Type(() => Number)
   @IsInt()

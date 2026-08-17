@@ -32,13 +32,17 @@ export class ReprofilingPdfService {
       throw new NotFoundException('Ficha de reperfilado no encontrada.');
     }
     const tren = await validarTrenAlstom(this.prisma, ficha.trenNumero);
-    const [filas, numerosCoche] = await Promise.all([
+    const [filas, numerosCatalogo] = await Promise.all([
       this.prisma.scanRecord.findMany({
         where: { fileId: ficha.uploadedFileId },
         orderBy: [{ ejeExcel: 'asc' }, { ubicacionExcel: 'asc' }],
       }),
       resolverNumerosCochePorTren(this.prisma, tren.id),
     ]);
+    const numerosCoche = {
+      ...numerosCatalogo,
+      ...((ficha.codigosCoche as Record<string, number> | null) ?? {}),
+    };
     const porPosicion = new Map(
       filas.map((fila) => [`${fila.ejeExcel}|${fila.ubicacionExcel}`, fila]),
     );

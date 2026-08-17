@@ -55,6 +55,7 @@ export interface ResultadoOcrReperfilado {
   fecha: string | null
   horaInicio: string | null
   horaFin: string | null
+  codigosCoche: import('./types').CodigosCoche
   confianza: number
   filas: Array<{
     ejeNumero: number

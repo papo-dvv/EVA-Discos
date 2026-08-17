@@ -28,6 +28,7 @@ import type {
 } from '../features/new-measurement/types'
 import { CargaInicialReperfilado } from '../features/reprofiling/CargaInicialReperfilado'
 import { HeaderReperfilado } from '../features/reprofiling/HeaderReperfilado'
+import { CodigosCocheReperfilado } from '../features/reprofiling/CodigosCocheReperfilado'
 import { extraerMensajeError } from '../lib/extraerMensajeError'
 
 export function Reperfilado() {
@@ -187,6 +188,13 @@ export function Reperfilado() {
                   seguridad exigidos por la empresa.
                 </p>
               </GlassSurface>
+              <CodigosCocheReperfilado
+                trenNumero={ficha.trenNumero}
+                esqueleto={preview.data.esqueleto}
+                codigos={ficha.codigosCoche}
+                deshabilitado={tablaBloqueada}
+                onGuardar={(codigosCoche) => editar.mutate({ codigosCoche })}
+              />
               <TablaFichaReperfilado
                 fichaId={fichaId}
                 esqueleto={preview.data.esqueleto}

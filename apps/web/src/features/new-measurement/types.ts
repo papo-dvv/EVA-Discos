@@ -16,6 +16,8 @@ export type {
 // Espejo de MOTIVOS_RECONOCIDOS (apps/api/src/new-measurement/new-measurement-csv.parser.ts).
 export const MOTIVOS_FICHA = ['Medición', 'Reperfilado', 'Cambio'] as const
 export type MotivoFicha = (typeof MOTIVOS_FICHA)[number]
+export type TipoCoche = 'MA1' | 'MB1' | 'MB3' | 'REM' | 'MB2' | 'MA2'
+export type CodigosCoche = Partial<Record<TipoCoche, number>>
 
 // Espejo de PosicionEsqueleto (apps/api/src/new-measurement/new-measurement-esqueleto.ts).
 export interface PosicionEsqueleto {
@@ -53,6 +55,7 @@ export interface FichaMedicion {
   fechaFicha: string
   actividad: string
   motivo: MotivoFicha
+  codigosCoche: CodigosCoche | null
   puestoTrabajo: string | null
   fechaHoraInicio: string | null
   fechaHoraFin: string | null
@@ -238,6 +241,7 @@ export type ResultadoReferencia =
 // Payload de edición de cabecera — todos opcionales, se envía solo lo que
 // cambia (espejo de UpdateFichaDto).
 export interface CambiosFicha {
+  codigosCoche?: CodigosCoche
   trenNumero?: number
   kilometraje?: number
   fechaFicha?: string

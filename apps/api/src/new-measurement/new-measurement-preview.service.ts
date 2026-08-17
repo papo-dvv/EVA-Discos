@@ -101,7 +101,10 @@ export class NewMeasurementPreviewService {
     ]);
     return {
       ficha: detalle,
-      esqueleto: generarEsqueleto48(numerosCoche),
+      esqueleto: generarEsqueleto48({
+        ...numerosCoche,
+        ...((ficha.codigosCoche as Record<string, number> | null) ?? {}),
+      }),
       ...flagsRaiz,
       ...preview,
     };
@@ -121,7 +124,8 @@ export class NewMeasurementPreviewService {
     const tocaHeaderBloqueado =
       dto.trenNumero !== undefined ||
       dto.kilometraje !== undefined ||
-      dto.fechaFicha !== undefined;
+      dto.fechaFicha !== undefined ||
+      dto.codigosCoche !== undefined;
     if (tocaHeaderBloqueado && ficha.tablaBloqueada) {
       throw new HttpException(
         'La tabla de mediciones está bloqueada: Tren/Fecha/Kilometraje ya no se pueden editar.',
@@ -130,6 +134,8 @@ export class NewMeasurementPreviewService {
     }
 
     const cambios: Prisma.MeasurementSheetUpdateInput = {};
+    if (dto.codigosCoche !== undefined)
+      cambios.codigosCoche = dto.codigosCoche as Prisma.InputJsonValue;
     if (dto.trenNumero !== undefined) {
       await validarTrenAlstom(this.prisma, dto.trenNumero);
       cambios.trenNumero = dto.trenNumero;
@@ -235,6 +241,20 @@ export class NewMeasurementPreviewService {
               : {}),
           },
         });
+      }
+      if (dto.codigosCoche !== undefined) {
+        for (const [tipoCoche, numeroCoche] of Object.entries(
+          dto.codigosCoche,
+        )) {
+          if (numeroCoche === undefined) continue;
+          await tx.scanRecord.updateMany({
+            where: {
+              fileId: this.fileIdDe(ficha),
+              cocheExcel: tipoCoche,
+            },
+            data: { numeroCocheExcel: numeroCoche },
+          });
+        }
       }
 
       // Una sola entrada de auditoría resumen (no es un ScanRecord, así que
@@ -602,7 +622,12 @@ export class NewMeasurementPreviewService {
     const tren = await this.prisma.train.findUnique({
       where: { numero: ficha.trenNumero },
     });
-    if (!tren) return {};
-    return resolverNumerosCochePorTren(this.prisma, tren.id);
+    const numerosCatalogo = tren
+      ? await resolverNumerosCochePorTren(this.prisma, tren.id)
+      : {};
+    return {
+      ...numerosCatalogo,
+      ...((ficha.codigosCoche as Record<string, number> | null) ?? {}),
+    };
   }
 }

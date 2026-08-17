@@ -119,6 +119,10 @@ export function CargaInicialReperfilado({
         puestoTrabajo: ocr.puestoTrabajo ?? undefined,
         fechaHoraInicio,
         fechaHoraFin,
+        codigosCoche:
+          Object.keys(ocr.codigosCoche).length > 0
+            ? ocr.codigosCoche
+            : undefined,
       })
       for (const fila of ocr.filas) {
         const { confianza: _confianza, tAntes, hAntes, ...medicion } = fila

@@ -14,6 +14,7 @@ export interface ResultadoOcrReperfilado {
   fecha: string | null;
   horaInicio: string | null;
   horaFin: string | null;
+  codigosCoche: Partial<Record<TipoCocheReperfilado, number>>;
   confianza: number;
   filas: Array<{
     ejeNumero: number;
@@ -29,6 +30,8 @@ export interface ResultadoOcrReperfilado {
   textoReconocido: string;
 }
 
+type TipoCocheReperfilado = 'MA1' | 'MB1' | 'MB3' | 'REM' | 'MB2' | 'MA2';
+
 type RespuestaGemini = {
   tipoFormato: 'UT-UF-MTO-FR-414' | 'CONCAR' | 'otro';
   trenNumero: number | null;
@@ -37,6 +40,7 @@ type RespuestaGemini = {
   fecha: string | null;
   horaInicio: string | null;
   horaFin: string | null;
+  codigosCoche: Record<TipoCocheReperfilado, number | null>;
   confianza: number;
   filas: Array<{
     ejeNumero: number;
@@ -62,6 +66,7 @@ const ESQUEMA_RESPUESTA = {
     'fecha',
     'horaInicio',
     'horaFin',
+    'codigosCoche',
     'confianza',
     'filas',
     'advertencias',
@@ -77,6 +82,19 @@ const ESQUEMA_RESPUESTA = {
     fecha: { type: ['string', 'null'] },
     horaInicio: { type: ['string', 'null'] },
     horaFin: { type: ['string', 'null'] },
+    codigosCoche: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['MA1', 'MB1', 'MB3', 'REM', 'MB2', 'MA2'],
+      properties: {
+        MA1: { type: ['integer', 'null'] },
+        MB1: { type: ['integer', 'null'] },
+        MB3: { type: ['integer', 'null'] },
+        REM: { type: ['integer', 'null'] },
+        MB2: { type: ['integer', 'null'] },
+        MA2: { type: ['integer', 'null'] },
+      },
+    },
     confianza: { type: 'number', minimum: 0, maximum: 100 },
     filas: {
       type: 'array',
@@ -154,7 +172,7 @@ export class ReprofilingGeminiService {
     const ai = new GoogleGenAI({ apiKey });
     const prompt = `Analiza esta fotografía de una ficha ferroviaria de reperfilado. Puede estar inclinada, girada, recortada y contener escritura manuscrita azul.
 
-Identifica primero el formato. Para UT-UF-MTO-FR-414, extrae N° de tren, kilometraje, P.T., fecha/hora de inicio y fecha/hora de fin. El P.T. es un código alfanumérico continuo, sin espacios ni guiones (por ejemplo: GZMF1844435); distingue cuidadosamente letras similares como Y/Z y no agregues separadores. En la tabla hay hasta 24 ejes y dos lados por eje. Por cada lado extrae los cuatro valores visibles y legibles:
+Identifica primero el formato. Para UT-UF-MTO-FR-414, extrae N° de tren, kilometraje, P.T., fecha/hora de inicio y fecha/hora de fin. Extrae también los seis códigos numéricos escritos junto a cada tipo de coche: MA1, MB1, MB3, REM, MB2 y MA2; usa null únicamente si el código no es legible. El P.T. es un código alfanumérico continuo, sin espacios ni guiones (por ejemplo: GZMF1844435); distingue cuidadosamente letras similares como Y/Z y no agregues separadores. En la tabla hay hasta 24 ejes y dos lados por eje. Por cada lado extrae los cuatro valores visibles y legibles:
 - tAntes = Espesor medido ANTES del reperfilado (mm)
 - hAntes = Desgaste cóncavo / profundidad ANTES del reperfilado (mm)
 - tValue = Espesor medido DESPUÉS del reperfilado (mm)
@@ -204,6 +222,12 @@ El lado izquierdo está a la izquierda del bloque central EJE/RUEDA/COCHE y el d
         datos.filas.map((fila) => [`${fila.ejeNumero}|${fila.lado}`, fila]),
       );
       const advertencias = [...datos.advertencias];
+      const codigosCoche = Object.fromEntries(
+        Object.entries(datos.codigosCoche).filter(
+          (entrada): entrada is [TipoCocheReperfilado, number] =>
+            Number.isInteger(entrada[1]) && Number(entrada[1]) > 0,
+        ),
+      );
       if (datos.tipoFormato !== 'UT-UF-MTO-FR-414') {
         advertencias.unshift(
           `La fotografía parece corresponder al formato ${datos.tipoFormato}, no a UT-UF-MTO-FR-414; revisa todos los campos.`,
@@ -217,6 +241,7 @@ El lado izquierdo está a la izquierda del bloque central EJE/RUEDA/COCHE y el d
         fecha: datos.fecha,
         horaInicio: datos.horaInicio,
         horaFin: datos.horaFin,
+        codigosCoche,
         confianza: datos.confianza,
         filas: [...unicas.values()],
         advertencias,
