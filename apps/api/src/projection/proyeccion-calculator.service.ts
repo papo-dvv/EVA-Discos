@@ -19,6 +19,7 @@ import {
   type ResultadoProyeccionCiclos,
 } from './proyeccion-calculator.engine';
 import { ProyeccionRateService } from './proyeccion-rate.service';
+import { ProyeccionUmbralesService } from './proyeccion-umbrales.service';
 
 export interface PosicionDisco {
   tipoCoche: TipoCoche;
@@ -73,6 +74,7 @@ export class ProyeccionCalculatorService {
     private readonly prisma: PrismaService,
     private readonly rate: ProyeccionRateService,
     private readonly brakeDiscRules: BrakeDiscRulesService,
+    private readonly umbralesProyeccion: ProyeccionUmbralesService,
   ) {}
 
   // `tasasPorTipoCoche` es opcional: sin él, resuelve la tasa del tipo de
@@ -124,13 +126,19 @@ export class ProyeccionCalculatorService {
     const t = Number(ultimaMedicion.tValue);
     const rd = ultimaMedicion.rdValue;
 
-    const [umbrales, tasaMensual] = await Promise.all([
+    const [umbrales, configuracionProyeccion, tasaMensual] = await Promise.all([
       this.brakeDiscRules.obtenerUmbrales(),
+      this.umbralesProyeccion.obtener(),
       tasasPorTipoCoche
         ? Promise.resolve(tasasPorTipoCoche[posicion.tipoCoche] ?? null)
         : this.rate.calcularTasaPromedioPorTipoCoche(posicion.tipoCoche),
     ]);
-    const evaluador = new BrakeDiscRulesEngine(umbrales);
+    const evaluador = new BrakeDiscRulesEngine({
+      ...umbrales,
+      hUmbralReperfilado: configuracionProyeccion.hUmbralReperfilado,
+      rdUmbralSeguimiento: configuracionProyeccion.rdUmbralCambio,
+      reperfiladoDescuentoRd: configuracionProyeccion.reperfiladoDescuentoRd,
+    });
     const estado = evaluador.clasificarEstadoConReperfilado(rd, h);
 
     const base = {
@@ -171,10 +179,10 @@ export class ProyeccionCalculatorService {
         { h, rd, fecha: ultimaMedicion.fecha },
         tasaMensual,
         {
-          hUmbralReperfilado: umbrales.hUmbralReperfilado,
-          reperfiladoDescuentoRd: umbrales.reperfiladoDescuentoRd,
-          rdUmbralSeguimiento: umbrales.rdUmbralSeguimiento,
-          rdUmbralCambioProyeccion: umbrales.rdUmbralSeguimiento,
+          hUmbralReperfilado: configuracionProyeccion.hUmbralReperfilado,
+          reperfiladoDescuentoRd: configuracionProyeccion.reperfiladoDescuentoRd,
+          rdUmbralSeguimiento: configuracionProyeccion.rdUmbralCambio,
+          rdUmbralCambioProyeccion: configuracionProyeccion.rdUmbralCambio,
         },
       );
     } catch (err) {

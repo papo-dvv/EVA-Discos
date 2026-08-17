@@ -8,10 +8,7 @@ const ANIO_FINAL = 2032
 const ANCHO = 900
 const ALTO = 320
 const MARGEN = { top: 28, right: 28, bottom: 54, left: 56 }
-// Serie temporalmente oculta por decisión operativa. El pronóstico y la
-// tabla lineal siguen calculando/reteniendo reperfilados; basta activar este
-// flag para volver a dibujarla.
-const MOSTRAR_REPERFILADOS = false
+const MOSTRAR_REPERFILADOS = true
 
 type VistaBarras = 'anio' | 'mes'
 type DatoBarra = {

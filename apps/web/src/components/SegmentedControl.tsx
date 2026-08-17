@@ -9,6 +9,7 @@ import { WarningTooltip } from './WarningTooltip'
 type Opcion<T extends string> = {
   valor: T
   etiqueta: string
+  icono?: ReactNode
   // Ambos opcionales: una opción deshabilitada sin tooltip simplemente no
   // responde al clic (ej. a futuro); con tooltip, además explica por qué.
   deshabilitada?: boolean
@@ -50,7 +51,10 @@ export function SegmentedControl<T extends string>({ opciones, valor, onCambiar,
               if (!o.deshabilitada) onCambiar(o.valor)
             }}
           >
-            {o.etiqueta}
+            <span className="inline-flex items-center gap-1.5">
+              {o.icono}
+              {o.etiqueta}
+            </span>
           </button>
         )
         return o.tooltip ? (

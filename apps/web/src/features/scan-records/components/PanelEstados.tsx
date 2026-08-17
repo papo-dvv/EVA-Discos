@@ -71,7 +71,7 @@ export function PanelEstados({
       </div>
 
       <CardFormulas variante="mediciones" />
-      <PanelParametros />
+      <PanelParametros modulo="mediciones" />
     </div>
   )
 }

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { ClipboardPenLine, Download, RefreshCcw, Ruler } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { BotonVolverInicio } from '../components/BotonVolverInicio'
 import { ConfirmDialog } from '../components/ConfirmDialog'
@@ -24,19 +25,20 @@ import {
   useReiniciarFicha,
   useVerificarFicha,
 } from '../features/new-measurement/queries'
-import type { MotivoFicha, ResumenVerificacion } from '../features/new-measurement/types'
+import type { FichaInstrumento, MotivoFicha, ResumenVerificacion } from '../features/new-measurement/types'
 import { extraerMensajeError } from '../lib/extraerMensajeError'
 
 const MOTIVO_OPCIONES: {
   valor: MotivoFicha
   etiqueta: string
+  icono: React.ReactNode
   deshabilitada?: boolean
   tooltip?: string
   tooltipPosicion?: 'arriba' | 'abajo'
 }[] = [
-  { valor: 'Medición', etiqueta: 'Medición' },
-  { valor: 'Reperfilado', etiqueta: 'Reperfilado', deshabilitada: true, tooltip: 'Próximamente', tooltipPosicion: 'abajo' },
-  { valor: 'Cambio', etiqueta: 'Cambio', deshabilitada: true, tooltip: 'Próximamente', tooltipPosicion: 'abajo' },
+  { valor: 'Medición', etiqueta: 'Medición', icono: <Ruler size={15} aria-hidden /> },
+  { valor: 'Reperfilado', etiqueta: 'Reperfilado', icono: <RefreshCcw size={15} aria-hidden />, deshabilitada: true, tooltip: 'Próximamente', tooltipPosicion: 'abajo' },
+  { valor: 'Cambio', etiqueta: 'Cambio', icono: <ClipboardPenLine size={15} aria-hidden />, deshabilitada: true, tooltip: 'Próximamente', tooltipPosicion: 'abajo' },
 ]
 
 function valorConformidad(todasConformes: boolean | null): 'si' | 'no' | undefined {
@@ -47,12 +49,41 @@ function valorConformidad(todasConformes: boolean | null): 'si' | 'no' | undefin
 // Mensaje del tooltip de "Confirmar ficha" según cuál(es) de las condiciones
 // obligatorias todavía falten (tabla bloqueada, Responsable de Mantenimiento,
 // P.T. — punto 5 del enunciado agrega esta última).
-function mensajeConfirmarBloqueado(tablaBloqueada: boolean, responsableVacio: boolean, ptVacio: boolean): string {
+function mensajeConfirmarBloqueado(tablaBloqueada: boolean, responsableVacio: boolean, ptVacio: boolean, problemaInstrumentos: string | null): string {
   const faltantes: string[] = []
   if (!tablaBloqueada) faltantes.push('bloquear la tabla de mediciones (Verificar → Bloquear Mediciones)')
   if (responsableVacio) faltantes.push('completar el Responsable de Mantenimiento')
   if (ptVacio) faltantes.push('completar el P.T. (Puesto de Trabajo)')
+  if (problemaInstrumentos) faltantes.push(problemaInstrumentos)
   return `Falta ${juntarConY(faltantes)} para poder confirmar la ficha.`
+}
+
+function problemaInstrumentos(instrumentos: FichaInstrumento[], fechaVerificacion: string): string | null {
+  const fecha = fechaVerificacion.slice(0, 10)
+  for (const instrumento of instrumentos) {
+    const valores = [
+      instrumento.codigo,
+      instrumento.descripcion,
+      instrumento.modeloMarca,
+      instrumento.fechaCalibracion,
+      instrumento.fechaVencimientoCalibracion,
+      instrumento.observaciones,
+    ].map((valor) => valor?.trim() ?? '')
+    if (valores.some(Boolean) && valores.some((valor) => !valor)) {
+      return `completar todos los campos del instrumento ${instrumento.posicion} o dejar esa fila vacía`
+    }
+    if (instrumento.fechaVencimientoCalibracion && instrumento.fechaVencimientoCalibracion.slice(0, 10) < fecha) {
+      return `corregir el vencimiento del instrumento ${instrumento.posicion}; no puede ser anterior a la fecha de verificación`
+    }
+    if (
+      instrumento.fechaCalibracion &&
+      instrumento.fechaVencimientoCalibracion &&
+      instrumento.fechaVencimientoCalibracion.slice(0, 10) < instrumento.fechaCalibracion.slice(0, 10)
+    ) {
+      return `corregir el vencimiento del instrumento ${instrumento.posicion}; no puede ser anterior a la fecha de calibración`
+    }
+  }
+  return null
 }
 
 function juntarConY(items: string[]): string {
@@ -96,6 +127,8 @@ export function NuevasMediciones() {
   const [cancelando, setCancelando] = useState(false)
   const [confirmando, setConfirmando] = useState(false)
   const [medicionAnteriorAbierta, setMedicionAnteriorAbierta] = useState(false)
+  const [descargandoPdf, setDescargandoPdf] = useState(false)
+  const [errorPdf, setErrorPdf] = useState<string | null>(null)
   // Última response de /validate — se usa para el contenido del modal de
   // resultado Y para resaltarInvalidos de la tabla (ver más abajo). A
   // diferencia de antes, NO se limpia al cerrar el modal (ver modalAbierto):
@@ -201,8 +234,23 @@ export function NuevasMediciones() {
 
   const responsableVacio = !ficha?.responsableMantenimientoNombre?.trim()
   const ptVacio = !ficha?.ptCodigo?.trim()
+  const problemaInstrumentosFicha = ficha ? problemaInstrumentos(ficha.instrumentos, ficha.fechaFicha) : null
   const tablaBloqueada = ficha?.tablaBloqueada ?? false
-  const puedeConfirmar = tablaBloqueada && !responsableVacio && !ptVacio
+  const puedeConfirmar = tablaBloqueada && !responsableVacio && !ptVacio && !problemaInstrumentosFicha
+
+  async function descargarPdf() {
+    if (!ficha) return
+    setErrorPdf(null)
+    setDescargandoPdf(true)
+    try {
+      const { descargarCartillaPdf } = await import('../features/new-measurement/cartillaPdf')
+      await descargarCartillaPdf(ficha, preview.data?.esqueleto ?? [], rows)
+    } catch (error) {
+      setErrorPdf(extraerMensajeError(error, 'No se pudo generar la cartilla PDF.'))
+    } finally {
+      setDescargandoPdf(false)
+    }
+  }
 
   // Punto 1 de la ampliación: la vista previa de la ficha (una vez creada)
   // usa un layout full-bleed, sin los márgenes/max-width habituales del
@@ -238,9 +286,12 @@ export function NuevasMediciones() {
           />
         </div>
 
-        {motivo === 'Medición' && !fichaId && (
+        {!fichaId && (
           <GlassSurface fuerte className="mt-4 rounded-glass-lg p-6 sm:p-8">
-            <CargaInicialFicha onCreada={(id, autoVerificar) => manejarFichaCreada(id, autoVerificar)} />
+            <CargaInicialFicha
+              deshabilitada={motivo !== 'Medición'}
+              onCreada={(id, autoVerificar) => manejarFichaCreada(id, autoVerificar)}
+            />
           </GlassSurface>
         )}
 
@@ -351,12 +402,21 @@ export function NuevasMediciones() {
                         con un tooltip explicando por qué. */}
                     {tablaBloqueada && <FooterFicha ficha={ficha} onGuardar={(c) => editarFicha.mutate(c)} />}
 
+                    {errorPdf && <p role="alert" className="mt-5 font-body text-sm text-[color:var(--color-estado-critico)]">{errorPdf}</p>}
                     <div className="mt-5 flex flex-wrap justify-end gap-2">
-                      <WarningTooltip texto="Disponible próximamente">
-                        <GlassButton type="button" aria-disabled="true" className="cursor-not-allowed opacity-60">
+                      {puedeConfirmar ? (
+                        <GlassButton type="button" variante="secundario" onClick={descargarPdf} cargando={descargandoPdf}>
+                          <Download size={16} aria-hidden />
                           Descargar PDF
                         </GlassButton>
-                      </WarningTooltip>
+                      ) : (
+                        <WarningTooltip texto={mensajeConfirmarBloqueado(tablaBloqueada, responsableVacio, ptVacio, problemaInstrumentosFicha)}>
+                          <GlassButton type="button" aria-disabled="true" className="cursor-not-allowed opacity-60">
+                            <Download size={16} aria-hidden />
+                            Descargar PDF
+                          </GlassButton>
+                        </WarningTooltip>
+                      )}
 
                       {puedeConfirmar ? (
                         <GlassButton
@@ -370,7 +430,7 @@ export function NuevasMediciones() {
                         // aria-disabled (no `disabled`): igual criterio que
                         // SegmentedControl — un botón nativo disabled no deja que
                         // el WarningTooltip que lo envuelve reciba hover/foco.
-                        <WarningTooltip texto={mensajeConfirmarBloqueado(tablaBloqueada, responsableVacio, ptVacio)}>
+                        <WarningTooltip texto={mensajeConfirmarBloqueado(tablaBloqueada, responsableVacio, ptVacio, problemaInstrumentosFicha)}>
                           <GlassButton type="button" aria-disabled="true" className="cursor-not-allowed opacity-60">
                             Confirmar ficha
                           </GlassButton>

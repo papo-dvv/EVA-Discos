@@ -4,10 +4,57 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import type { LadoDisco, ScanRecord, TipoCoche } from '../../generated/prisma';
+import type {
+  LadoDisco,
+  MeasurementSheetInstrumento,
+  ScanRecord,
+  TipoCoche,
+} from '../../generated/prisma';
 import { PrismaService } from '../prisma/prisma.service';
 import { WearRateService } from '../wear-rate/wear-rate.service';
 import { resolverIdentidadPorEje } from './new-measurement-csv.parser';
+
+function validarInstrumentos(
+  instrumentos: MeasurementSheetInstrumento[],
+  fechaVerificacion: Date,
+): void {
+  for (const instrumento of instrumentos) {
+    const valores = [
+      instrumento.codigo,
+      instrumento.descripcion,
+      instrumento.modeloMarca,
+      instrumento.fechaCalibracion,
+      instrumento.fechaVencimientoCalibracion,
+      instrumento.observaciones,
+    ];
+    const hayContenido = valores.some((valor) =>
+      typeof valor === 'string' ? valor.trim() !== '' : valor !== null,
+    );
+    if (!hayContenido) continue;
+
+    const estaCompleto = valores.every((valor) =>
+      typeof valor === 'string' ? valor.trim() !== '' : valor !== null,
+    );
+    if (!estaCompleto) {
+      throw new UnprocessableEntityException(
+        `El instrumento ${instrumento.posicion} debe estar completo o permanecer vacío.`,
+      );
+    }
+    if (instrumento.fechaVencimientoCalibracion! < fechaVerificacion) {
+      throw new UnprocessableEntityException(
+        `La fecha de vencimiento del instrumento ${instrumento.posicion} no puede ser anterior a la fecha de verificación.`,
+      );
+    }
+    if (
+      instrumento.fechaVencimientoCalibracion! <
+      instrumento.fechaCalibracion!
+    ) {
+      throw new UnprocessableEntityException(
+        `La fecha de vencimiento del instrumento ${instrumento.posicion} no puede ser anterior a la fecha de calibración.`,
+      );
+    }
+  }
+}
 
 export interface ResumenCommitMedicion {
   fichaId: string;
@@ -50,10 +97,12 @@ export class NewMeasurementCommitService {
   ): Promise<ResumenCommitMedicion> {
     const ficha = await this.prisma.measurementSheet.findUnique({
       where: { id: fichaId },
+      include: { instrumentos: true },
     });
     if (!ficha) {
       throw new NotFoundException('Ficha de medición no encontrada.');
     }
+    validarInstrumentos(ficha.instrumentos, ficha.fechaFicha);
     if (!ficha.responsableMantenimientoNombre?.trim()) {
       throw new UnprocessableEntityException(
         'Falta el responsable de mantenimiento — es obligatorio para confirmar la ficha.',

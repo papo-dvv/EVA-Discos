@@ -11,7 +11,11 @@ import {
   ConsensoValidationService,
   type AjusteExtremo,
 } from '../traceability/consenso-validation.service';
-import { PARAMS_EDITABLES, validarValorParam } from './system-params.config';
+import {
+  PARAMS_EDITABLES,
+  PARAMS_INICIALES_FALTANTES,
+  validarValorParam,
+} from './system-params.config';
 
 // ajustesConsenso viaja SIEMPRE en la respuesta 200 (array vacío si la Regla B
 // no aplicó) — así el frontend distingue "guardado limpio" de "guardado con
@@ -40,7 +44,17 @@ export class SystemParamsService {
     const params = await this.prisma.systemParam.findMany({
       orderBy: { clave: 'asc' },
     });
-    return params.map((p) => ({
+    const existentes = new Set(params.map((p) => p.clave));
+    const faltantes = Object.entries(PARAMS_INICIALES_FALTANTES)
+      .filter(([clave]) => !existentes.has(clave))
+      .map(([clave, parametro]) => ({
+        clave,
+        valor: parametro.valor,
+        descripcion: parametro.descripcion,
+        actualizadoEn: null,
+      }));
+
+    return [...params, ...faltantes].sort((a, b) => a.clave.localeCompare(b.clave)).map((p) => ({
       clave: p.clave,
       valor: p.valor,
       descripcion: p.descripcion,
@@ -70,8 +84,27 @@ export class SystemParamsService {
     const actual = await this.prisma.systemParam.findUnique({
       where: { clave },
     });
-    if (!actual) {
+    const inicial = PARAMS_INICIALES_FALTANTES[clave];
+    if (!actual && !inicial) {
       throw new NotFoundException(`El parámetro «${clave}» no existe.`);
+    }
+
+    if (!actual) {
+      return this.prisma.$transaction(async (tx) => {
+        const creado = await tx.systemParam.create({
+          data: {
+            clave,
+            valor: valorNuevo,
+            descripcion: inicial.descripcion,
+            actualizadoPor: usuarioId,
+            actualizadoEn: new Date(),
+          },
+        });
+        await tx.systemParamAudit.create({
+          data: { clave, valorAnterior: inicial.valor, valorNuevo, usuarioId },
+        });
+        return { ...creado, ajustesConsenso: [] };
+      });
     }
 
     // Los 4 parámetros de percentil (únicos configurables de los 3 métodos)
