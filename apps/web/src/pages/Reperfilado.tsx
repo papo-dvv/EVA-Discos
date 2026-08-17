@@ -219,6 +219,15 @@ export function Reperfilado() {
                       : 'Verifica los límites antes de bloquear la tabla.'}
                 </p>
                 {errorAccion && <p role="alert" className="w-full text-sm text-[color:var(--color-estado-critico)]">⚠ {errorAccion}</p>}
+                {resultado?.todoValido && (
+                  <div
+                    role="status"
+                    aria-live="polite"
+                    className="w-full rounded-2xl border border-emerald-700/20 bg-emerald-50/70 px-4 py-3 font-body text-sm font-semibold text-emerald-800"
+                  >
+                    ✓ Validación correcta: los valores nuevos presentan la reducción esperada y la rugosidad final R.A. cumple el estándar de 2,5 µm.
+                  </div>
+                )}
                 {!tablaBloqueada && (
                   <GlassButton
                     cargando={verificar.isPending || bloquear.isPending}
@@ -231,7 +240,7 @@ export function Reperfilado() {
                           return
                         }
                         await bloquear.mutateAsync()
-                        setResultado(null)
+                        setResultado(validacion)
                       } catch (error) {
                         setErrorAccion(extraerMensajeError(error, 'No se pudo validar y bloquear la ficha.'))
                       }
