@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react'
 import { GlassSurface } from '../../../components/GlassSurface'
-import { ScrollArea } from '../../../components/ScrollArea'
 import { useSyncedState } from '../../../hooks/useSyncedState'
 import { construirFilasEspejo, type LadoFilaEspejo } from '../filaEspejo'
 import { useAgregarFilaFicha, useEditarFilaFicha } from '../queries'
@@ -95,8 +94,19 @@ export function TablaFichaReperfilado({
           </div>
         </div>
       </div>
-      <ScrollArea ejes="both" viewportClassName="max-h-[36rem]">
-        <table className="min-w-[88rem] w-full border-collapse font-body text-xs">
+      <div className="w-full">
+        <table className="w-full table-fixed border-collapse font-body text-xs">
+          <colgroup>
+            <col className="w-[7%]" />
+            {Array.from({ length: 5 }, (_, indice) => (
+              <col key={`izq-${indice}`} className="w-[7.25%]" />
+            ))}
+            <col className="w-[4%]" />
+            <col className="w-[7%]" />
+            {Array.from({ length: 5 }, (_, indice) => (
+              <col key={`der-${indice}`} className="w-[7.25%]" />
+            ))}
+          </colgroup>
           <thead className="sticky top-0 z-20 shadow-sm">
             <tr className="border-b border-concreto/20 bg-[color:var(--color-arena-suave)]">
               <th rowSpan={3} className="px-2 py-2 text-left">
@@ -196,7 +206,7 @@ export function TablaFichaReperfilado({
             ))}
           </tbody>
         </table>
-      </ScrollArea>
+      </div>
       <div className="grid grid-cols-1 gap-2 border-t border-concreto/15 bg-white/35 px-5 py-3 font-body text-xs text-concreto sm:grid-cols-3">
         <span>Espesor posterior &gt; 0,3 mm</span>
         <span>Desgaste cóncavo ≤ 2,0 mm</span>
@@ -333,7 +343,7 @@ function Campo({
           if (borrador !== '' && Number.isFinite(n) && n !== valor) onGuardar(n)
         }}
         placeholder="—"
-        className={`glass-field w-20 px-2 py-1 text-right font-data text-xs transition ${
+        className={`glass-field w-full min-w-0 px-1.5 py-1 text-right font-data text-xs transition ${
           borrador === '' ? 'border-amber-500/25 bg-amber-50/25' : 'border-emerald-700/20 bg-emerald-50/30'
         } ${invalido ? 'border-[color:var(--color-estado-critico)]' : ''}`}
       />
