@@ -52,6 +52,15 @@ export function Reperfilado() {
     !ficha?.puestoTrabajo?.trim() ||
     !ficha?.fechaHoraInicio ||
     !ficha?.fechaHoraFin
+  const motivosValidacion = resultado
+    ? [
+        resultado.kmInvalido?.motivo,
+        resultado.fechaInvalido?.motivo,
+        resultado.filasExcluidas.length > 0
+          ? `${resultado.filasExcluidas.length} disco(s) tienen mediciones fuera de los límites.`
+          : null,
+      ].filter((motivo): motivo is string => Boolean(motivo))
+    : []
 
   useEffect(() => {
     if (fichaId) {
@@ -296,13 +305,22 @@ export function Reperfilado() {
       )}
       {resultado && !resultado.todoValido && (
         <ConfirmDialog
-          titulo="Hay información por revisar"
-          mensaje={`${resultado.filasExcluidas.length} disco(s) presentan datos incompletos o fuera de los límites. La tabla seguirá editable.`}
+          titulo="No se puede bloquear todavía"
+          mensaje="Corrige la información indicada y vuelve a validar. La tabla seguirá editable."
           textoConfirmar="Revisar pendientes"
           textoCancelar="Cerrar"
           onConfirm={() => setResultado(null)}
           onCerrar={() => setResultado(null)}
-        />
+        >
+          <ul className="mt-3 space-y-1.5 rounded-2xl border border-amber-600/15 bg-amber-50/45 px-4 py-3 font-body text-sm text-concreto-oscuro">
+            {motivosValidacion.map((motivo) => (
+              <li key={motivo} className="flex gap-2">
+                <span aria-hidden="true" className="text-amber-700">•</span>
+                <span>{motivo}</span>
+              </li>
+            ))}
+          </ul>
+        </ConfirmDialog>
       )}
     </PantallaFondo>
   )
