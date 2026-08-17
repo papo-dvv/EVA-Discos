@@ -343,6 +343,16 @@ export function procesarWorkbook(
   evaluador: BrakeDiscRulesEngine,
 ): ResultadoProcesamiento {
   const hojasPresentes = new Set(workbook.SheetNames);
+  const hojasHistoricasPresentes = HOJAS_MIGRACION.filter((hoja) =>
+    hojasPresentes.has(hoja),
+  );
+  // Los libros históricos mantienen la semántica T06–T44. Para CSV/TSV/TXT
+  // y otros libros sin esas hojas se procesan todas las tablas legibles y el
+  // tren se obtiene de la columna "Tren" de cada fila.
+  const hojasAProcesar =
+    hojasHistoricasPresentes.length > 0
+      ? hojasHistoricasPresentes
+      : workbook.SheetNames;
   const hojasProcesadas: string[] = [];
   const hojasFaltantes: string[] = [];
   const hojasConError: HojaConError[] = [];
@@ -354,13 +364,14 @@ export function procesarWorkbook(
   // Instrumentación opt-in (DEBUG_MIGRATION): solo la PRIMERA hoja con datos.
   let hojaDepurada = false;
 
-  for (const nombreHoja of HOJAS_MIGRACION) {
-    if (!hojasPresentes.has(nombreHoja)) {
-      hojasFaltantes.push(nombreHoja);
-      continue;
-    }
+  if (hojasHistoricasPresentes.length > 0) {
+    hojasFaltantes.push(
+      ...HOJAS_MIGRACION.filter((hoja) => !hojasPresentes.has(hoja)),
+    );
+  }
 
-    const trenDeHoja = numeroDeHoja(nombreHoja)!;
+  for (const nombreHoja of hojasAProcesar) {
+    const trenDeHoja = numeroDeHoja(nombreHoja);
     const hoja = workbook.Sheets[nombreHoja];
     // Matriz de arrays (header:1 => acceso por índice numérico).
     const matriz = utils.sheet_to_json<unknown[]>(hoja, {
@@ -557,9 +568,25 @@ export function procesarWorkbook(
           hValue,
         );
 
-        // b. Corrección de tren por hoja. La hoja siempre manda.
+        // b. En libros históricos la hoja siempre manda. En tablas genéricas
+        // (CSV/TSV/TXT/ODS/etc.) se usa la columna Tren.
         const trenExcel = aNumeroONull(filaCruda[col.tren]);
-        const corregidoPorHoja = trenExcel !== null && trenExcel !== trenDeHoja;
+        const trenNumero = trenDeHoja ?? trenExcel;
+        if (
+          trenNumero === null ||
+          !Number.isInteger(trenNumero) ||
+          trenNumero < 6 ||
+          trenNumero > 44
+        ) {
+          filasInvalidas.push({
+            hoja: nombreHoja,
+            fila: filaExcel,
+            motivo: `Tren inválido (${trenExcel ?? 'vacío'}; se espera 6–44)`,
+          });
+          continue;
+        }
+        const corregidoPorHoja =
+          trenDeHoja !== null && trenExcel !== null && trenExcel !== trenDeHoja;
         if (corregidoPorHoja) {
           detalleDiscrepancias.push({
             hoja: nombreHoja,
@@ -593,7 +620,7 @@ export function procesarWorkbook(
 
         filas.push({
           responsableNombre: aTextoONull(filaCruda[col.responsable]) ?? '',
-          trenNumero: trenDeHoja,
+          trenNumero,
           kilometraje,
           fecha,
           motivo: aTextoONull(filaCruda[col.motivo]) ?? '',

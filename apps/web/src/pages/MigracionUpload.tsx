@@ -1,44 +1,49 @@
-import { useState, type FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { BotonVolverInicio } from '../components/BotonVolverInicio'
-import { GlassButton } from '../components/GlassButton'
-import { GlassSurface } from '../components/GlassSurface'
-import { Marca } from '../components/Marca'
-import { PantallaFondo } from '../components/PantallaFondo'
-import { subirMigracion } from '../features/migration/api'
-import { extraerMensajeError } from '../lib/extraerMensajeError'
+import { useState, type FormEvent } from "react";
+import { useNavigate } from "react-router-dom";
+import { BotonVolverInicio } from "../components/BotonVolverInicio";
+import { GlassButton } from "../components/GlassButton";
+import { GlassSurface } from "../components/GlassSurface";
+import { Marca } from "../components/Marca";
+import { PantallaFondo } from "../components/PantallaFondo";
+import { subirMigracion } from "../features/migration/api";
+import { extraerMensajeError } from "../lib/extraerMensajeError";
 
-// Entrada a la migración masiva: sube el .xlsx/.xlsm y navega a la vista previa.
+// Entrada a la migración masiva: sube una tabla compatible y navega a la vista previa.
 export function MigracionUpload() {
-  const navigate = useNavigate()
-  const [file, setFile] = useState<File | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [cargando, setCargando] = useState(false)
+  const navigate = useNavigate();
+  const [file, setFile] = useState<File | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [cargando, setCargando] = useState(false);
 
   async function onSubmit(event: FormEvent) {
-    event.preventDefault()
-    if (!file) return
-    setError(null)
-    setCargando(true)
+    event.preventDefault();
+    if (!file) return;
+    setError(null);
+    setCargando(true);
     try {
-      const resumen = await subirMigracion(file)
-      navigate(`/migracion/${resumen.fileId}`)
+      const resumen = await subirMigracion(file);
+      navigate(`/migracion/${resumen.fileId}`);
     } catch (err) {
-      setError(extraerMensajeError(err, 'No se pudo procesar el archivo.'))
+      setError(extraerMensajeError(err, "No se pudo procesar el archivo."));
     } finally {
-      setCargando(false)
+      setCargando(false);
     }
   }
 
   return (
     <PantallaFondo degradado centrado className="px-6 py-16">
-      <GlassSurface fuerte iris className="w-full max-w-lg rounded-glass-lg p-8 sm:p-10">
+      <GlassSurface
+        fuerte
+        iris
+        className="w-full max-w-lg rounded-glass-lg p-8 sm:p-10"
+      >
         <Marca tono="oscuro" tamano="condensado" />
         <h1 className="mt-6 font-display text-3xl font-semibold tracking-tight text-concreto-oscuro">
           Migración masiva
         </h1>
         <p className="mt-1.5 font-body text-sm text-concreto">
-          Sube el archivo histórico (.xlsx o .xlsm con las hojas T06–T44) para revisarlo antes de confirmar.
+          Sube un archivo tabular para revisarlo antes de confirmar. Se admiten
+          Excel, OpenDocument, CSV y texto delimitado.
         </p>
 
         <form onSubmit={onSubmit} className="mt-7">
@@ -46,21 +51,24 @@ export function MigracionUpload() {
           <label className="glass-field flex cursor-pointer flex-col items-center gap-2 border-dashed py-8 text-center transition-colors hover:border-[color:var(--color-verde-institucional)]">
             <span className="font-display text-3xl text-verde-oscuro">⇪</span>
             <span className="font-body text-sm font-semibold text-concreto-oscuro">
-              {file ? file.name : 'Elegir archivo .xlsx o .xlsm'}
+              {file ? file.name : "Elegir archivo tabular"}
             </span>
             <span className="font-body text-xs text-concreto">
-              {file ? 'Clic para cambiar' : 'Clic para seleccionar'}
+              {file ? "Clic para cambiar" : "Clic para seleccionar"}
             </span>
             <input
               type="file"
-              accept=".xlsx,.xlsm"
+              accept=".csv,.tsv,.txt,.xls,.xlsb,.xlsx,.xlsm,.ods"
               className="hidden"
               onChange={(e) => setFile(e.target.files?.[0] ?? null)}
             />
           </label>
 
           {error && (
-            <p role="alert" className="mt-4 font-body text-sm text-[color:var(--color-estado-critico)]">
+            <p
+              role="alert"
+              className="mt-4 font-body text-sm text-[color:var(--color-estado-critico)]"
+            >
               {error}
             </p>
           )}
@@ -68,11 +76,11 @@ export function MigracionUpload() {
           <div className="mt-6 flex items-center justify-between gap-4">
             <BotonVolverInicio />
             <GlassButton type="submit" cargando={cargando} disabled={!file}>
-              {cargando ? 'Procesando…' : 'Subir y revisar'}
+              {cargando ? "Procesando…" : "Subir y revisar"}
             </GlassButton>
           </div>
         </form>
       </GlassSurface>
     </PantallaFondo>
-  )
+  );
 }
