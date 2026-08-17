@@ -63,8 +63,8 @@ export interface MotivoInvalido {
 export const TEXTO_MOTIVO_INVALIDO: Record<CampoInvalido, string> = {
   kilometraje: 'Kilometraje menor al último registrado para este tren',
   fecha: 'Fecha anterior a la última medición registrada para este tren',
-  t: 'Espesor medido (T) mayor al último valor registrado para este disco',
-  rd: 'Vida útil (Rd) mayor al último valor registrado para este disco',
+  t: 'Espesor medido (T) debe ser menor al último valor registrado para este disco',
+  rd: 'Vida útil (Rd) debe ser menor al último valor registrado para este disco',
 };
 
 // Traduce los 2 flags booleanos POR FILA (tInvalido/rdInvalido, ver

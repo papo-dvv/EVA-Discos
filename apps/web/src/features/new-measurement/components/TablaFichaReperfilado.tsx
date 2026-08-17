@@ -59,6 +59,15 @@ export function TablaFichaReperfilado({
   const porcentaje = totalLados
     ? Math.round((ladosCompletos / totalLados) * 100)
     : 0
+  const fueraDeLimite = filas.reduce((total, fila) => {
+    const lados = [fila.izquierdo, fila.derecho]
+    return total + lados.filter((lado) =>
+      (lado.reperfiladoTAntes !== null && lado.tValue !== null && lado.tValue >= lado.reperfiladoTAntes) ||
+      (lado.reperfiladoHAntes !== null && lado.hValue !== null && lado.hValue >= lado.reperfiladoHAntes) ||
+      (lado.recordId !== null && lado.rugosidadRa !== RUGOSIDAD_RA_OBJETIVO) ||
+      lado.tInvalido || lado.rdInvalido,
+    ).length
+  }, 0)
   const filasVisibles = soloPendientes
     ? filas.filter(
         (fila) =>
@@ -112,9 +121,10 @@ export function TablaFichaReperfilado({
             </div>
           </div>
         </div>
-        {totalLados - ladosCompletos > 0 && (
+        {(totalLados - ladosCompletos > 0 || fueraDeLimite > 0) && (
           <div role="alert" className="mt-3 flex flex-wrap gap-x-5 gap-y-1 rounded-2xl border border-amber-600/20 bg-amber-50/60 px-4 py-2.5 text-xs text-amber-900">
             {totalLados - ladosCompletos > 0 && <span>⚠ Faltan {totalLados - ladosCompletos} posiciones por completar.</span>}
+            {fueraDeLimite > 0 && <span>⚠ {fueraDeLimite} posiciones necesitan revisión.</span>}
           </div>
         )}
       </div>
@@ -358,16 +368,19 @@ function LadoReperfilado({
         valor={t}
         onGuardar={(v) => guardar('tValue', v)}
         disabled={deshabilitada}
+        invalido={(tAntes !== null && t !== null && t >= tAntes) || datos.tInvalido || datos.rdInvalido}
       />
       <Campo
         valor={h}
         onGuardar={(v) => guardar('hValue', v)}
         disabled={deshabilitada}
+        invalido={(hAntes !== null && h !== null && h >= hAntes) || datos.rdInvalido}
       />
       <Campo
         valor={datos.recordId || t !== null || h !== null ? RUGOSIDAD_RA_OBJETIVO : null}
         onGuardar={() => undefined}
         disabled
+        invalido={datos.recordId !== null && datos.rugosidadRa !== RUGOSIDAD_RA_OBJETIVO}
       />
     </>
   )
