@@ -197,13 +197,18 @@ export function Reperfilado() {
                 </p>
                 {!tablaBloqueada && (
                   <GlassButton
-                    variante="secundario"
-                    cargando={verificar.isPending}
-                    onClick={() =>
-                      verificar.mutate(undefined, { onSuccess: setResultado })
-                    }
+                    cargando={verificar.isPending || bloquear.isPending}
+                    onClick={async () => {
+                      const validacion = await verificar.mutateAsync()
+                      if (!validacion.todoValido) {
+                        setResultado(validacion)
+                        return
+                      }
+                      await bloquear.mutateAsync()
+                      setResultado(null)
+                    }}
                   >
-                    Verificar
+                    Validar la información y bloquear
                   </GlassButton>
                 )}
               </GlassSurface>
@@ -289,23 +294,13 @@ export function Reperfilado() {
           mensaje="Los valores posteriores al torno se guardarán como una nueva intervención confirmada."
         />
       )}
-      {resultado && (
+      {resultado && !resultado.todoValido && (
         <ConfirmDialog
-          titulo={
-            resultado.todoValido
-              ? 'Todos los datos están conformes'
-              : 'Hay valores fuera de límite'
-          }
-          mensaje={
-            resultado.todoValido
-              ? '¿Bloquear la tabla de perfilado?'
-              : `${resultado.filasExcluidas.length} disco(s) presentan valores fuera de los límites de la ficha.`
-          }
-          textoConfirmar="Bloquear perfilado"
-          textoCancelar="Seguir editando"
-          onConfirm={async () => {
-            await bloquear.mutateAsync()
-          }}
+          titulo="Hay información por revisar"
+          mensaje={`${resultado.filasExcluidas.length} disco(s) presentan datos incompletos o fuera de los límites. La tabla seguirá editable.`}
+          textoConfirmar="Revisar pendientes"
+          textoCancelar="Cerrar"
+          onConfirm={() => setResultado(null)}
           onCerrar={() => setResultado(null)}
         />
       )}

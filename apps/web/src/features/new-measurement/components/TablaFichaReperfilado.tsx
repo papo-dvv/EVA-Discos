@@ -174,10 +174,17 @@ export function TablaFichaReperfilado({
                 <td className="px-3 py-1.5 text-center font-data text-concreto-oscuro">
                   {fila.ejeNumero}
                 </td>
-                <td className="bg-white/40 px-3 py-1.5 text-center font-semibold text-concreto-oscuro">
-                  {fila.tipoCoche}
-                  {fila.numeroCoche !== null ? ` · ${fila.numeroCoche}` : ''}
-                </td>
+                {(soloPendientes || (fila.ejeNumero - 1) % 4 === 0) && (
+                  <td
+                    rowSpan={soloPendientes ? 1 : 4}
+                    className="border-x-2 border-concreto/20 bg-white/55 px-3 py-1.5 text-center align-middle font-semibold text-concreto-oscuro"
+                  >
+                    <span className="block text-sm">{fila.tipoCoche}</span>
+                    <span className="mx-auto mt-2 block w-16 border-b border-concreto/40 pb-1 font-data text-base text-emerald-800">
+                      {fila.numeroCoche ?? '—'}
+                    </span>
+                  </td>
+                )}
                 <LadoReperfilado
                   fichaId={fichaId}
                   eje={fila.ejeNumero}

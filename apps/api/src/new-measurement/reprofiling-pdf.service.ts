@@ -8,6 +8,10 @@ import {
 } from '@nestjs/common';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  resolverNumerosCochePorTren,
+  validarTrenAlstom,
+} from './new-measurement-catalogo';
 
 const NOMBRE_PLANTILLA =
   'UT-UF-MTO-FR-414 CONTROL DE TRABAJOS EN TORNO FOSA_260730_103107.pdf';
@@ -27,10 +31,14 @@ export class ReprofilingPdfService {
     if (!ficha || ficha.motivo !== 'Reperfilado' || !ficha.uploadedFileId) {
       throw new NotFoundException('Ficha de reperfilado no encontrada.');
     }
-    const filas = await this.prisma.scanRecord.findMany({
-      where: { fileId: ficha.uploadedFileId },
-      orderBy: [{ ejeExcel: 'asc' }, { ubicacionExcel: 'asc' }],
-    });
+    const tren = await validarTrenAlstom(this.prisma, ficha.trenNumero);
+    const [filas, numerosCoche] = await Promise.all([
+      this.prisma.scanRecord.findMany({
+        where: { fileId: ficha.uploadedFileId },
+        orderBy: [{ ejeExcel: 'asc' }, { ubicacionExcel: 'asc' }],
+      }),
+      resolverNumerosCochePorTren(this.prisma, tren.id),
+    ]);
     const porPosicion = new Map(
       filas.map((fila) => [`${fila.ejeExcel}|${fila.ubicacionExcel}`, fila]),
     );
@@ -134,6 +142,13 @@ export class ReprofilingPdfService {
       );
       escribir(der?.observacion ?? izq?.observacion, 548, y, 5.2);
     }
+
+    // La plantilla imprime el tipo de coche y deja una línea vacía debajo.
+    // Se completa con el código físico que corresponde al tren seleccionado.
+    const coches = ['MA1', 'MB1', 'MB3', 'REM', 'MB2', 'MA2'] as const;
+    coches.forEach((tipo, indice) => {
+      escribir(numerosCoche[tipo], 315, 535 - indice * 51.8, 7, true);
+    });
 
     if (ficha.todasConformes !== null)
       escribir('X', ficha.todasConformes ? 390 : 438, 193, 8, true);
