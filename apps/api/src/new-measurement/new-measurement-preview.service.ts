@@ -338,6 +338,7 @@ export class NewMeasurementPreviewService {
       const rd = evaluador.calcularRd(t, h);
       if (dto.tValue !== undefined) cambios.tValue = dto.tValue;
       if (dto.hValue !== undefined) cambios.hValue = dto.hValue;
+      cambios.rugosidadRa = t - h;
       cambios.rdValue = rd;
       cambios.estadoCalculado = evaluador.clasificarEstadoConReperfilado(rd, h);
     }

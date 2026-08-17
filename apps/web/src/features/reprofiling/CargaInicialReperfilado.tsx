@@ -126,6 +126,7 @@ export function CargaInicialReperfilado({
           ...medicion,
           reperfiladoTAntes: tAntes,
           reperfiladoHAntes: hAntes,
+          rugosidadRa: medicion.tValue - medicion.hValue,
         })
       }
       onCreada(ficha.fichaId)

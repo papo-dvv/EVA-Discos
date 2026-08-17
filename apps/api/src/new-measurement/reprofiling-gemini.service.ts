@@ -22,7 +22,6 @@ export interface ResultadoOcrReperfilado {
     hAntes: number;
     tValue: number;
     hValue: number;
-    rugosidadRa: number;
     confianza: number;
   }>;
   advertencias: string[];
@@ -45,7 +44,6 @@ type RespuestaGemini = {
     hAntes: number;
     tValue: number;
     hValue: number;
-    rugosidadRa: number;
     confianza: number;
   }>;
   advertencias: string[];
@@ -90,7 +88,6 @@ const ESQUEMA_RESPUESTA = {
           'hAntes',
           'tValue',
           'hValue',
-          'rugosidadRa',
           'confianza',
         ],
         properties: {
@@ -100,7 +97,6 @@ const ESQUEMA_RESPUESTA = {
           hAntes: { type: 'number' },
           tValue: { type: 'number' },
           hValue: { type: 'number' },
-          rugosidadRa: { type: 'number' },
           confianza: { type: 'number', minimum: 0, maximum: 100 },
         },
       },
@@ -159,8 +155,7 @@ Identifica primero el formato. Para UT-UF-MTO-FR-414, extrae N° de tren, kilome
 - hAntes = Desgaste cóncavo / profundidad ANTES del reperfilado (mm)
 - tValue = Espesor medido DESPUÉS del reperfilado (mm)
 - hValue = Desgaste cóncavo / profundidad DESPUÉS del reperfilado (mm)
-- rugosidadRa = valor visible de la última columna R.A. / Rugosidad
-No confundas ANTES con DESPUÉS ni calcules o inventes R.A. Solo devuelve una fila cuando los cinco valores del lado sean legibles; no inventes filas tapadas, cortadas o vacías.
+No confundas ANTES con DESPUÉS. La aplicación calcula R.A. como tValue menos hValue, así que no extraigas la última columna como una medición independiente. Solo devuelve una fila cuando los cuatro valores medidos del lado sean legibles; no inventes filas tapadas, cortadas o vacías.
 
 El lado izquierdo está a la izquierda del bloque central EJE/RUEDA/COCHE y el derecho a la derecha. Usa el número de EJE impreso en el centro para asignar cada fila. Convierte coma decimal a punto. Fecha en YYYY-MM-DD y horas en HH:mm. Confianza de 0 a 100 por fila. Agrega una advertencia específica por cada zona dudosa o recortada.`;
 
