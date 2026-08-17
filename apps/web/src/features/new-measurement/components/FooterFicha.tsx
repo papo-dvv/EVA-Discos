@@ -8,6 +8,7 @@ import type { CambiosFicha, FichaInstrumento, FichaMedicion, FichaTecnico } from
 type Props = {
   ficha: FichaMedicion
   onGuardar: (cambios: CambiosFicha) => void
+  limiteTecnicos?: number
 }
 
 const CLASE_INPUT =
@@ -20,7 +21,7 @@ const CLASE_INPUT =
 // Ya no se renderiza deshabilitado-pero-visible: NuevasMediciones.tsx directamente
 // no monta este componente hasta que tabla_bloqueada=true, así que acá adentro
 // todo está siempre habilitado — no hace falta ningún estado "bloqueada".
-export function FooterFicha({ ficha, onGuardar }: Props) {
+export function FooterFicha({ ficha, onGuardar, limiteTecnicos }: Props) {
   return (
     <div className="mt-6 space-y-5">
       <GlassSurface fuerte className="rounded-glass p-5">
@@ -38,7 +39,7 @@ export function FooterFicha({ ficha, onGuardar }: Props) {
       <GlassSurface fuerte className="rounded-glass p-5">
         <h2 className="mb-3 font-display text-base font-semibold text-concreto-oscuro">Realizado por</h2>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {ficha.tecnicos.map((t) => (
+          {ficha.tecnicos.slice(0, limiteTecnicos).map((t) => (
             <FilaTecnico key={t.posicion} tecnico={t} onGuardar={onGuardar} />
           ))}
         </div>

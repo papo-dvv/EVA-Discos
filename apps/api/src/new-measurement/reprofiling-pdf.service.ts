@@ -153,10 +153,28 @@ export class ReprofilingPdfService {
       .forEach((linea, indice) =>
         escribir(linea.trim(), 45, 115 - indice * 9, 5.7),
       );
-    escribir(ficha.responsableMantenimientoNombre, 210, 53, 6.3, true);
-    escribir(ficha.responsableMantenimientoFirma, 505, 53, 5.8);
-    escribir(ficha.ingMrNombre, 210, 34, 6.3, true);
-    escribir(ficha.ingMrFirma, 505, 34, 5.8);
+    ficha.tecnicos.slice(0, 2).forEach((tecnico, indice) => {
+      const y = 72 - indice * 10;
+      escribir('TÉCNICO', 52, y, 5.5, true);
+      escribir(tecnico.nombre, 210, y, 6.1, true);
+      escribir(tecnico.firma, 505, y, 5.6);
+    });
+    escribir('RESPONSABLE DE MANTENIMIENTO', 52, 53, 5.1, true);
+    escribir(ficha.responsableMantenimientoNombre, 210, 53, 6.1, true);
+    escribir(ficha.responsableMantenimientoFirma, 505, 53, 5.6);
+    escribir(
+      ficha.ingMrNombre,
+      210,
+      34,
+      6.1,
+      true,
+    );
+    escribir(
+      ficha.ingMrFirma,
+      505,
+      34,
+      5.6,
+    );
 
     return pdf.save();
   }

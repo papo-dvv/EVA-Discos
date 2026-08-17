@@ -39,6 +39,7 @@ export function Reperfilado() {
   const [confirmando, setConfirmando] = useState(false)
   const [resultado, setResultado] = useState<ResumenVerificacion | null>(null)
   const [descargandoPdf, setDescargandoPdf] = useState(false)
+  const [nombrePdf, setNombrePdf] = useState('')
   const preview = useFichaPreview(fichaId ?? '', { page: 1, pageSize: 100 })
   const editar = useEditarFicha(fichaId ?? '')
   const verificar = useVerificarFicha(fichaId ?? '')
@@ -74,6 +75,12 @@ export function Reperfilado() {
     const activa = obtenerFichaActiva('reperfilado')
     if (activa) navigate(`/reperfilado/${activa}`, { replace: true })
   }, [fichaId, navigate])
+
+  useEffect(() => {
+    if (ficha && !nombrePdf) {
+      setNombrePdf(`UT-UF-MTO-FR-414 - Tren ${ficha.trenNumero}`)
+    }
+  }, [ficha, nombrePdf])
 
   return (
     <PantallaFondo className="px-3 py-6 sm:px-5">
@@ -135,14 +142,24 @@ export function Reperfilado() {
             </p>
           ) : ficha && preview.data ? (
             <>
-              <div className="mt-4 flex justify-end gap-2">
+              <div className="mt-4 flex flex-wrap items-end justify-end gap-2">
+                <label className="min-w-64 font-body text-xs text-concreto">
+                  Nombre del PDF
+                  <input
+                    className="glass-field mt-1 block w-full px-3 py-2 text-sm text-concreto-oscuro"
+                    value={nombrePdf}
+                    onChange={(event) => setNombrePdf(event.target.value)}
+                    placeholder="Nombre de la ficha"
+                    aria-label="Nombre del archivo PDF"
+                  />
+                </label>
                 <GlassButton
                   variante="secundario"
                   cargando={descargandoPdf}
                   onClick={async () => {
                     setDescargandoPdf(true)
                     try {
-                      await descargarPdfReperfilado(fichaId)
+                      await descargarPdfReperfilado(fichaId, nombrePdf)
                     } finally {
                       setDescargandoPdf(false)
                     }
@@ -234,6 +251,7 @@ export function Reperfilado() {
                 <FooterFicha
                   ficha={ficha}
                   onGuardar={(c) => editar.mutate(c)}
+                  limiteTecnicos={2}
                 />
               )}
               <div className="mt-5 flex justify-end">

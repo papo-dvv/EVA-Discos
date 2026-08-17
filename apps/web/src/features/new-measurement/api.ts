@@ -80,7 +80,10 @@ export async function leerFotoReperfilado(
   return data
 }
 
-export async function descargarPdfReperfilado(fichaId: string): Promise<void> {
+export async function descargarPdfReperfilado(
+  fichaId: string,
+  nombreArchivo?: string,
+): Promise<void> {
   const { data } = await apiClient.get<Blob>(
     `/new-measurement/${fichaId}/reprofiling/pdf`,
     { responseType: 'blob' },
@@ -88,7 +91,12 @@ export async function descargarPdfReperfilado(fichaId: string): Promise<void> {
   const url = URL.createObjectURL(data)
   const enlace = document.createElement('a')
   enlace.href = url
-  enlace.download = `reperfilado-${fichaId}.pdf`
+  const nombreSeguro = (nombreArchivo ?? `reperfilado-${fichaId}`)
+    .trim()
+    .replace(/\.pdf$/i, '')
+    .replace(/[\\/:*?"<>|]+/g, '-')
+    .replace(/\s+/g, ' ')
+  enlace.download = `${nombreSeguro || `reperfilado-${fichaId}`}.pdf`
   enlace.click()
   URL.revokeObjectURL(url)
 }
