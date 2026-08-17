@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { GlassSurface } from '../../../components/GlassSurface'
 import { ScrollArea } from '../../../components/ScrollArea'
 import { useSyncedState } from '../../../hooks/useSyncedState'
@@ -27,21 +27,76 @@ export function TablaFichaReperfilado({
     () => construirFilasEspejo(esqueleto, rows),
     [esqueleto, rows],
   )
+  const [soloPendientes, setSoloPendientes] = useState(false)
+  const ladoCompleto = (lado: LadoFilaEspejo) =>
+    lado.reperfiladoTAntes !== null &&
+    lado.reperfiladoHAntes !== null &&
+    lado.tValue !== null &&
+    lado.hValue !== null
+  const ladosCompletos = filas.reduce(
+    (total, fila) =>
+      total +
+      Number(ladoCompleto(fila.izquierdo)) +
+      Number(ladoCompleto(fila.derecho)),
+    0,
+  )
+  const totalLados = filas.length * 2
+  const porcentaje = totalLados
+    ? Math.round((ladosCompletos / totalLados) * 100)
+    : 0
+  const filasVisibles = soloPendientes
+    ? filas.filter(
+        (fila) =>
+          !ladoCompleto(fila.izquierdo) || !ladoCompleto(fila.derecho),
+      )
+    : filas
 
   return (
     <GlassSurface fuerte className="mt-4 overflow-hidden rounded-glass">
       <div className="border-b border-concreto/15 bg-white/35 px-5 py-3">
-        <h2 className="font-display text-base font-semibold text-concreto-oscuro">
-          Control disco de freno
-        </h2>
-        <p className="mt-0.5 font-body text-xs text-concreto">
-          Completa los cuatro valores medidos de cada lado. R.A. se calcula
-          automáticamente con los valores posteriores al reperfilado.
-        </p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="font-display text-base font-semibold text-concreto-oscuro">
+              Control disco de freno
+            </h2>
+            <p className="mt-0.5 font-body text-xs text-concreto">
+              Completa los cuatro valores medidos de cada lado. R.A. se calcula
+              automáticamente con los valores posteriores al reperfilado.
+            </p>
+          </div>
+          <button
+            type="button"
+            aria-pressed={soloPendientes}
+            onClick={() => setSoloPendientes((actual) => !actual)}
+            className={`rounded-full border px-3 py-1.5 font-body text-xs font-semibold transition ${
+              soloPendientes
+                ? 'border-emerald-700/25 bg-emerald-700/10 text-emerald-800'
+                : 'border-concreto/15 bg-white/45 text-concreto'
+            }`}
+          >
+            {soloPendientes ? 'Mostrando pendientes' : 'Ver solo pendientes'}
+          </button>
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <ResumenDato etiqueta="Completados" valor={`${ladosCompletos}/${totalLados}`} />
+          <ResumenDato etiqueta="Pendientes" valor={String(totalLados - ladosCompletos)} />
+          <div className="col-span-2 rounded-2xl border border-concreto/10 bg-white/45 px-3 py-2 sm:col-span-1">
+            <div className="flex items-center justify-between font-body text-[0.6875rem] text-concreto">
+              <span>Avance</span>
+              <strong className="font-data text-concreto-oscuro">{porcentaje}%</strong>
+            </div>
+            <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-concreto/10">
+              <div
+                className="h-full rounded-full bg-emerald-600 transition-[width] duration-300"
+                style={{ width: `${porcentaje}%` }}
+              />
+            </div>
+          </div>
+        </div>
       </div>
       <ScrollArea ejes="both" viewportClassName="max-h-[36rem]">
         <table className="min-w-[88rem] w-full border-collapse font-body text-xs">
-          <thead>
+          <thead className="sticky top-0 z-20 shadow-sm">
             <tr className="border-b border-concreto/20 bg-[color:var(--color-arena-suave)]">
               <th rowSpan={3} className="px-2 py-2 text-left">
                 Bogie / código
@@ -91,7 +146,7 @@ export function TablaFichaReperfilado({
             </tr>
           </thead>
           <tbody>
-            {filas.map((fila) => (
+            {filasVisibles.map((fila) => (
               <tr
                 key={fila.ejeNumero}
                 className={`tabla-fila--glass border-b border-concreto/10 ${
@@ -101,7 +156,12 @@ export function TablaFichaReperfilado({
                 }`}
               >
                 <td className="px-2.5 py-1.5 font-semibold text-concreto-oscuro">
-                  {fila.bogieCodigo}
+                  <span>{fila.bogieCodigo}</span>
+                  {(fila.ejeNumero - 1) % 4 === 0 && (
+                    <span className="ml-2 rounded-full bg-concreto/10 px-2 py-0.5 text-[0.625rem] uppercase tracking-wide text-concreto">
+                      Bloque {Math.ceil(fila.ejeNumero / 4)}
+                    </span>
+                  )}
                 </td>
                 <LadoReperfilado
                   fichaId={fichaId}
@@ -135,6 +195,17 @@ export function TablaFichaReperfilado({
         <span>R.A. = Espesor después − Cóncavo después</span>
       </div>
     </GlassSurface>
+  )
+}
+
+function ResumenDato({ etiqueta, valor }: { etiqueta: string; valor: string }) {
+  return (
+    <div className="rounded-2xl border border-concreto/10 bg-white/45 px-3 py-2">
+      <p className="font-body text-[0.6875rem] text-concreto">{etiqueta}</p>
+      <p className="mt-0.5 font-data text-base font-semibold text-concreto-oscuro">
+        {valor}
+      </p>
+    </div>
   )
 }
 
@@ -221,7 +292,8 @@ function LadoReperfilado({
 
 function ValorCalculado({ valor }: { valor: number | null }) {
   return (
-    <td className="border-l-2 border-concreto/20 bg-white/25 px-2 py-1.5 text-right font-data text-concreto-oscuro">
+    <td className="border-l-2 border-concreto/20 bg-emerald-50/35 px-2 py-1.5 text-right font-data text-concreto-oscuro">
+      <span className="mr-1 text-[0.625rem] font-semibold text-emerald-700">ƒx</span>
       {valor === null ? '—' : valor.toFixed(2)}
     </td>
   )
@@ -253,7 +325,10 @@ function Campo({
           const n = Number(borrador)
           if (borrador !== '' && Number.isFinite(n) && n !== valor) onGuardar(n)
         }}
-        className={`glass-field w-20 px-2 py-1 text-right font-data text-xs ${invalido ? 'border-[color:var(--color-estado-critico)]' : ''}`}
+        placeholder="—"
+        className={`glass-field w-20 px-2 py-1 text-right font-data text-xs transition ${
+          borrador === '' ? 'border-amber-500/25 bg-amber-50/25' : 'border-emerald-700/20 bg-emerald-50/30'
+        } ${invalido ? 'border-[color:var(--color-estado-critico)]' : ''}`}
       />
     </td>
   )
