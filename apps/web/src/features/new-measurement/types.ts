@@ -52,6 +52,10 @@ export interface FichaMedicion {
   kilometraje: number
   fechaFicha: string
   actividad: string
+  motivo: MotivoFicha
+  puestoTrabajo: string | null
+  fechaHoraInicio: string | null
+  fechaHoraFin: string | null
   trenOriginalCsv: number | null
   corregidoTren: boolean
   kilometrajeOriginalCsv: number | null
@@ -237,6 +241,9 @@ export interface CambiosFicha {
   trenNumero?: number
   kilometraje?: number
   fechaFicha?: string
+  puestoTrabajo?: string
+  fechaHoraInicio?: string
+  fechaHoraFin?: string
   todasConformes?: boolean
   comentariosActividad?: string
   responsableMantenimientoNombre?: string
@@ -246,7 +253,12 @@ export interface CambiosFicha {
   ingMrFirma?: string
   ingMrFecha?: string
   ptCodigo?: string
-  tecnicos?: { posicion: number; nombre?: string; firma?: string; fecha?: string }[]
+  tecnicos?: {
+    posicion: number
+    nombre?: string
+    firma?: string
+    fecha?: string
+  }[]
   instrumentos?: {
     posicion: number
     codigo?: string

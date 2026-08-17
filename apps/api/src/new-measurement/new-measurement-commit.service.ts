@@ -59,9 +59,15 @@ export class NewMeasurementCommitService {
         'Falta el responsable de mantenimiento — es obligatorio para confirmar la ficha.',
       );
     }
-    if (!ficha.ptCodigo?.trim()) {
+    const puestoIncompleto =
+      ficha.motivo === 'Reperfilado'
+        ? !ficha.puestoTrabajo?.trim() ||
+          !ficha.fechaHoraInicio ||
+          !ficha.fechaHoraFin
+        : !ficha.ptCodigo?.trim();
+    if (puestoIncompleto) {
       throw new UnprocessableEntityException(
-        'Falta el P.T. (Puesto de Trabajo) — es obligatorio para confirmar la ficha.',
+        'Faltan datos obligatorios del P.T. para confirmar la ficha.',
       );
     }
     if (!ficha.tablaBloqueada) {

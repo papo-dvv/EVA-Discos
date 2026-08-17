@@ -406,6 +406,13 @@ model ScanRecord {
   // ningún otro flujo — no rompe la migración masiva ni las mediciones
   // confirmadas existentes.
   observacion String? @db.VarChar(500)
+  measPointNameOriginal String? @map("meas_point_name_original") @db.VarChar(100)
+  measTimeOriginal String? @map("meas_time_original") @db.VarChar(20)
+  profileLinkOriginal String? @map("profile_link_original") @db.Text
+  rugosidadRa Decimal? @map("rugosidad_ra") @db.Decimal(6, 3)
+  reperfiladoTAntes Decimal? @map("reperfilado_t_antes") @db.Decimal(6, 3)
+  reperfiladoHAntes Decimal? @map("reperfilado_h_antes") @db.Decimal(6, 3)
+  reperfiladoCompletado Boolean @default(false) @map("reperfilado_completado")
 
   // Flags de validación cruzada automática (NewMeasurementModule, ficha en
   // borrador) — ver NewMeasurementValidationService. kmInvalido/fechaInvalido
@@ -562,12 +569,17 @@ model MeasurementSheet {
   // ficha_medicion_individual) para agrupar sus filas incluso en modo manual
   // — ver comentario en NewMeasurementService.crearManual.
   uploadedFileId String?  @map("uploaded_file_id") @db.Uuid
+  sourceMeasurementSheetId String? @unique @map("source_measurement_sheet_id") @db.Uuid
   trenNumero     Int      @map("tren_numero")
   kilometraje    Decimal  @db.Decimal(12, 2)
   fechaFicha     DateTime @map("fecha_ficha") @db.Date
   // Texto fijo por ahora ("BAJO BASTIDOR - TREN ALSTOM"), no editable —
   // exclusivo de fichas con motivo='Medición' (ver NewMeasurementService).
   actividad      String   @db.VarChar(200)
+  motivo         String   @default("Medición") @db.VarChar(100)
+  puestoTrabajo  String?  @map("puesto_trabajo") @db.VarChar(100)
+  fechaHoraInicio DateTime? @map("fecha_hora_inicio") @db.Timestamptz(6)
+  fechaHoraFin DateTime? @map("fecha_hora_fin") @db.Timestamptz(6)
 
   // P.T. (Puesto de Trabajo) — texto libre alfanumérico, sin formato
   // restringido por ahora. Nunca lo trae el CSV: siempre ingreso manual (ver

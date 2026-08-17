@@ -157,6 +157,12 @@ export class NewMeasurementPreviewService {
       cambios.responsableMantenimientoNombre =
         dto.responsableMantenimientoNombre;
     if (dto.ptCodigo !== undefined) cambios.ptCodigo = dto.ptCodigo;
+    if (dto.puestoTrabajo !== undefined)
+      cambios.puestoTrabajo = dto.puestoTrabajo;
+    if (dto.fechaHoraInicio !== undefined)
+      cambios.fechaHoraInicio = new Date(dto.fechaHoraInicio);
+    if (dto.fechaHoraFin !== undefined)
+      cambios.fechaHoraFin = new Date(dto.fechaHoraFin);
     if (dto.responsableMantenimientoFirma !== undefined)
       cambios.responsableMantenimientoFirma = dto.responsableMantenimientoFirma;
     if (dto.responsableMantenimientoFecha !== undefined)
@@ -282,6 +288,7 @@ export class NewMeasurementPreviewService {
     const cambios: Prisma.ScanRecordUpdateInput = {};
     if (dto.fecha !== undefined) cambios.fecha = new Date(dto.fecha);
     if (dto.observacion !== undefined) cambios.observacion = dto.observacion;
+    if (dto.rugosidadRa !== undefined) cambios.rugosidadRa = dto.rugosidadRa;
 
     if (dto.ejeNumero !== undefined || dto.lado !== undefined) {
       const ejeFinal = dto.ejeNumero ?? original.ejeExcel!;
@@ -428,6 +435,7 @@ export class NewMeasurementPreviewService {
           ubicacionExcel: dto.lado,
           ruedaExcel: ruedaNumero,
           observacion: dto.observacion ?? null,
+          rugosidadRa: dto.rugosidadRa ?? null,
           ordenFisico: calcularOrdenFisico({
             tipoCoche: identidad.tipoCoche,
             bogieCodigo: identidad.bogieCodigo,

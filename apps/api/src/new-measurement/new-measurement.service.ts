@@ -65,6 +65,13 @@ export interface ResumenFichaManual {
   esqueleto: PosicionEsqueleto[];
 }
 
+export interface ResumenReperfiladoDesdeMedicion {
+  fichaId: string;
+  sourceFichaId: string;
+  reutilizada: boolean;
+  filasCopiadas: number;
+}
+
 // Valida que el motivo pedido sea el único implementado por este módulo.
 // Reperfilado y Cambio existen en el enunciado como alcance futuro; se
 // reconocen acá SOLO para poder rechazarlos con un mensaje claro en vez de un
@@ -73,10 +80,8 @@ export function validarMotivoImplementado(
   motivo: MotivoFicha | undefined,
 ): void {
   const resuelto = motivo ?? MOTIVO_MEDICION;
-  if (resuelto !== MOTIVO_MEDICION) {
-    throw new BadRequestException(
-      `Motivo '${resuelto}' no implementado aún. Este módulo solo soporta '${MOTIVO_MEDICION}'.`,
-    );
+  if (resuelto !== MOTIVO_MEDICION && resuelto !== 'Reperfilado') {
+    throw new BadRequestException(`Motivo '${resuelto}' no implementado aún.`);
   }
 }
 
@@ -248,7 +253,11 @@ export class NewMeasurementService {
           trenNumero: tren.numero,
           kilometraje: dto.kilometraje,
           fechaFicha,
-          actividad: ACTIVIDAD_BAJO_BASTIDOR,
+          actividad:
+            dto.motivo === 'Reperfilado'
+              ? 'CONTROL DE TRABAJOS EN TORNO FOSA'
+              : ACTIVIDAD_BAJO_BASTIDOR,
+          motivo: dto.motivo ?? MOTIVO_MEDICION,
         },
       });
 
@@ -307,6 +316,106 @@ export class NewMeasurementService {
     });
 
     return todosCoinciden ? { id: ultimaConfirmada.id } : null;
+  }
+
+  async crearReperfiladoDesdeMedicion(
+    sourceFichaId: string,
+    usuarioId: string,
+  ): Promise<ResumenReperfiladoDesdeMedicion> {
+    const existente = await this.prisma.measurementSheet.findUnique({
+      where: { sourceMeasurementSheetId: sourceFichaId },
+    });
+    if (existente) {
+      const filas = existente.uploadedFileId
+        ? await this.prisma.scanRecord.count({
+            where: { fileId: existente.uploadedFileId },
+          })
+        : 0;
+      return {
+        fichaId: existente.id,
+        sourceFichaId,
+        reutilizada: true,
+        filasCopiadas: filas,
+      };
+    }
+
+    const origen = await this.prisma.measurementSheet.findUnique({
+      where: { id: sourceFichaId },
+    });
+    if (
+      !origen ||
+      origen.motivo !== MOTIVO_MEDICION ||
+      !origen.uploadedFileId
+    ) {
+      throw new BadRequestException(
+        'La ficha de origen debe ser una Medición válida.',
+      );
+    }
+    const filasOrigen = await this.prisma.scanRecord.findMany({
+      where: { fileId: origen.uploadedFileId },
+    });
+
+    const fichaId = await this.prisma.$transaction(async (tx) => {
+      const archivo = await tx.uploadedFile.create({
+        data: {
+          filename: `Reperfilado desde ${sourceFichaId}`,
+          tipoCarga: 'ficha_medicion_individual',
+          uploadedBy: usuarioId,
+          status: 'review',
+          totalRows: filasOrigen.length,
+          validRows: filasOrigen.length,
+          invalidRows: 0,
+        },
+      });
+      const ficha = await tx.measurementSheet.create({
+        data: {
+          uploadedFileId: archivo.id,
+          sourceMeasurementSheetId: sourceFichaId,
+          trenNumero: origen.trenNumero,
+          kilometraje: origen.kilometraje,
+          fechaFicha: origen.fechaFicha,
+          actividad: 'CONTROL DE TRABAJOS EN TORNO FOSA',
+          motivo: 'Reperfilado',
+          trenOriginalCsv: origen.trenOriginalCsv,
+          kilometrajeOriginalCsv: origen.kilometrajeOriginalCsv,
+        },
+      });
+      await this.crearPlaceholdersFicha(tx, ficha.id);
+      if (filasOrigen.length) {
+        await tx.scanRecord.createMany({
+          data: filasOrigen.map((fila) => ({
+            fileId: archivo.id,
+            responsableNombre: fila.responsableNombre,
+            trenNumero: fila.trenNumero,
+            kilometraje: fila.kilometraje,
+            fecha: fila.fecha,
+            motivo: 'Reperfilado',
+            tValue: fila.tValue,
+            hValue: fila.hValue,
+            rdValue: fila.rdValue,
+            estadoCalculado: fila.estadoCalculado,
+            cocheExcel: fila.cocheExcel,
+            numeroCocheExcel: fila.numeroCocheExcel,
+            bogieExcel: fila.bogieExcel,
+            ejeExcel: fila.ejeExcel,
+            ubicacionExcel: fila.ubicacionExcel,
+            ruedaExcel: fila.ruedaExcel,
+            observacion: fila.observacion,
+            ordenFisico: fila.ordenFisico,
+            reperfiladoTAntes: fila.tValue,
+            reperfiladoHAntes: fila.hValue,
+          })),
+        });
+      }
+      return ficha.id;
+    });
+
+    return {
+      fichaId,
+      sourceFichaId,
+      reutilizada: false,
+      filasCopiadas: filasOrigen.length,
+    };
   }
 
   private async crearPlaceholdersFicha(

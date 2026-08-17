@@ -218,9 +218,15 @@ export class NewMeasurementValidationService {
         'Debes verificar la ficha (POST .../validate) sin ediciones posteriores antes de poder bloquear la tabla de mediciones.',
       );
     }
-    if (!ficha.ptCodigo?.trim()) {
+    const puestoIncompleto =
+      ficha.motivo === 'Reperfilado'
+        ? !ficha.puestoTrabajo?.trim() ||
+          !ficha.fechaHoraInicio ||
+          !ficha.fechaHoraFin
+        : !ficha.ptCodigo?.trim();
+    if (puestoIncompleto) {
       throw new UnprocessableEntityException(
-        'Falta el P.T. (Puesto de Trabajo) — es obligatorio para poder bloquear la tabla de mediciones.',
+        'Faltan datos obligatorios del P.T. para poder bloquear la tabla.',
       );
     }
 

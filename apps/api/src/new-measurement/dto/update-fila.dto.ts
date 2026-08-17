@@ -37,6 +37,11 @@ export class UpdateFilaDto {
 
   @IsOptional()
   @Type(() => Number)
+  @IsNumber()
+  rugosidadRa?: number;
+
+  @IsOptional()
+  @Type(() => Number)
   @IsInt()
   @Min(1)
   @Max(24)
