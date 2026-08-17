@@ -61,6 +61,7 @@ export interface ResultadoOcrReperfilado {
     lado: 'izquierdo' | 'derecho'
     tValue: number
     hValue: number
+    rugosidadRa: number | null
     confianza: number
   }>
   advertencias: string[]

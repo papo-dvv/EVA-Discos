@@ -133,7 +133,7 @@ export function TablaFichaReperfilado({
       <div className="grid grid-cols-1 gap-2 border-t border-concreto/15 bg-white/35 px-5 py-3 font-body text-xs text-concreto sm:grid-cols-3">
         <span>Espesor posterior &gt; 0,3 mm</span>
         <span>Desgaste cóncavo ≤ 2,0 mm</span>
-        <span>RA automático = Espesor − Cóncavo (0 a 3,2 mm)</span>
+        <span>Rugosidad Ra: valor independiente leído de la ficha (µm)</span>
       </div>
     </GlassSurface>
   )
@@ -162,11 +162,13 @@ function LadoReperfilado({
   // quedan como respaldo para fichas antiguas creadas por el flujo legado.
   const [t, setT] = useSyncedState(datos.tValue)
   const [h, setH] = useSyncedState(datos.hValue)
+  const [ra, setRa] = useSyncedState(datos.rugosidadRa)
   const previoReal = previo
 
-  function guardar(campo: 'tValue' | 'hValue', valor: number) {
+  function guardar(campo: 'tValue' | 'hValue' | 'rugosidadRa', valor: number) {
     if (campo === 'tValue') setT(valor)
     if (campo === 'hValue') setH(valor)
+    if (campo === 'rugosidadRa') setRa(valor)
     const tFinal = campo === 'tValue' ? valor : t
     const hFinal = campo === 'hValue' ? valor : h
     if (datos.recordId) {
@@ -174,7 +176,13 @@ function LadoReperfilado({
       return
     }
     if (tFinal !== null && hFinal !== null) {
-      agregar.mutate({ ejeNumero: eje, lado, tValue: tFinal, hValue: hFinal })
+      agregar.mutate({
+        ejeNumero: eje,
+        lado,
+        tValue: tFinal,
+        hValue: hFinal,
+        rugosidadRa: campo === 'rugosidadRa' ? valor : ra,
+      })
     }
   }
 
@@ -193,21 +201,12 @@ function LadoReperfilado({
         disabled={deshabilitada}
         invalido={h !== null && h > 2}
       />
-      <ValorCalculado valor={t !== null && h !== null ? t - h : null} />
+      <Campo
+        valor={ra}
+        onGuardar={(v) => guardar('rugosidadRa', v)}
+        disabled={deshabilitada}
+      />
     </>
-  )
-}
-
-function ValorCalculado({ valor }: { valor: number | null }) {
-  const invalido = valor !== null && (valor < 0 || valor > 3.2)
-  return (
-    <td className="px-1.5 py-1">
-      <output
-        className={`glass-field block w-20 px-2 py-1 text-right font-data text-xs ${invalido ? 'border-[color:var(--color-estado-critico)]' : ''}`}
-      >
-        {valor === null ? '—' : valor.toFixed(2)}
-      </output>
-    </td>
   )
 }
 

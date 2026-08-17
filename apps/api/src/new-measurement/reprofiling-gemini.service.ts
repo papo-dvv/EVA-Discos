@@ -20,6 +20,7 @@ export interface ResultadoOcrReperfilado {
     lado: 'izquierdo' | 'derecho';
     tValue: number;
     hValue: number;
+    rugosidadRa: number | null;
     confianza: number;
   }>;
   advertencias: string[];
@@ -40,6 +41,7 @@ type RespuestaGemini = {
     lado: 'izquierdo' | 'derecho';
     tValue: number;
     hValue: number;
+    rugosidadRa: number | null;
     confianza: number;
   }>;
   advertencias: string[];
@@ -77,12 +79,20 @@ const ESQUEMA_RESPUESTA = {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['ejeNumero', 'lado', 'tValue', 'hValue', 'confianza'],
+        required: [
+          'ejeNumero',
+          'lado',
+          'tValue',
+          'hValue',
+          'rugosidadRa',
+          'confianza',
+        ],
         properties: {
           ejeNumero: { type: 'integer', minimum: 1, maximum: 24 },
           lado: { type: 'string', enum: ['izquierdo', 'derecho'] },
           tValue: { type: 'number' },
           hValue: { type: 'number' },
+          rugosidadRa: { type: ['number', 'null'] },
           confianza: { type: 'number', minimum: 0, maximum: 100 },
         },
       },
@@ -139,7 +149,8 @@ export class ReprofilingGeminiService {
 Identifica primero el formato. Para UT-UF-MTO-FR-414, extrae N° de tren, kilometraje, P.T., fecha/hora de inicio y fecha/hora de fin. El P.T. es un código alfanumérico continuo, sin espacios ni guiones (por ejemplo: GZMF1844435); distingue cuidadosamente letras similares como Y/Z y no agregues separadores. En la tabla hay hasta 24 ejes y dos lados por eje. Extrae únicamente valores visibles y legibles de DESPUÉS DEL REPERFILADO:
 - tValue = Espesor medido (mm)
 - hValue = Desgaste cóncavo / profundidad (mm)
-No confundas las columnas ANTES con DESPUÉS. No uses Rugosidad Ra como hValue. No inventes filas tapadas, cortadas o vacías.
+- rugosidadRa = Rugosidad Ra (µm), la última columna de cada lado; es un valor independiente y nunca debe calcularse restando otros campos
+No confundas las columnas ANTES con DESPUÉS. No uses Rugosidad Ra como hValue. No inventes filas tapadas, cortadas o vacías. Si T y H son legibles pero Ra está vacío o ilegible, usa null.
 
 El lado izquierdo está a la izquierda del bloque central EJE/RUEDA/COCHE y el derecho a la derecha. Usa el número de EJE impreso en el centro para asignar cada fila. Convierte coma decimal a punto. Fecha en YYYY-MM-DD y horas en HH:mm. Confianza de 0 a 100 por fila. Agrega una advertencia específica por cada zona dudosa o recortada.`;
 

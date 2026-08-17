@@ -277,6 +277,7 @@ export interface AgregarFilaFicha {
   lado: 'izquierdo' | 'derecho'
   hValue: number
   tValue: number
+  rugosidadRa?: number | null
   fecha?: string
   observacion?: string
 }
@@ -286,6 +287,7 @@ export interface EditarFilaFicha {
   fecha?: string
   hValue?: number
   tValue?: number
+  rugosidadRa?: number
   ejeNumero?: number
   lado?: 'izquierdo' | 'derecho'
   observacion?: string

@@ -115,7 +115,7 @@ export class ReprofilingPdfService {
       escribir(numero(izq?.tValue), columnas.izqDespuesT, y, 6.7, true);
       escribir(numero(izq?.hValue), columnas.izqDespuesH, y, 6.7, true);
       escribir(
-        numero(izq ? Number(izq.tValue) - Number(izq.hValue) : null),
+        numero(izq?.rugosidadRa),
         columnas.izqRa,
         y,
         6.7,
@@ -126,7 +126,7 @@ export class ReprofilingPdfService {
       escribir(numero(der?.tValue), columnas.derDespuesT, y, 6.7, true);
       escribir(numero(der?.hValue), columnas.derDespuesH, y, 6.7, true);
       escribir(
-        numero(der ? Number(der.tValue) - Number(der.hValue) : null),
+        numero(der?.rugosidadRa),
         columnas.derRa,
         y,
         6.7,

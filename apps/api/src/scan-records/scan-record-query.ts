@@ -109,6 +109,7 @@ export interface PreviewRow {
   hValue: number;
   tValue: number;
   rdValue: number;
+  rugosidadRa: number | null;
   estadoCalculado: string | null;
   estadoSugeridoExcel: string | null;
   corregidoPorHoja: boolean;
@@ -613,6 +614,7 @@ export function aPreviewRow(r: ScanRecord): PreviewRow {
     hValue: Number(r.hValue),
     tValue: Number(r.tValue),
     rdValue: r.rdValue,
+    rugosidadRa: r.rugosidadRa === null ? null : Number(r.rugosidadRa),
     estadoCalculado: r.estadoCalculado,
     estadoSugeridoExcel: r.estadoSugeridoExcel,
     corregidoPorHoja: r.corregidoPorHoja,
