@@ -63,6 +63,7 @@ export interface ResultadoOcrReperfilado {
     hAntes: number
     tValue: number
     hValue: number
+    rugosidadRa: number
     confianza: number
   }>
   advertencias: string[]
