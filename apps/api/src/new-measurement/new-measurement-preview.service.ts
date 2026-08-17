@@ -315,7 +315,13 @@ export class NewMeasurementPreviewService {
     const cambios: Prisma.ScanRecordUpdateInput = {};
     if (dto.fecha !== undefined) cambios.fecha = new Date(dto.fecha);
     if (dto.observacion !== undefined) cambios.observacion = dto.observacion;
-    if (dto.rugosidadRa !== undefined) cambios.rugosidadRa = dto.rugosidadRa;
+    if (ficha.motivo === 'Reperfilado') {
+      // En la ficha UT-UF-MTO-FR-414 la rugosidad final operativa es fija.
+      // También corrige filas antiguas sin R.A. al editar una medición.
+      cambios.rugosidadRa = 2.5;
+    } else if (dto.rugosidadRa !== undefined) {
+      cambios.rugosidadRa = dto.rugosidadRa;
+    }
     if (dto.reperfiladoTAntes !== undefined)
       cambios.reperfiladoTAntes = dto.reperfiladoTAntes;
     if (dto.reperfiladoHAntes !== undefined)
@@ -466,7 +472,8 @@ export class NewMeasurementPreviewService {
           ubicacionExcel: dto.lado,
           ruedaExcel: ruedaNumero,
           observacion: dto.observacion ?? null,
-          rugosidadRa: dto.rugosidadRa ?? null,
+          rugosidadRa:
+            ficha.motivo === 'Reperfilado' ? 2.5 : (dto.rugosidadRa ?? null),
           reperfiladoTAntes: dto.reperfiladoTAntes ?? null,
           reperfiladoHAntes: dto.reperfiladoHAntes ?? null,
           ordenFisico: calcularOrdenFisico({

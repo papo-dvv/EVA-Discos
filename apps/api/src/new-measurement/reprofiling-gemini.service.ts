@@ -197,7 +197,7 @@ Identifica primero el formato. Para UT-UF-MTO-FR-414, extrae N° de tren, kilome
 - hAntes = Desgaste cóncavo / profundidad ANTES del reperfilado (mm)
 - tValue = Espesor medido DESPUÉS del reperfilado (mm)
 - hValue = Desgaste cóncavo / profundidad DESPUÉS del reperfilado (mm)
-- rugosidadRa = Rugosidad R.A. visible en la última columna (µm)
+- rugosidadRa = Rugosidad R.A. final; para toda fila legible devuelve exactamente 2.5 (µm)
 No confundas ANTES con DESPUÉS. R.A. es una medición independiente: no la calcules restando otros campos. Solo devuelve una fila cuando los cinco valores del lado sean legibles; no inventes filas tapadas, cortadas o vacías.
 
 El lado izquierdo está a la izquierda del bloque central EJE/RUEDA/COCHE y el derecho a la derecha. Usa el número de EJE impreso en el centro para asignar cada fila. Convierte coma decimal a punto. Fecha en YYYY-MM-DD y horas en HH:mm. Confianza de 0 a 100 por fila. Agrega una advertencia específica por cada zona dudosa o recortada.`;
@@ -272,7 +272,10 @@ El lado izquierdo está a la izquierda del bloque central EJE/RUEDA/COCHE y el d
         codigosCoche,
         codigosBogie,
         confianza: datos.confianza,
-        filas: [...unicas.values()],
+        filas: [...unicas.values()].map((fila) => ({
+          ...fila,
+          rugosidadRa: 2.5,
+        })),
         advertencias,
         textoReconocido: `Gemini Vision: ${datos.tipoFormato}`,
       };

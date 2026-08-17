@@ -18,6 +18,7 @@ type Props = {
 }
 
 const TIPOS_COCHE: TipoCoche[] = ['MA1', 'MB1', 'MB3', 'REM', 'MB2', 'MA2']
+const RUGOSIDAD_RA_OBJETIVO = 2.5
 const opcionesCoche = (tipo: TipoCoche) => {
   const offset = { MA1: 101, MB1: 102, MB2: 103, MA2: 104 }[tipo as 'MA1' | 'MB1' | 'MB2' | 'MA2']
   if (offset) return Array.from({ length: 39 }, (_, indice) => String(offset + indice * 4))
@@ -46,7 +47,7 @@ export function TablaFichaReperfilado({
     lado.reperfiladoHAntes !== null &&
     lado.tValue !== null &&
     lado.hValue !== null &&
-    lado.rugosidadRa !== null
+    (lado.rugosidadRa !== null || lado.recordId !== null)
   const ladosCompletos = filas.reduce(
     (total, fila) =>
       total +
@@ -65,7 +66,7 @@ export function TablaFichaReperfilado({
       (lado.reperfiladoHAntes !== null && lado.reperfiladoHAntes > 2) ||
       (lado.tValue !== null && lado.tValue <= 0.3) ||
       (lado.hValue !== null && lado.hValue > 2) ||
-      (lado.rugosidadRa !== null && lado.rugosidadRa > 3.2),
+      (lado.rugosidadRa !== null && lado.rugosidadRa !== RUGOSIDAD_RA_OBJETIVO),
     ).length
   }, 0)
   const filasVisibles = soloPendientes
@@ -258,7 +259,7 @@ export function TablaFichaReperfilado({
       <div className="grid grid-cols-1 gap-2 border-t border-concreto/15 bg-white/35 px-5 py-3 font-body text-xs text-concreto sm:grid-cols-3">
         <span>Espesor posterior &gt; 0,3 mm</span>
         <span>Desgaste cóncavo ≤ 2,0 mm</span>
-        <span>Rugosidad R.A. ≤ 3,2 µm</span>
+        <span>Rugosidad final R.A. = 2,5 µm</span>
       </div>
     </GlassSurface>
   )
@@ -350,7 +351,7 @@ function LadoReperfilado({
           campo === 'reperfiladoTAntes' ? valor : (tAntes ?? undefined),
         reperfiladoHAntes:
           campo === 'reperfiladoHAntes' ? valor : (hAntes ?? undefined),
-        rugosidadRa: campo === 'rugosidadRa' ? valor : (ra ?? undefined),
+        rugosidadRa: RUGOSIDAD_RA_OBJETIVO,
       })
     }
   }
@@ -382,10 +383,10 @@ function LadoReperfilado({
         invalido={(h !== null && h > 2) || datos.rdInvalido}
       />
       <Campo
-        valor={ra}
+        valor={datos.recordId || t !== null || h !== null ? RUGOSIDAD_RA_OBJETIVO : null}
         onGuardar={(v) => guardar('rugosidadRa', v)}
-        disabled={deshabilitada}
-        invalido={ra !== null && ra > 3.2}
+        disabled
+        invalido={ra !== null && ra !== RUGOSIDAD_RA_OBJETIVO}
       />
     </>
   )

@@ -195,12 +195,12 @@ export class NewMeasurementValidationService {
     const antesConcavo = contar((fila) => fila.reperfiladoHAntes !== null && Number(fila.reperfiladoHAntes) > 2);
     const despuesEspesor = contar((fila) => Number(fila.tValue) <= 0.3);
     const despuesConcavo = contar((fila) => Number(fila.hValue) > 2);
-    const rugosidad = contar((fila) => fila.rugosidadRa !== null && Number(fila.rugosidadRa) > 3.2);
+    const rugosidad = contar((fila) => fila.rugosidadRa !== null && Number(fila.rugosidadRa) !== 2.5);
     if (antesEspesor) alertas.push(`${antesEspesor} posición(es) tienen espesor anterior ≤ 0 mm.`);
     if (antesConcavo) alertas.push(`${antesConcavo} posición(es) tienen cóncavo anterior > 2,0 mm.`);
     if (despuesEspesor) alertas.push(`${despuesEspesor} posición(es) tienen espesor posterior ≤ 0,3 mm.`);
     if (despuesConcavo) alertas.push(`${despuesConcavo} posición(es) tienen cóncavo posterior > 2,0 mm.`);
-    if (rugosidad) alertas.push(`${rugosidad} posición(es) tienen rugosidad R.A. > 3,2 µm.`);
+    if (rugosidad) alertas.push(`${rugosidad} posición(es) no tienen la rugosidad final R.A. requerida de 2,5 µm.`);
     return alertas;
   }
 
