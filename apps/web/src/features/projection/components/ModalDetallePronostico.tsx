@@ -2,7 +2,7 @@ import { GlassButton } from '../../../components/GlassButton'
 import { GlassModal } from '../../../components/GlassModal'
 import { ScrollArea } from '../../../components/ScrollArea'
 import { useDetallePronostico } from '../queries'
-import type { TipoEventoPronostico } from '../types'
+import type { EventoPronostico, TipoEventoPronostico } from '../types'
 
 type Props = {
   tren: number | undefined
@@ -23,6 +23,11 @@ function etiquetaTipo(tipo?: TipoEventoPronostico): string {
   if (tipo === 'CAMBIO') return 'Cambios'
   if (tipo === 'REPERFILADO') return 'Reperfilados'
   return 'Eventos'
+}
+
+function etiquetaEvento(evento: Pick<EventoPronostico, 'tipo' | 'pendiente'>): string {
+  const tipo = evento.tipo === 'CAMBIO' ? 'Cambio' : 'Reperfilado'
+  return evento.pendiente ? `${tipo} pendiente` : tipo
 }
 
 export function ModalDetallePronostico({ tren, periodo, tipo, onCerrar }: Props) {
@@ -52,16 +57,16 @@ export function ModalDetallePronostico({ tren, periodo, tipo, onCerrar }: Props)
             <table className="w-full min-w-[48rem] border-collapse text-left font-body text-[0.8125rem]">
               <thead>
                 <tr className="border-b border-concreto/20 text-xs font-semibold uppercase tracking-wide text-concreto">
-                  <th className="px-2 py-2">Última medición</th>
-                  <th className="px-2 py-2 text-right">Días hasta evento</th>
-                  <th className="px-2 py-2">Fecha</th>
-                  <th className="px-2 py-2">Tipo</th>
                   <th className="px-2 py-2 text-right">Tren</th>
                   <th className="px-2 py-2">Coche</th>
                   <th className="px-2 py-2 text-right">N° coche</th>
                   <th className="px-2 py-2">Bogie</th>
                   <th className="px-2 py-2 text-right">Eje</th>
                   <th className="px-2 py-2">Lado</th>
+                  <th className="px-2 py-2">Última medición</th>
+                  <th className="px-2 py-2 text-right">Días hasta evento</th>
+                  <th className="px-2 py-2">Fecha proyectada</th>
+                  <th className="px-2 py-2">Tipo</th>
                 </tr>
               </thead>
               <tbody>
@@ -70,13 +75,6 @@ export function ModalDetallePronostico({ tren, periodo, tipo, onCerrar }: Props)
                     key={`${evento.fechaEstimada}-${evento.tipo}-${evento.trenNumero}-${indice}`}
                     className="border-b border-concreto/10"
                   >
-                    <td className="px-2 py-1.5 font-data text-concreto-oscuro">{evento.fechaUltimaMedicion}</td>
-                    <td className="px-2 py-1.5 text-right font-data text-concreto-oscuro">{evento.diasHastaEvento}</td>
-                    <td className="px-2 py-1.5 font-data text-concreto-oscuro">{evento.fechaEstimada}</td>
-                    <td className="px-2 py-1.5 font-semibold text-concreto-oscuro">
-                      {evento.tipo === 'CAMBIO' ? 'Cambio' : 'Reperfilado'}
-                      {evento.pendiente && <span className="ml-1 text-[color:var(--color-estado-seguimiento)]">pendiente</span>}
-                    </td>
                     <td className="px-2 py-1.5 text-right font-data text-concreto-oscuro">{evento.trenNumero}</td>
                     <td className="px-2 py-1.5 text-concreto-oscuro">{evento.posiciones[0]?.tipoCoche}</td>
                     <td className="px-2 py-1.5 text-right font-data text-concreto-oscuro">
@@ -88,6 +86,14 @@ export function ModalDetallePronostico({ tren, periodo, tipo, onCerrar }: Props)
                     </td>
                     <td className="px-2 py-1.5 capitalize text-concreto-oscuro">
                       {evento.posiciones.map((posicion) => posicion.lado).join(' / ')}
+                    </td>
+                    <td className="px-2 py-1.5 font-data text-concreto-oscuro">{evento.fechaUltimaMedicion}</td>
+                    <td className="px-2 py-1.5 text-right font-data text-concreto-oscuro">{evento.diasHastaEvento}</td>
+                    <td className="px-2 py-1.5 font-data text-concreto-oscuro">{evento.fechaEstimada}</td>
+                    <td className="px-2 py-1.5 font-semibold text-concreto-oscuro">
+                      <span className={evento.pendiente ? 'text-[color:var(--color-estado-seguimiento)]' : undefined}>
+                        {etiquetaEvento(evento)}
+                      </span>
                     </td>
                   </tr>
                 ))}

@@ -604,10 +604,10 @@ model MeasurementSheet {
   // acá: la ficha se guarda en borrador sin esto todavía) — ver
   // NewMeasurementCommitService.confirmar.
   responsableMantenimientoNombre String?   @map("responsable_mantenimiento_nombre") @db.VarChar(200)
-  responsableMantenimientoFirma  String?   @map("responsable_mantenimiento_firma") @db.VarChar(500)
+  responsableMantenimientoFirma  String?   @map("responsable_mantenimiento_firma") @db.Text
   responsableMantenimientoFecha  DateTime? @map("responsable_mantenimiento_fecha") @db.Date
   ingMrNombre                    String?   @map("ing_mr_nombre") @db.VarChar(200)
-  ingMrFirma                     String?   @map("ing_mr_firma") @db.VarChar(500)
+  ingMrFirma                     String?   @map("ing_mr_firma") @db.Text
   ingMrFecha                     DateTime? @map("ing_mr_fecha") @db.Date
 
   // Ciclo verificar -> bloquear -> confirmar (ver NewMeasurementValidationService
@@ -640,7 +640,7 @@ model MeasurementSheetTecnico {
   measurementSheetId String    @map("measurement_sheet_id") @db.Uuid
   posicion           Int
   nombre             String?   @db.VarChar(200)
-  firma              String?   @db.VarChar(500)
+  firma              String?   @db.Text
   fecha              DateTime? @db.Date
 
   measurementSheet MeasurementSheet @relation(fields: [measurementSheetId], references: [id], onDelete: Cascade)

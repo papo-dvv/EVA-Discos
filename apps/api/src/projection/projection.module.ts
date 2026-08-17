@@ -5,6 +5,7 @@ import { TraceabilityStatsService } from '../traceability/traceability-stats.ser
 import { ProyeccionCalculatorService } from './proyeccion-calculator.service';
 import { ProyeccionConfigService } from './proyeccion-config.service';
 import { ProyeccionRateService } from './proyeccion-rate.service';
+import { ProyeccionUmbralesService } from './proyeccion-umbrales.service';
 import { ProyeccionController } from './proyeccion.controller';
 import { ProyeccionService } from './proyeccion.service';
 
@@ -23,6 +24,7 @@ import { ProyeccionService } from './proyeccion.service';
     ProyeccionService,
     ProyeccionCalculatorService,
     ProyeccionRateService,
+    ProyeccionUmbralesService,
     ProyeccionConfigService,
     TraceabilityStatsService,
     ConsensoConfigService,

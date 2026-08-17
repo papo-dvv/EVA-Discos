@@ -1,4 +1,5 @@
 import { useRef, useState, type FormEvent } from 'react'
+import { ClipboardPenLine, Upload } from 'lucide-react'
 import { GlassButton } from '../../../components/GlassButton'
 import { GlassField } from '../../../components/GlassField'
 import { GlassModal } from '../../../components/GlassModal'
@@ -20,9 +21,10 @@ type Props = {
   // automáticamente la misma verificación que dispararía un click manual en
   // "Verificar", sin esperar a que el usuario la pida.
   onCreada: (fichaId: string, autoVerificar?: boolean) => void
+  deshabilitada?: boolean
 }
 
-export function CargaInicialFicha({ onCreada }: Props) {
+export function CargaInicialFicha({ onCreada, deshabilitada = false }: Props) {
   const [modo, setModo] = useState<'csv' | 'manual'>('csv')
   const [file, setFile] = useState<File | null>(null)
   const [trenNumero, setTrenNumero] = useState('')
@@ -38,6 +40,7 @@ export function CargaInicialFicha({ onCreada }: Props) {
 
   async function subir(event: FormEvent) {
     event.preventDefault()
+    if (deshabilitada) return
     if (!file) return
     setError(null)
     setCargando(true)
@@ -67,6 +70,7 @@ export function CargaInicialFicha({ onCreada }: Props) {
 
   async function crearManual(event: FormEvent) {
     event.preventDefault()
+    if (deshabilitada) return
     setError(null)
     setCargando(true)
     try {
@@ -83,12 +87,12 @@ export function CargaInicialFicha({ onCreada }: Props) {
   }
 
   return (
-    <div>
+    <div className={deshabilitada ? 'pointer-events-none opacity-45' : undefined} aria-disabled={deshabilitada || undefined}>
       <SegmentedControl
         ariaLabel="Origen de la ficha"
         opciones={[
-          { valor: 'csv', etiqueta: 'Subir archivo .csv' },
-          { valor: 'manual', etiqueta: 'Registrar manualmente' },
+          { valor: 'csv', etiqueta: 'Subir archivo .csv', icono: <Upload size={15} aria-hidden /> },
+          { valor: 'manual', etiqueta: 'Registrar manualmente', icono: <ClipboardPenLine size={15} aria-hidden /> },
         ]}
         valor={modo}
         onCambiar={setModo}
@@ -97,7 +101,7 @@ export function CargaInicialFicha({ onCreada }: Props) {
       {modo === 'csv' ? (
         <form onSubmit={subir} className="mt-5">
           <label className="glass-field flex cursor-pointer flex-col items-center gap-2 border-dashed py-7 text-center transition-colors hover:border-[color:var(--color-verde-institucional)]">
-            <span className="font-display text-2xl text-verde-oscuro">⇪</span>
+            <Upload size={28} className="text-verde-oscuro" aria-hidden />
             <span className="font-body text-sm font-semibold text-concreto-oscuro">
               {file ? file.name : 'Elegir archivo .csv'}
             </span>
@@ -109,6 +113,7 @@ export function CargaInicialFicha({ onCreada }: Props) {
               type="file"
               accept=".csv"
               className="hidden"
+              disabled={deshabilitada}
               onChange={(e) => setFile(e.target.files?.[0] ?? null)}
             />
           </label>

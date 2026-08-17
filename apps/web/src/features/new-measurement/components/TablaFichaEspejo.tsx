@@ -1,6 +1,5 @@
 import { useMemo } from 'react'
 import { GlassSurface } from '../../../components/GlassSurface'
-import { ScrollArea } from '../../../components/ScrollArea'
 import { WarningTooltip } from '../../../components/WarningTooltip'
 import { useSyncedState } from '../../../hooks/useSyncedState'
 import { useAgregarFilaFicha, useEditarFilaFicha } from '../queries'
@@ -59,14 +58,14 @@ export function TablaFichaEspejo({
 
   return (
     <GlassSurface fuerte className="mt-4 overflow-hidden rounded-glass">
-      <ScrollArea ejes="both" viewportClassName="max-h-[36rem]">
-        <table className="w-full border-collapse text-left font-body text-[0.75rem]">
+      <div>
+        <table className="w-full table-fixed border-collapse text-left font-body text-[0.75rem]">
           <thead>
             <tr className="border-b border-concreto/20">
               {mostrarColumnaMotivo && (
                 <th
                   rowSpan={2}
-                  className="sticky top-0 z-[1] w-[24rem] min-w-[24rem] bg-[color:var(--color-arena-suave)] px-3 py-1.5 text-left text-[0.6875rem] font-semibold uppercase tracking-wide text-concreto"
+                  className="sticky top-0 z-[1] w-[12rem] bg-[color:var(--color-arena-suave)] px-2 py-1.5 text-left text-[0.6875rem] font-semibold uppercase tracking-wide text-concreto"
                 >
                   Motivo/Inválido
                 </th>
@@ -119,7 +118,7 @@ export function TablaFichaEspejo({
             ))}
           </tbody>
         </table>
-      </ScrollArea>
+      </div>
     </GlassSurface>
   )
 }
@@ -149,7 +148,7 @@ function textoMotivosFila(fila: FilaEspejo): string {
 function Encabezado({ children, mono = false }: { children: React.ReactNode; mono?: boolean }) {
   return (
     <th
-      className={`sticky top-[1.9375rem] z-[1] whitespace-nowrap bg-[color:var(--color-arena-suave)] px-2.5 py-2 text-[0.6875rem] font-semibold uppercase tracking-wide text-concreto ${
+      className={`sticky top-[1.9375rem] z-[1] break-words bg-[color:var(--color-arena-suave)] px-1 py-2 text-[0.6875rem] font-semibold uppercase leading-tight tracking-wide text-concreto ${
         mono ? 'text-right' : 'text-left'
       }`}
     >
@@ -169,7 +168,7 @@ function Celda({
 }) {
   return (
     <td
-      className={`whitespace-nowrap px-2 py-1 text-concreto-oscuro ${mono ? 'text-right font-data' : ''} ${className}`.trim()}
+      className={`overflow-hidden px-1 py-1 text-concreto-oscuro ${mono ? 'text-right font-data' : ''} ${className}`.trim()}
     >
       {children}
     </td>
@@ -241,7 +240,7 @@ function FilaEspejoRow({
   return (
     <tr className="tabla-fila--glass border-b border-concreto/10">
       {mostrarColumnaMotivo && (
-        <td className="w-[24rem] min-w-[24rem] px-3 py-1.5 align-top">
+        <td className="w-[12rem] break-words px-2 py-1.5 align-top">
           {hayMotivo(fila.izquierdo) || hayMotivo(fila.derecho) ? (
             <WarningTooltip texto={textoMotivosFila(fila)} className="block">
               <span className="block cursor-help whitespace-normal text-pretty font-body text-xs font-semibold leading-snug text-[color:var(--color-estado-critico)]">
@@ -354,7 +353,7 @@ function CampoNumero({
             if (borrador.trim() !== '' && Number.isFinite(n) && n !== valor) onGuardar(n)
           }}
           placeholder="—"
-          className={`w-14 border px-1 py-1 text-right font-data text-xs text-concreto-oscuro transition-colors hover:border-concreto/25 focus:border-verde-institucional focus:bg-white/70 focus:outline-none disabled:opacity-50 ${
+          className={`w-full min-w-0 border px-1 py-1 text-right font-data text-xs text-concreto-oscuro transition-colors hover:border-concreto/25 focus:border-verde-institucional focus:bg-white/70 focus:outline-none disabled:opacity-50 ${
             resaltado ? CLASE_RESALTADO : 'rounded-lg border-transparent bg-transparent'
           }`.trim()}
         />

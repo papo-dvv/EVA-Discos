@@ -1,11 +1,4 @@
-import { useQueryClient } from '@tanstack/react-query'
-import { ConfirmDialog } from '../../../components/ConfirmDialog'
 import { Widget } from '../../../components/Widget'
-import type { SystemParamItem } from '../../system-params/api'
-import { AvisoAjusteConsenso } from '../../system-params/components/AvisoAjusteConsenso'
-import { FilaParametro } from '../../system-params/components/FilaParametro'
-import { useSystemParams } from '../../system-params/queries'
-import { claveFilaConEstado, useConfirmacionParametro } from '../../system-params/useConfirmacionParametro'
 import { ETIQUETA_ASIMETRIA, GLIFO_ASIMETRIA } from '../asimetria'
 import type { ClasificacionAsimetria, ConsensoLimites, MetodoDescrito } from '../types'
 
@@ -33,17 +26,6 @@ const METODOS: { clave: 'gauss' | 'percentiles' | 'tukey'; nombre: string }[] = 
   { clave: 'tukey', nombre: 'Tukey' },
 ]
 
-// Los 4 únicos parámetros configurables del cálculo de consenso (Gauss y
-// Tukey quedan fijos, ver traceability-stats.service.ts) — mismas claves que
-// ORDEN_GRUPO_CONSENSO en PanelParametros, en el mismo orden.
-const CLAVES_PERCENTILES = [
-  'percentil_limite_inferior',
-  'percentil_limite_superior',
-  'percentil_extremo_inferior',
-  'percentil_extremo_superior',
-]
-const CLAVE_AMPLITUD_MAXIMA_EXTREMO = 'amplitud_maxima_extremo'
-
 function formatearRango(inferior: number, superior: number): string {
   return `${inferior.toFixed(4)} … ${superior.toFixed(4)}`
 }
@@ -51,11 +33,8 @@ function formatearRango(inferior: number, superior: number): string {
 // Fórmulas y valores de los 3 métodos, con el consenso claramente
 // diferenciado (recuadro verde) del resto — es el que efectivamente clasifica
 // los puntos del gráfico (ver GraficoTrazabilidad / clasificarYLimpiarSerie
-// en el backend). Los 4 percentiles de consenso + amplitud_maxima_extremo son
-// editables acá mismo (input+Guardar+ConfirmDialog, igual patrón que
-// PanelParametros en Migración/Mediciones/Tasa de desgaste) — Gauss y Tukey
-// no tienen parámetro configurable, así que sus tarjetas quedan de solo
-// lectura.
+// en el backend). La configuración se administra en la card independiente
+// Parámetros de Trazabilidad, para no duplicar controles en esta vista.
 export function PanelMetodosTrazabilidad({
   conteo,
   gauss,
@@ -65,20 +44,6 @@ export function PanelMetodosTrazabilidad({
   clasificacionAsimetria,
 }: Props) {
   const porMetodo = { gauss, percentiles, tukey }
-  const queryClient = useQueryClient()
-  const params = useSystemParams()
-  const { actualizar, confirmando, setConfirmando, avisoAjuste, setAvisoAjuste, confirmar } =
-    useConfirmacionParametro(() => queryClient.invalidateQueries({ queryKey: ['traceability'] }))
-
-  const porClave = new Map((params.data ?? []).map((p) => [p.clave, p]))
-  const paramsPercentiles = CLAVES_PERCENTILES.map((c) => porClave.get(c)).filter(
-    (p): p is SystemParamItem => p !== undefined,
-  )
-  const paramAmplitud = porClave.get(CLAVE_AMPLITUD_MAXIMA_EXTREMO)
-
-  function solicitarConfirmacion(p: SystemParamItem, nuevo: string) {
-    setConfirmando({ clave: p.clave, anterior: p.valor, nuevo })
-  }
 
   return (
     <>
@@ -105,14 +70,6 @@ export function PanelMetodosTrazabilidad({
         pie="Pares válidos usados por Gauss, Percentiles y Tukey"
       />
 
-      {avisoAjuste && (
-        <AvisoAjusteConsenso
-          clave={avisoAjuste.clave}
-          ajustes={avisoAjuste.ajustes}
-          onCerrar={() => setAvisoAjuste(null)}
-        />
-      )}
-
       <div className="space-y-2.5">
         {METODOS.map(({ clave, nombre }) => {
           const m = porMetodo[clave]
@@ -131,21 +88,6 @@ export function PanelMetodosTrazabilidad({
                 </div>
               </dl>
 
-              {/* Únicos 4 parámetros configurables del consenso — ver
-                  CLAVES_PERCENTILES. Cambiar cualquiera recalcula gauss/
-                  percentiles/tukey/consenso en el próximo fetch de esta
-                  pantalla (onExito invalida ['traceability'] más abajo). */}
-              {clave === 'percentiles' && paramsPercentiles.length > 0 && (
-                <div className="mt-2.5 space-y-1.5 border-t border-concreto/10 pt-2.5">
-                  {paramsPercentiles.map((p) => (
-                    <FilaParametro
-                      key={claveFilaConEstado(p, actualizar)}
-                      param={p}
-                      onGuardar={(nuevo) => solicitarConfirmacion(p, nuevo)}
-                    />
-                  ))}
-                </div>
-              )}
             </div>
           )
         })}
@@ -172,39 +114,6 @@ export function PanelMetodosTrazabilidad({
         </dl>
       </div>
 
-      {paramAmplitud && (
-        <div className="mt-3 rounded-2xl border border-concreto/15 bg-white/40 p-3">
-          <p className="font-body text-sm font-semibold text-concreto-oscuro">Amplitud máxima del extremo</p>
-          <p className="mt-0.5 font-body text-[0.6875rem] text-concreto">
-            Rechaza un cambio de percentil si el extremo de consenso resultante supera esta amplitud. Vacío = sin
-            restricción.
-          </p>
-          <div className="mt-2.5">
-            <FilaParametro
-              key={claveFilaConEstado(paramAmplitud, actualizar)}
-              param={paramAmplitud}
-              permitirVacio
-              onGuardar={(nuevo) => solicitarConfirmacion(paramAmplitud, nuevo)}
-            />
-          </div>
-        </div>
-      )}
-
-      {confirmando && (
-        <ConfirmDialog
-          titulo="Confirmar cambio de parámetro"
-          textoConfirmar="Sí, cambiar"
-          onConfirm={confirmar}
-          onCerrar={() => setConfirmando(null)}
-          mensaje={
-            <>
-              ¿Seguro que quieres cambiar <span className="font-data">{confirmando.clave}</span> de{' '}
-              <b className="font-data">{confirmando.anterior}</b> a <b className="font-data">{confirmando.nuevo}</b>?
-              Esto afecta cómo se clasifican los puntos de trazabilidad de <b>toda la flota</b>.
-            </>
-          }
-        />
-      )}
     </>
   )
 }

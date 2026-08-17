@@ -4,6 +4,7 @@ import { WarningTooltip } from '../../../components/WarningTooltip'
 import { useSyncedState } from '../../../hooks/useSyncedState'
 import { aFechaCorta } from '../fecha'
 import type { CambiosFicha, FichaInstrumento, FichaMedicion, FichaTecnico } from '../types'
+import { FirmaDigital } from './FirmaDigital'
 
 type Props = {
   ficha: FichaMedicion
@@ -12,7 +13,7 @@ type Props = {
 }
 
 const CLASE_INPUT =
-  'glass-field px-2.5 py-1.5 text-xs'
+  'glass-field w-full min-w-0 px-2.5 py-1.5 text-xs'
 
 // Footer completo de la ficha (punto 3 del enunciado): instrumentos (3 filas
 // fijas), comentarios, técnicos (4 fijos, 2x2) y el bloque Ing. MR/Responsable
@@ -26,7 +27,7 @@ export function FooterFicha({ ficha, onGuardar, limiteTecnicos }: Props) {
     <div className="mt-6 space-y-5">
       <GlassSurface fuerte className="rounded-glass p-5">
         <h2 className="mb-3 font-display text-base font-semibold text-concreto-oscuro">Lista de instrumentos</h2>
-        <TablaInstrumentos instrumentos={ficha.instrumentos} onGuardar={onGuardar} />
+        <TablaInstrumentos instrumentos={ficha.instrumentos} fechaVerificacion={ficha.fechaFicha} onGuardar={onGuardar} />
       </GlassSurface>
 
       <GlassSurface fuerte className="rounded-glass p-5">
@@ -82,14 +83,16 @@ export function FooterFicha({ ficha, onGuardar, limiteTecnicos }: Props) {
 
 function TablaInstrumentos({
   instrumentos,
+  fechaVerificacion,
   onGuardar,
 }: {
   instrumentos: FichaInstrumento[]
+  fechaVerificacion: string
   onGuardar: (cambios: CambiosFicha) => void
 }) {
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[52rem] border-collapse text-left font-body text-xs">
+    <div className="w-full">
+      <table className="w-full table-fixed border-collapse text-left font-body text-xs">
         <thead>
           <tr className="border-b border-concreto/20 text-[0.6875rem] font-semibold uppercase tracking-wide text-concreto">
             <th className="px-2 py-2">Código</th>
@@ -102,7 +105,7 @@ function TablaInstrumentos({
         </thead>
         <tbody>
           {instrumentos.map((inst) => (
-            <FilaInstrumento key={inst.posicion} instrumento={inst} onGuardar={onGuardar} />
+            <FilaInstrumento key={inst.posicion} instrumento={inst} fechaVerificacion={fechaVerificacion} onGuardar={onGuardar} />
           ))}
         </tbody>
       </table>
@@ -112,9 +115,11 @@ function TablaInstrumentos({
 
 function FilaInstrumento({
   instrumento,
+  fechaVerificacion,
   onGuardar,
 }: {
   instrumento: FichaInstrumento
+  fechaVerificacion: string
   onGuardar: (cambios: CambiosFicha) => void
 }) {
   const [form, setForm] = useState({
@@ -131,8 +136,19 @@ function FilaInstrumento({
     onGuardar({ instrumentos: [{ posicion: instrumento.posicion, [campo]: valor }] })
   }
 
+  const valores = Object.values(form).map((valor) => valor.trim())
+  const filaIncompleta = valores.some(Boolean) && valores.some((valor) => !valor)
+  const vencimientoInvalido =
+    Boolean(form.fechaVencimientoCalibracion) &&
+    (form.fechaVencimientoCalibracion < fechaVerificacion.slice(0, 10) ||
+      (Boolean(form.fechaCalibracion) &&
+        form.fechaVencimientoCalibracion < form.fechaCalibracion))
+  const fechaMinimaVencimiento =
+    [fechaVerificacion.slice(0, 10), form.fechaCalibracion].filter(Boolean).sort().at(-1) ?? ''
+
   return (
-    <tr className="border-b border-concreto/10">
+    <>
+      <tr className="border-b border-concreto/10">
       <td className="px-2 py-1.5">
         <input className={CLASE_INPUT} value={form.codigo} onChange={(e) => setForm((f) => ({ ...f, codigo: e.target.value }))} onBlur={(e) => guardarCampo('codigo', e.target.value)} />
       </td>
@@ -143,15 +159,25 @@ function FilaInstrumento({
         <input className={CLASE_INPUT} value={form.modeloMarca} onChange={(e) => setForm((f) => ({ ...f, modeloMarca: e.target.value }))} onBlur={(e) => guardarCampo('modeloMarca', e.target.value)} />
       </td>
       <td className="px-2 py-1.5">
-        <input type="date" className={CLASE_INPUT} value={form.fechaCalibracion} onChange={(e) => guardarCampo('fechaCalibracion', e.target.value)} />
+        <input type="date" className={CLASE_INPUT} value={form.fechaCalibracion} onChange={(e) => setForm((f) => ({ ...f, fechaCalibracion: e.target.value }))} onBlur={(e) => guardarCampo('fechaCalibracion', e.target.value)} />
       </td>
       <td className="px-2 py-1.5">
-        <input type="date" className={CLASE_INPUT} value={form.fechaVencimientoCalibracion} onChange={(e) => guardarCampo('fechaVencimientoCalibracion', e.target.value)} />
+        <input type="date" min={fechaMinimaVencimiento} className={CLASE_INPUT} value={form.fechaVencimientoCalibracion} onChange={(e) => setForm((f) => ({ ...f, fechaVencimientoCalibracion: e.target.value }))} onBlur={(e) => guardarCampo('fechaVencimientoCalibracion', e.target.value)} />
       </td>
       <td className="px-2 py-1.5">
         <input className={CLASE_INPUT} value={form.observaciones} onChange={(e) => setForm((f) => ({ ...f, observaciones: e.target.value }))} onBlur={(e) => guardarCampo('observaciones', e.target.value)} />
       </td>
-    </tr>
+      </tr>
+      {(filaIncompleta || vencimientoInvalido) && (
+        <tr className="border-b border-concreto/10">
+          <td colSpan={6} className="px-2 pb-2 text-xs text-[color:var(--color-estado-critico)]">
+            {filaIncompleta
+              ? 'Completa todos los campos de esta fila o déjala vacía.'
+              : 'La fecha de vencimiento no puede ser anterior a la fecha de verificación ni a la de calibración.'}
+          </td>
+        </tr>
+      )}
+    </>
   )
 }
 
@@ -210,13 +236,10 @@ function FilaTecnico({
           onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))}
           onBlur={(e) => guardarCampo('nombre', e.target.value)}
         />
-        <input
-          className={CLASE_INPUT}
-          placeholder="Firma"
-          aria-label={`Firma técnico ${tecnico.posicion}`}
-          value={form.firma}
-          onChange={(e) => setForm((f) => ({ ...f, firma: e.target.value }))}
-          onBlur={(e) => guardarCampo('firma', e.target.value)}
+        <FirmaDigital
+          etiqueta={`Técnico ${tecnico.posicion}`}
+          valor={form.firma}
+          onGuardar={(firma) => guardarCampo('firma', firma)}
         />
         <input
           type="date"
@@ -271,13 +294,13 @@ function BloqueResponsable({
           onChange={(e) => setBorradorNombre(e.target.value)}
           onBlur={(e) => onGuardar({ nombre: e.target.value })}
         />
-        <input
-          className={CLASE_INPUT}
-          placeholder="Firma"
-          aria-label={`Firma ${titulo}`}
-          value={borradorFirma}
-          onChange={(e) => setBorradorFirma(e.target.value)}
-          onBlur={(e) => onGuardar({ firma: e.target.value })}
+        <FirmaDigital
+          etiqueta={titulo}
+          valor={borradorFirma}
+          onGuardar={(firma) => {
+            setBorradorFirma(firma)
+            onGuardar({ firma })
+          }}
         />
         <input
           type="date"

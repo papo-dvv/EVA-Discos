@@ -15,6 +15,9 @@ export const PARAMS_EDITABLES: Record<string, ReglaParam> = {
   rd_umbral_critico: { tipo: 'numero' },
   h_umbral_reperfilado: { tipo: 'numero', min: 0 },
   reperfilado_descuento_rd: { tipo: 'numero', min: 0 },
+  proyeccion_h_umbral_reperfilado: { tipo: 'numero', min: 0 },
+  proyeccion_rd_umbral_cambio: { tipo: 'numero', min: 0 },
+  proyeccion_reperfilado_descuento_rd: { tipo: 'numero', min: 0 },
   outlier_parametro: { tipo: 'numero', min: 0 },
   dias_anticipacion_agenda: { tipo: 'numero', entero: true, min: 0 },
   km_mensual: { tipo: 'numero', min: 0 },
@@ -64,6 +67,28 @@ export const PARAMS_EDITABLES: Record<string, ReglaParam> = {
   // la alerta SEVERA queda fija en 7 meses en el código, nunca lee esta
   // clave (ver measurement-gap.service.ts).
   measurement_gap_umbral_meses: { tipo: 'numero', min: 0 },
+};
+
+// Parámetros incorporados después de que algunas instalaciones ya tenían su
+// tabla system_params poblada. Se exponen desde el API aunque aún no tengan
+// fila física; al primer guardado se crean sin resembrar ni alterar valores
+// existentes de otros parámetros.
+export const PARAMS_INICIALES_FALTANTES: Record<
+  string,
+  { valor: string; descripcion: string }
+> = {
+  proyeccion_h_umbral_reperfilado: {
+    valor: '1.6',
+    descripcion: 'Umbral H usado exclusivamente por la proyección de reperfilado (mm)',
+  },
+  proyeccion_rd_umbral_cambio: {
+    valor: '0.4',
+    descripcion: 'Umbral Rd para proyectar un cambio; no altera las mediciones (mm)',
+  },
+  proyeccion_reperfilado_descuento_rd: {
+    valor: '0.8',
+    descripcion: 'Descuento Rd tras un reperfilado, usado exclusivamente por Proyección (mm)',
+  },
 };
 
 // Valida y normaliza el valor recibido según la regla de la clave. Devuelve el

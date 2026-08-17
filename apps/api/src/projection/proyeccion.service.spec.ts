@@ -943,10 +943,10 @@ describe('ProyeccionService.obtenerPronostico', () => {
   // proyectarCiclos asume reperfilado instantáneo apenas H cruza el umbral,
   // así que interpolarEnFecha nunca devuelve REPERFILADO por sí solo — ni
   // siquiera para un disco que YA está en ese estado real hoy (ver el
-  // comentario de estadoProyectadoEnMes). Este test cubre el parche: en el
-  // mes que contiene "hoy" se prioriza el estado real por sobre el
-  // interpolado.
-  it('un disco YA en REPERFILADO real se refleja así en el mes en curso, no en los siguientes', async () => {
+  // comentario de estadoProyectadoEnMes). El estado real pendiente debe
+  // tener el mismo tratamiento que CAMBIO pendiente: aparecer como evento
+  // en el mes actual, incluso si la proyección no tiene ciclos disponibles.
+  it('un disco YA en REPERFILADO real se cuenta como Reperfilado pendiente en el mes actual', async () => {
     jest.useFakeTimers().setSystemTime(new Date('2026-01-15T00:00:00.000Z'));
 
     const discos = [discoBrakeFixture({ id: 'd1', trenNumero: 1 })];
@@ -963,22 +963,10 @@ describe('ProyeccionService.obtenerPronostico', () => {
       t: 6.8,
       rd: 5.0,
       fechaUltimaMedicion: new Date('2026-01-01T00:00:00.000Z'),
-      tasaMensual: 0.25,
-      ciclosReperfilado: [
-        {
-          numero: 1,
-          mesesHastaFecha: 0,
-          fechaEstimada: new Date('2026-01-01T00:00:00.000Z'),
-          hEnEseMomento: 1.8,
-          tEnEseMomento: 6.8,
-          rdAntes: 5.0,
-          rdDespues: 4.2,
-        },
-      ],
-      cicloCambio: {
-        mesesHastaFecha: 50,
-        fechaEstimada: new Date('2030-01-01T00:00:00.000Z'),
-      },
+      proyectable: false,
+      tasaMensual: null,
+      ciclosReperfilado: [],
+      cicloCambio: null,
     });
     const calculator = {
       proyectarDisco: jest.fn().mockResolvedValue(proyeccion),
@@ -993,10 +981,11 @@ describe('ProyeccionService.obtenerPronostico', () => {
     const meses = await service.obtenerPronostico({ meses: 12 });
 
     expect(meses[0].mes).toBe('2026-01');
-    expect(meses[0].desgloseEstado.reperfilado).toBe(1);
-
-    expect(meses[1].mes).toBe('2026-02');
-    expect(meses[1].desgloseEstado.reperfilado).toBe(0);
+    for (const [indice, mes] of meses.entries()) {
+      expect(mes.desgloseEstado.reperfilado).toBe(indice === 0 ? 1 : 0);
+      expect(mes.reperfilados).toBe(indice === 0 ? 1 : 0);
+      expect(mes.cambios).toBe(0);
+    }
   });
 
   // Punto 2 del enunciado: rango extendido de pronóstico — mismo shape de
