@@ -127,6 +127,31 @@ export function CargaInicialReperfilado({
           Object.keys(ocr.codigosBogie).length > 0
             ? ocr.codigosBogie
             : undefined,
+        comentariosActividad: ocr.comentariosActividad ?? undefined,
+        tecnicos: ocr.tecnicos.map((tecnico) => ({
+          posicion: tecnico.posicion,
+          nombre: tecnico.nombre ?? undefined,
+          fecha: tecnico.fecha ?? undefined,
+          firma: tecnico.firma ?? undefined,
+        })),
+        instrumentos: ocr.instrumentos.map((instrumento) => ({
+          posicion: instrumento.posicion,
+          codigo: instrumento.codigo ?? undefined,
+          descripcion: instrumento.descripcion ?? undefined,
+          modeloMarca: instrumento.modeloMarca ?? undefined,
+          fechaCalibracion: instrumento.fechaCalibracion ?? undefined,
+          fechaVencimientoCalibracion: instrumento.fechaVencimientoCalibracion ?? undefined,
+          observaciones: instrumento.observaciones ?? undefined,
+        })),
+        ingMrNombre: ocr.ingMr?.nombre ?? undefined,
+        ingMrFecha: ocr.ingMr?.fecha ?? undefined,
+        ingMrFirma: ocr.ingMr?.firma ?? undefined,
+        responsableMantenimientoNombre:
+          ocr.responsableMantenimiento?.nombre ?? undefined,
+        responsableMantenimientoFecha:
+          ocr.responsableMantenimiento?.fecha ?? undefined,
+        responsableMantenimientoFirma:
+          ocr.responsableMantenimiento?.firma ?? undefined,
       })
       for (const fila of ocr.filas) {
         const { confianza: _confianza, tAntes, hAntes, ...medicion } = fila

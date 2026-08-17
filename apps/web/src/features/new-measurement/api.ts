@@ -57,6 +57,19 @@ export interface ResultadoOcrReperfilado {
   horaFin: string | null
   codigosCoche: import('./types').CodigosCoche
   codigosBogie: import('./types').CodigosBogie
+  comentariosActividad: string | null
+  tecnicos: Array<{ posicion: number; nombre: string | null; fecha: string | null; firma: string | null }>
+  instrumentos: Array<{
+    posicion: number
+    codigo: string | null
+    descripcion: string | null
+    modeloMarca: string | null
+    fechaCalibracion: string | null
+    fechaVencimientoCalibracion: string | null
+    observaciones: string | null
+  }>
+  ingMr: { nombre: string | null; fecha: string | null; firma: string | null } | null
+  responsableMantenimiento: { nombre: string | null; fecha: string | null; firma: string | null } | null
   confianza: number
   filas: Array<{
     ejeNumero: number
