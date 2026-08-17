@@ -56,6 +56,7 @@ export interface ResultadoOcrReperfilado {
   horaInicio: string | null
   horaFin: string | null
   codigosCoche: import('./types').CodigosCoche
+  codigosBogie: import('./types').CodigosBogie
   confianza: number
   filas: Array<{
     ejeNumero: number

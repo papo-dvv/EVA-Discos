@@ -18,6 +18,7 @@ export const MOTIVOS_FICHA = ['Medición', 'Reperfilado', 'Cambio'] as const
 export type MotivoFicha = (typeof MOTIVOS_FICHA)[number]
 export type TipoCoche = 'MA1' | 'MB1' | 'MB3' | 'REM' | 'MB2' | 'MA2'
 export type CodigosCoche = Partial<Record<TipoCoche, number>>
+export type CodigosBogie = Partial<Record<string, string>>
 
 // Espejo de PosicionEsqueleto (apps/api/src/new-measurement/new-measurement-esqueleto.ts).
 export interface PosicionEsqueleto {
@@ -56,6 +57,7 @@ export interface FichaMedicion {
   actividad: string
   motivo: MotivoFicha
   codigosCoche: CodigosCoche | null
+  codigosBogie: CodigosBogie | null
   puestoTrabajo: string | null
   fechaHoraInicio: string | null
   fechaHoraFin: string | null
@@ -177,6 +179,7 @@ export interface ResumenVerificacion {
   // kmInvalido/fechaInvalido aplican a nivel FICHA (no a una fila puntual).
   kmInvalido: { motivo: string } | null
   fechaInvalido: { motivo: string } | null
+  alertasReperfilado: string[]
 }
 
 // Respuesta de POST /new-measurement/:fichaId/lock.
@@ -242,6 +245,7 @@ export type ResultadoReferencia =
 // cambia (espejo de UpdateFichaDto).
 export interface CambiosFicha {
   codigosCoche?: CodigosCoche
+  codigosBogie?: CodigosBogie
   trenNumero?: number
   kilometraje?: number
   fechaFicha?: string

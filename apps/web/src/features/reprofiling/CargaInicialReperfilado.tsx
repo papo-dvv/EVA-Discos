@@ -123,6 +123,10 @@ export function CargaInicialReperfilado({
           Object.keys(ocr.codigosCoche).length > 0
             ? ocr.codigosCoche
             : undefined,
+        codigosBogie:
+          Object.keys(ocr.codigosBogie).length > 0
+            ? ocr.codigosBogie
+            : undefined,
       })
       for (const fila of ocr.filas) {
         const { confianza: _confianza, tAntes, hAntes, ...medicion } = fila

@@ -28,7 +28,6 @@ import type {
 } from '../features/new-measurement/types'
 import { CargaInicialReperfilado } from '../features/reprofiling/CargaInicialReperfilado'
 import { HeaderReperfilado } from '../features/reprofiling/HeaderReperfilado'
-import { CodigosCocheReperfilado } from '../features/reprofiling/CodigosCocheReperfilado'
 import { extraerMensajeError } from '../lib/extraerMensajeError'
 
 export function Reperfilado() {
@@ -39,6 +38,7 @@ export function Reperfilado() {
   const [resultado, setResultado] = useState<ResumenVerificacion | null>(null)
   const [descargandoPdf, setDescargandoPdf] = useState(false)
   const [nombrePdf, setNombrePdf] = useState('')
+  const [errorAccion, setErrorAccion] = useState<string | null>(null)
   const preview = useFichaPreview(fichaId ?? '', { page: 1, pageSize: 100 })
   const editar = useEditarFicha(fichaId ?? '')
   const verificar = useVerificarFicha(fichaId ?? '')
@@ -51,8 +51,7 @@ export function Reperfilado() {
   const responsableVacio = !ficha?.responsableMantenimientoNombre?.trim()
   const cabeceraIncompleta =
     !ficha?.puestoTrabajo?.trim() ||
-    !ficha?.fechaHoraInicio ||
-    !ficha?.fechaHoraFin
+    !ficha?.fechaHoraInicio
   const motivosValidacion = resultado
     ? [
         resultado.kmInvalido?.motivo,
@@ -60,6 +59,7 @@ export function Reperfilado() {
         resultado.filasExcluidas.length > 0
           ? `${resultado.filasExcluidas.length} disco(s) tienen mediciones fuera de los límites.`
           : null,
+        ...resultado.alertasReperfilado,
       ].filter((motivo): motivo is string => Boolean(motivo))
     : []
 
@@ -77,6 +77,16 @@ export function Reperfilado() {
       setNombrePdf(`UT-UF-MTO-FR-414 - Tren ${ficha.trenNumero}`)
     }
   }, [ficha, nombrePdf])
+
+  function irAlPrimerError() {
+    setResultado(null)
+    window.requestAnimationFrame(() => {
+      const campo = document.querySelector<HTMLElement>('[data-reperfilado-invalido="true"]')
+      const destino = campo ?? document.querySelector<HTMLElement>('table')
+      destino?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      campo?.focus()
+    })
+  }
 
   return (
     <PantallaFondo className="px-3 py-6 sm:px-5">
@@ -188,17 +198,13 @@ export function Reperfilado() {
                   seguridad exigidos por la empresa.
                 </p>
               </GlassSurface>
-              <CodigosCocheReperfilado
-                trenNumero={ficha.trenNumero}
-                esqueleto={preview.data.esqueleto}
-                codigos={ficha.codigosCoche}
-                deshabilitado={tablaBloqueada}
-                onGuardar={(codigosCoche) => editar.mutate({ codigosCoche })}
-              />
               <TablaFichaReperfilado
                 fichaId={fichaId}
                 esqueleto={preview.data.esqueleto}
                 rows={rows}
+                codigosCoche={ficha.codigosCoche}
+                codigosBogie={ficha.codigosBogie}
+                onGuardarCodigos={(cambios) => editar.mutate(cambios)}
                 deshabilitada={tablaBloqueada}
               />
               <GlassSurface
@@ -212,17 +218,23 @@ export function Reperfilado() {
                       ? '✅ Ficha verificada — lista para bloquear.'
                       : 'Verifica los límites antes de bloquear la tabla.'}
                 </p>
+                {errorAccion && <p role="alert" className="w-full text-sm text-[color:var(--color-estado-critico)]">⚠ {errorAccion}</p>}
                 {!tablaBloqueada && (
                   <GlassButton
                     cargando={verificar.isPending || bloquear.isPending}
                     onClick={async () => {
-                      const validacion = await verificar.mutateAsync()
-                      if (!validacion.todoValido) {
-                        setResultado(validacion)
-                        return
+                      setErrorAccion(null)
+                      try {
+                        const validacion = await verificar.mutateAsync()
+                        if (!validacion.todoValido) {
+                          setResultado(validacion)
+                          return
+                        }
+                        await bloquear.mutateAsync()
+                        setResultado(null)
+                      } catch (error) {
+                        setErrorAccion(extraerMensajeError(error, 'No se pudo validar y bloquear la ficha.'))
                       }
-                      await bloquear.mutateAsync()
-                      setResultado(null)
                     }}
                   >
                     Validar la información y bloquear
@@ -270,7 +282,7 @@ export function Reperfilado() {
                     Confirmar ficha
                   </GlassButton>
                 ) : (
-                  <WarningTooltip texto="Completa P.T., fechas/horas, bloquea la tabla y registra el Responsable de Mantenimiento.">
+                  <WarningTooltip texto="Completa P.T. y fecha/hora de inicio, bloquea la tabla y registra el Responsable de Mantenimiento.">
                     <GlassButton
                       aria-disabled="true"
                       className="cursor-not-allowed opacity-60"
@@ -315,9 +327,9 @@ export function Reperfilado() {
         <ConfirmDialog
           titulo="No se puede bloquear todavía"
           mensaje="Corrige la información indicada y vuelve a validar. La tabla seguirá editable."
-          textoConfirmar="Revisar pendientes"
+          textoConfirmar="Seguir editando"
           textoCancelar="Cerrar"
-          onConfirm={() => setResultado(null)}
+          onConfirm={irAlPrimerError}
           onCerrar={() => setResultado(null)}
         >
           <ul className="mt-3 space-y-1.5 rounded-2xl border border-amber-600/15 bg-amber-50/45 px-4 py-3 font-body text-sm text-concreto-oscuro">

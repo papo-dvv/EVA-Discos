@@ -125,7 +125,8 @@ export class NewMeasurementPreviewService {
       dto.trenNumero !== undefined ||
       dto.kilometraje !== undefined ||
       dto.fechaFicha !== undefined ||
-      dto.codigosCoche !== undefined;
+      dto.codigosCoche !== undefined ||
+      dto.codigosBogie !== undefined;
     if (tocaHeaderBloqueado && ficha.tablaBloqueada) {
       throw new HttpException(
         'La tabla de mediciones está bloqueada: Tren/Fecha/Kilometraje ya no se pueden editar.',
@@ -136,6 +137,12 @@ export class NewMeasurementPreviewService {
     const cambios: Prisma.MeasurementSheetUpdateInput = {};
     if (dto.codigosCoche !== undefined)
       cambios.codigosCoche = dto.codigosCoche as Prisma.InputJsonValue;
+    if (dto.codigosBogie !== undefined)
+      cambios.codigosBogie = Object.fromEntries(
+        Object.entries(dto.codigosBogie)
+          .map(([posicion, codigo]) => [posicion, codigo.trim().toUpperCase()])
+          .filter(([, codigo]) => codigo !== ''),
+      ) as Prisma.InputJsonValue;
     if (dto.trenNumero !== undefined) {
       await validarTrenAlstom(this.prisma, dto.trenNumero);
       cambios.trenNumero = dto.trenNumero;

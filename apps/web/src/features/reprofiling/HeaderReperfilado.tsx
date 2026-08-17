@@ -99,8 +99,7 @@ export function HeaderReperfilado({
           }}
         />
         <GlassField
-          label="Fecha / hora fin *"
-          required
+          label="Fecha / hora fin (opcional)"
           type="datetime-local"
           disabled={deshabilitada}
           value={fin}

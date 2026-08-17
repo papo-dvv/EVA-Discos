@@ -6,6 +6,7 @@ import {
   IsInt,
   IsNumber,
   IsOptional,
+  IsObject,
   IsString,
   Max,
   Min,
@@ -86,6 +87,10 @@ export class UpdateFichaDto {
   @ValidateNested()
   @Type(() => CodigosCocheDto)
   codigosCoche?: CodigosCocheDto;
+
+  @IsOptional()
+  @IsObject()
+  codigosBogie?: Record<string, string>;
 
   @IsOptional()
   @Type(() => Number)

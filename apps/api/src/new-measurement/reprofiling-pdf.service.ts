@@ -43,6 +43,8 @@ export class ReprofilingPdfService {
       ...numerosCatalogo,
       ...((ficha.codigosCoche as Record<string, number> | null) ?? {}),
     };
+    const codigosBogie =
+      (ficha.codigosBogie as Record<string, string> | null) ?? {};
     const porPosicion = new Map(
       filas.map((fila) => [`${fila.ejeExcel}|${fila.ubicacionExcel}`, fila]),
     );
@@ -152,6 +154,18 @@ export class ReprofilingPdfService {
     const coches = ['MA1', 'MB1', 'MB3', 'REM', 'MB2', 'MA2'] as const;
     coches.forEach((tipo, indice) => {
       escribir(numerosCoche[tipo], 315, 535 - indice * 51.8, 7, true);
+    });
+    const posicionesBogie = [
+      ['MA1:PB3', 1], ['MA1:PB4', 3], ['MB1:PB6', 5], ['MB1:PB2', 7],
+      ['MB3:PB6', 9], ['MB3:PB2', 11], ['REM:TB1', 13], ['REM:TB2', 15],
+      ['MB2:PB2', 17], ['MB2:PB6', 19], ['MA2:PB4', 21], ['MA2:PB3', 23],
+    ] as const;
+    posicionesBogie.forEach(([posicion, ejeInicio]) => {
+      const y =
+        561 -
+        (ejeInicio - 1) * 12.35 -
+        Math.floor((ejeInicio - 1) / 4) * 2.35;
+      escribir(codigosBogie[posicion], 49, y, 5.8, true);
     });
 
     if (ficha.todasConformes !== null)

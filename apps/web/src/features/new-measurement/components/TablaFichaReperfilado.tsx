@@ -3,7 +3,7 @@ import { GlassSurface } from '../../../components/GlassSurface'
 import { useSyncedState } from '../../../hooks/useSyncedState'
 import { construirFilasEspejo, type LadoFilaEspejo } from '../filaEspejo'
 import { useAgregarFilaFicha, useEditarFilaFicha } from '../queries'
-import type { PosicionEsqueleto, PreviewRow } from '../types'
+import type { CambiosFicha, CodigosBogie, CodigosCoche, PosicionEsqueleto, PreviewRow, TipoCoche } from '../types'
 
 type Lado = 'izquierdo' | 'derecho'
 
@@ -11,7 +11,18 @@ type Props = {
   fichaId: string
   esqueleto: PosicionEsqueleto[]
   rows: PreviewRow[]
+  codigosCoche: CodigosCoche | null
+  codigosBogie: CodigosBogie | null
+  onGuardarCodigos: (cambios: CambiosFicha) => void
   deshabilitada?: boolean
+}
+
+const TIPOS_COCHE: TipoCoche[] = ['MA1', 'MB1', 'MB3', 'REM', 'MB2', 'MA2']
+const opcionesCoche = (tipo: TipoCoche) => {
+  const offset = { MA1: 101, MB1: 102, MB2: 103, MA2: 104 }[tipo as 'MA1' | 'MB1' | 'MB2' | 'MA2']
+  if (offset) return Array.from({ length: 39 }, (_, indice) => String(offset + indice * 4))
+  const inicio = tipo === 'MB3' ? 501 : 401
+  return Array.from({ length: 39 }, (_, indice) => String(inicio + indice))
 }
 
 // Ficha UT-UF-MTO-FR-414 adaptada al lenguaje visual del proyecto: conserva
@@ -20,6 +31,9 @@ export function TablaFichaReperfilado({
   fichaId,
   esqueleto,
   rows,
+  codigosCoche,
+  codigosBogie,
+  onGuardarCodigos,
   deshabilitada = false,
 }: Props) {
   const filas = useMemo(
@@ -44,12 +58,26 @@ export function TablaFichaReperfilado({
   const porcentaje = totalLados
     ? Math.round((ladosCompletos / totalLados) * 100)
     : 0
+  const fueraDeLimite = filas.reduce((total, fila) => {
+    const lados = [fila.izquierdo, fila.derecho]
+    return total + lados.filter((lado) =>
+      (lado.reperfiladoTAntes !== null && lado.reperfiladoTAntes <= 0) ||
+      (lado.reperfiladoHAntes !== null && lado.reperfiladoHAntes > 2) ||
+      (lado.tValue !== null && lado.tValue <= 0.3) ||
+      (lado.hValue !== null && lado.hValue > 2) ||
+      (lado.rugosidadRa !== null && lado.rugosidadRa > 3.2),
+    ).length
+  }, 0)
   const filasVisibles = soloPendientes
     ? filas.filter(
         (fila) =>
           !ladoCompleto(fila.izquierdo) || !ladoCompleto(fila.derecho),
       )
     : filas
+  const cochesActuales = Object.fromEntries(TIPOS_COCHE.map((tipo) => [
+    tipo,
+    codigosCoche?.[tipo] ?? null,
+  ])) as CodigosCoche
 
   return (
     <GlassSurface fuerte className="mt-4 overflow-hidden rounded-glass">
@@ -61,7 +89,7 @@ export function TablaFichaReperfilado({
             </h2>
             <p className="mt-0.5 font-body text-xs text-concreto">
               Completa las cinco mediciones de cada lado tal como aparecen en
-              la ficha física, incluida la rugosidad R.A.
+              la ficha física, incluida la rugosidad R.A. Los códigos de bogie y coche se editan dentro de esta misma tabla.
             </p>
           </div>
           <button
@@ -93,6 +121,12 @@ export function TablaFichaReperfilado({
             </div>
           </div>
         </div>
+        {(totalLados - ladosCompletos > 0 || fueraDeLimite > 0) && (
+          <div role="alert" className="mt-3 flex flex-wrap gap-x-5 gap-y-1 rounded-2xl border border-amber-600/20 bg-amber-50/60 px-4 py-2.5 text-xs text-amber-900">
+            {totalLados - ladosCompletos > 0 && <span>⚠ Faltan {totalLados - ladosCompletos} posiciones por completar.</span>}
+            {fueraDeLimite > 0 && <span>⚠ {fueraDeLimite} posiciones tienen al menos un valor fuera del límite.</span>}
+          </div>
+        )}
       </div>
       <div className="w-full">
         <table className="w-full table-fixed border-collapse font-body text-xs">
@@ -166,14 +200,21 @@ export function TablaFichaReperfilado({
                     : ''
                 }`}
               >
-                <td className="px-2.5 py-1.5 font-semibold text-concreto-oscuro">
-                  <span>{fila.bogieCodigo}</span>
-                  {(fila.ejeNumero - 1) % 4 === 0 && (
-                    <span className="ml-2 rounded-full bg-concreto/10 px-2 py-0.5 text-[0.625rem] uppercase tracking-wide text-concreto">
-                      Bloque {Math.ceil(fila.ejeNumero / 4)}
-                    </span>
-                  )}
-                </td>
+                {(soloPendientes || (fila.ejeNumero - 1) % 2 === 0) && (
+                  <td rowSpan={soloPendientes ? 1 : 2} className="px-2 py-1.5 align-middle font-semibold text-concreto-oscuro">
+                    <div className="flex items-center justify-between gap-1">
+                      <span>{fila.bogieCodigo}</span>
+                      {(fila.ejeNumero - 1) % 4 === 0 && <span className="rounded-full bg-concreto/10 px-1.5 py-0.5 text-[0.55rem] uppercase tracking-wide text-concreto">B{Math.ceil(fila.ejeNumero / 4)}</span>}
+                    </div>
+                    <CampoCodigoTabla
+                      etiqueta={`Código ${fila.tipoCoche} ${fila.bogieCodigo}`}
+                      valor={codigosBogie?.[`${fila.tipoCoche}:${fila.bogieCodigo}`] ?? ''}
+                      opciones={['PB2', 'PB3', 'PB4', 'PB6', 'TB1', 'TB2']}
+                      disabled={deshabilitada}
+                      onGuardar={(codigo) => onGuardarCodigos({ codigosBogie: { ...(codigosBogie ?? {}), [`${fila.tipoCoche}:${fila.bogieCodigo}`]: codigo } })}
+                    />
+                  </td>
+                )}
                 <LadoReperfilado
                   fichaId={fichaId}
                   eje={fila.ejeNumero}
@@ -190,9 +231,16 @@ export function TablaFichaReperfilado({
                     className="border-x-2 border-concreto/20 bg-white/55 px-3 py-1.5 text-center align-middle font-semibold text-concreto-oscuro"
                   >
                     <span className="block text-sm">{fila.tipoCoche}</span>
-                    <span className="mx-auto mt-2 block w-16 border-b border-concreto/40 pb-1 font-data text-base text-emerald-800">
-                      {fila.numeroCoche ?? '—'}
-                    </span>
+                    <CampoCodigoTabla
+                      etiqueta={`Código coche ${fila.tipoCoche}`}
+                      valor={String(cochesActuales[fila.tipoCoche as TipoCoche] ?? '')}
+                      opciones={opcionesCoche(fila.tipoCoche as TipoCoche)}
+                      disabled={deshabilitada}
+                      onGuardar={(codigo) => {
+                        const numero = Number(codigo)
+                        if (Number.isInteger(numero) && numero > 0) onGuardarCodigos({ codigosCoche: { ...cochesActuales, [fila.tipoCoche]: numero } })
+                      }}
+                    />
                   </td>
                 )}
                 <LadoReperfilado
@@ -213,6 +261,30 @@ export function TablaFichaReperfilado({
         <span>Rugosidad R.A. ≤ 3,2 µm</span>
       </div>
     </GlassSurface>
+  )
+}
+
+function CampoCodigoTabla({ etiqueta, valor, opciones, disabled, onGuardar }: { etiqueta: string; valor: string; opciones: string[]; disabled: boolean; onGuardar: (valor: string) => void }) {
+  const [borrador, setBorrador] = useSyncedState(valor)
+  const listaId = `lista-${etiqueta.replace(/[^a-z0-9]/gi, '-').toLowerCase()}`
+  return (
+    <>
+      <input
+        aria-label={etiqueta}
+        data-codigo-rodante="true"
+        list={listaId}
+        value={borrador}
+        disabled={disabled}
+        onChange={(evento) => setBorrador(evento.target.value)}
+        onBlur={() => {
+          const limpio = borrador.trim().toUpperCase()
+          if (limpio && limpio !== valor) onGuardar(limpio)
+        }}
+        placeholder="Código"
+        className="mt-1 w-full min-w-0 rounded-xl border border-concreto/20 bg-white/65 px-1.5 py-1 text-center font-data text-[0.68rem] text-emerald-800 outline-none focus:border-emerald-600/50 disabled:opacity-70"
+      />
+      <datalist id={listaId}>{opciones.map((opcion) => <option key={opcion} value={opcion} />)}</datalist>
+    </>
   )
 }
 
@@ -289,22 +361,25 @@ function LadoReperfilado({
         valor={tAntes}
         onGuardar={(v) => guardar('reperfiladoTAntes', v)}
         disabled={deshabilitada}
+        invalido={tAntes !== null && tAntes <= 0}
       />
       <Campo
         valor={hAntes}
         onGuardar={(v) => guardar('reperfiladoHAntes', v)}
         disabled={deshabilitada}
+        invalido={hAntes !== null && hAntes > 2}
       />
       <Campo
         valor={t}
         onGuardar={(v) => guardar('tValue', v)}
         disabled={deshabilitada}
+        invalido={(t !== null && t <= 0.3) || datos.tInvalido || datos.rdInvalido}
       />
       <Campo
         valor={h}
         onGuardar={(v) => guardar('hValue', v)}
         disabled={deshabilitada}
-        invalido={h !== null && h > 2}
+        invalido={(h !== null && h > 2) || datos.rdInvalido}
       />
       <Campo
         valor={ra}
@@ -334,6 +409,7 @@ function Campo({
     <td className="px-1.5 py-1">
       <input
         type="number"
+        data-reperfilado-invalido={invalido ? 'true' : undefined}
         step="0.01"
         disabled={disabled}
         value={borrador}

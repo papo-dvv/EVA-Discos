@@ -578,6 +578,7 @@ model MeasurementSheet {
   actividad      String   @db.VarChar(200)
   motivo         String   @default("Medición") @db.VarChar(100)
   codigosCoche   Json?    @map("codigos_coche")
+  codigosBogie   Json?    @map("codigos_bogie")
   puestoTrabajo  String?  @map("puesto_trabajo") @db.VarChar(100)
   fechaHoraInicio DateTime? @map("fecha_hora_inicio") @db.Timestamptz(6)
   fechaHoraFin DateTime? @map("fecha_hora_fin") @db.Timestamptz(6)
