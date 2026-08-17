@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { BotonVolverInicio } from '../components/BotonVolverInicio'
 import { GlassSelect } from '../components/GlassSelect'
 import { GlassSurface } from '../components/GlassSurface'
 import { PantallaFondo } from '../components/PantallaFondo'
@@ -10,9 +10,8 @@ import { EstadoDatosInsuficientes } from '../features/traceability/components/Es
 import { GraficoTrazabilidad } from '../features/traceability/components/GraficoTrazabilidad'
 import { GraficoTrazabilidadLimpia } from '../features/traceability/components/GraficoTrazabilidadLimpia'
 import { PanelLateralTrazabilidad } from '../features/traceability/components/PanelLateralTrazabilidad'
-import { usePromedioPorTren, useTraceabilitySeries, useTraceabilitySummary } from '../features/traceability/queries'
+import { useTraceabilitySeries, useTraceabilitySummary } from '../features/traceability/queries'
 import type { Periodo, TraceabilityScopeParams } from '../features/traceability/types'
-import { usePromedioPorVagon } from '../features/projection/queries'
 import { useScanRecordsOpcionesFiltro, useScanRecordsResumenPorTren } from '../features/scan-records/queries'
 import { extraerMensajeError } from '../lib/extraerMensajeError'
 
@@ -51,9 +50,9 @@ export function Trazabilidad() {
   const [scope, setScope] = useState<TraceabilityScopeParams>({})
   const [periodo, setPeriodo] = useState<Periodo>('6m')
   // Activado por defecto (espeja el default=true del backend, ver
-  // TraceabilityScopeQueryDto). Afecta Métodos y límites/Estadísticas
-  // generales/Asimetría y ambos gráficos — NUNCA las cards de promedio por
-  // rango de km/tren/tipo de coche (ver PanelLateralTrazabilidad).
+  // TraceabilityScopeQueryDto). Afecta a las 3 vistas del bloque fusionado
+  // (Métodos y límites/Estadísticas generales/Asimetría/Promedio por tren,
+  // ver PanelLateralTrazabilidad) y a ambos gráficos.
   const [filtrarPorRangoKm, setFiltrarPorRangoKm] = useState(true)
 
   const resumenTrenes = useScanRecordsResumenPorTren({})
@@ -84,11 +83,6 @@ export function Trazabilidad() {
   const summary = useTraceabilitySummary(summaryParams)
   const seriesDiagnostico = useTraceabilitySeries(seriesParamsDiagnostico)
   const seriesLimpia = useTraceabilitySeries(seriesParamsLimpia)
-  // Promedio por tren/tipo de coche: independientes del scope de
-  // tipoCoche/bogieCodigo y de filtrarPorRangoKm — solo siguen el tren
-  // elegido arriba (o toda la flota si no hay ninguno seleccionado).
-  const promedioPorTren = usePromedioPorTren(scope.tren)
-  const promedioPorVagon = usePromedioPorVagon()
 
   const opcionesTren = useMemo(
     () => (resumenTrenes.data ?? []).map((t) => ({ valor: String(t.tren), etiqueta: `Tren ${t.tren}` })),
@@ -117,12 +111,7 @@ export function Trazabilidad() {
           </div>
           <div className="flex flex-wrap items-center gap-4">
             <EstadoActualizacionModulo modulo="trazabilidad" />
-            <Link
-              to="/"
-              className="font-body text-xs text-concreto underline underline-offset-2 transition-colors hover:text-concreto-oscuro"
-            >
-              ← Volver al inicio
-            </Link>
+            <BotonVolverInicio />
           </div>
         </GlassSurface>
 
@@ -170,8 +159,8 @@ export function Trazabilidad() {
               label="Considerar solo rango de km habitual (7,000–15,000)"
             />
             <p className="mt-1.5 font-body text-xs text-concreto">
-              Afecta a Métodos y límites, Estadísticas generales, Asimetría y ambos gráficos. Las cards de promedio
-              por rango de km/tren/tipo de coche siempre corren sobre el conjunto completo, sin importar este switch.
+              Afecta al bloque de abajo (Métodos y límites, Estadísticas generales, Asimetría y Promedio por tren) y a
+              ambos gráficos.
             </p>
           </div>
         </GlassSurface>
@@ -234,14 +223,11 @@ export function Trazabilidad() {
                   clasificacionAsimetria={summary.data.asimetria.clasificacion}
                   estadisticas={summary.data.estadisticas}
                   asimetria={summary.data.asimetria}
+                  paresTrasRecorte={summary.data.paresTrasRecorte}
                   conteoTotalHistorico={seriesDiagnostico.data.conteoTotalHistorico}
                   conteoMostradoEnPeriodo={seriesDiagnostico.data.conteoMostradoEnPeriodo}
                   etiquetaPeriodo={ETIQUETA_PERIODO[periodo]}
-                  promedioRangoKm={summary.data.promedioRangoKm}
-                  promedioPorTren={promedioPorTren.data}
-                  promedioPorTrenCargando={promedioPorTren.isLoading}
-                  promedioPorVagon={promedioPorVagon.data}
-                  promedioPorVagonCargando={promedioPorVagon.isLoading}
+                  filtrarPorRangoKm={filtrarPorRangoKm}
                 />
               </div>
             </div>
@@ -258,14 +244,11 @@ export function Trazabilidad() {
                   clasificacionAsimetria={summary.data.asimetria.clasificacion}
                   estadisticas={summary.data.estadisticas}
                   asimetria={summary.data.asimetria}
+                  paresTrasRecorte={summary.data.paresTrasRecorte}
                   conteoTotalHistorico={seriesDiagnostico.data.conteoTotalHistorico}
                   conteoMostradoEnPeriodo={seriesDiagnostico.data.conteoMostradoEnPeriodo}
                   etiquetaPeriodo={ETIQUETA_PERIODO[periodo]}
-                  promedioRangoKm={summary.data.promedioRangoKm}
-                  promedioPorTren={promedioPorTren.data}
-                  promedioPorTrenCargando={promedioPorTren.isLoading}
-                  promedioPorVagon={promedioPorVagon.data}
-                  promedioPorVagonCargando={promedioPorVagon.isLoading}
+                  filtrarPorRangoKm={filtrarPorRangoKm}
                 />
               </div>
             </aside>

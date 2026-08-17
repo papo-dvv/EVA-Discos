@@ -88,18 +88,6 @@ export class UpdateFichaDto {
   fechaFicha?: string;
 
   @IsOptional()
-  @IsString()
-  puestoTrabajo?: string;
-
-  @IsOptional()
-  @IsDateString()
-  fechaHoraInicio?: string;
-
-  @IsOptional()
-  @IsDateString()
-  fechaHoraFin?: string;
-
-  @IsOptional()
   @IsBoolean()
   todasConformes?: boolean;
 
@@ -110,6 +98,14 @@ export class UpdateFichaDto {
   @IsOptional()
   @IsString()
   responsableMantenimientoNombre?: string;
+
+  // P.T. (Puesto de Trabajo) — texto libre alfanumérico, sin formato
+  // restringido. Siempre ingreso manual (el CSV nunca lo trae). Obligatorio
+  // para bloquear (POST .../lock) y confirmar (POST .../commit) — ver
+  // NewMeasurementValidationService.bloquear y NewMeasurementCommitService.confirmar.
+  @IsOptional()
+  @IsString()
+  ptCodigo?: string;
 
   @IsOptional()
   @IsString()

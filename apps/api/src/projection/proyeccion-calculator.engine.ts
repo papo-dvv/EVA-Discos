@@ -1,16 +1,47 @@
-const DIAS_POR_MES_PROMEDIO = 365.25 / 12;
 const MS_POR_DIA = 24 * 60 * 60 * 1000;
-const MS_POR_MES_PROMEDIO = DIAS_POR_MES_PROMEDIO * MS_POR_DIA;
+const DIAS_POR_MES_PROYECCION = 30;
+const MS_POR_MES_PROYECCION = DIAS_POR_MES_PROYECCION * MS_POR_DIA;
 
+function aproximarAUnDecimal(valor: number): number {
+  return Math.round(valor * 10) / 10;
+}
+
+// La tasa es mensual: primero se aproxima a un decimal el resultado de
+// (umbralReperfilado - h) / tasaMensual; recién después se multiplica por
+// 30 días para obtener la fecha estimada.
 export function sumarMeses(fecha: Date, meses: number): Date {
-  return new Date(fecha.getTime() + meses * MS_POR_MES_PROMEDIO);
+  const dias = aproximarAUnDecimal(meses) * DIAS_POR_MES_PROYECCION;
+  return new Date(fecha.getTime() + dias * MS_POR_DIA);
 }
 
 export function mesesEntre(desde: Date, hasta: Date): number {
-  return (hasta.getTime() - desde.getTime()) / MS_POR_MES_PROMEDIO;
+  return (hasta.getTime() - desde.getTime()) / MS_POR_MES_PROYECCION;
 }
 
-export const MAX_CICLOS_REPERFILADO = 5;
+// Límite TÉCNICO de seguridad (no una regla de negocio): evita un bucle
+// infinito ante datos patológicos donde H nunca llegaría a cruzar el umbral
+// de reperfilado (ej. tasaMensual <= 0) o donde el descuento de reperfilado
+// nunca reduce Rd lo suficiente (ej. reperfiladoDescuentoRd=0) — bien por
+// encima de cualquier escenario real de desgaste/reperfilado. Si se alcanza
+// sin converger a la condición de Cambio, proyectarCiclos lanza
+// ProyeccionNoConvergeError en vez de devolver un resultado truncado o
+// colgarse.
+const LIMITE_ITERACIONES_SEGURIDAD = 200;
+
+// Lanzado por proyectarCiclos cuando ni la condición de Cambio ni el límite
+// de seguridad de arriba se alcanzan de forma razonable — en la práctica,
+// ProyeccionCalculatorService.proyectarDisco ya filtra tasaMensual<=0 ANTES
+// de llegar acá (devuelve proyectable:false con un motivo claro), así que
+// este error es sobre todo una salvaguarda del motor puro en sí mismo, no el
+// camino esperado de un disco real.
+export class ProyeccionNoConvergeError extends Error {
+  constructor() {
+    super(
+      'La proyección no converge a una condición de Cambio dentro de un rango razonable de ciclos — revisá la tasa de desgaste y los umbrales de reperfilado configurados.',
+    );
+    this.name = 'ProyeccionNoConvergeError';
+  }
+}
 
 export interface UmbralesProyeccion {
   hUmbralReperfilado: number;
@@ -54,8 +85,10 @@ export interface CicloCambio {
 
 export interface ResultadoProyeccionCiclos {
   ciclosReperfilado: CicloReperfilado[];
-  cicloCambio: CicloCambio | null;
-  truncado: boolean;
+  // Ya NO es nullable: sin cap de ciclos, el cálculo SIEMPRE continúa hasta
+  // la condición real de Cambio (o lanza ProyeccionNoConvergeError si eso no
+  // pasa dentro del límite técnico de seguridad) — nunca vuelve "a medias".
+  cicloCambio: CicloCambio;
 }
 
 export function proyectarCiclos(
@@ -72,7 +105,7 @@ export function proyectarCiclos(
   let fecha = actual.fecha;
   let mesesAcumulados = 0;
 
-  for (let numero = 1; numero <= MAX_CICLOS_REPERFILADO; numero++) {
+  for (let numero = 1; numero <= LIMITE_ITERACIONES_SEGURIDAD; numero++) {
     const rd = t - h;
     if (rd <= umbrales.rdUmbralCambioProyeccion) {
       return {
@@ -81,12 +114,19 @@ export function proyectarCiclos(
           mesesHastaFecha: mesesAcumulados,
           fechaEstimada: fecha,
         },
-        truncado: false,
       };
     }
 
-    const mesesCrudos = (umbrales.hUmbralReperfilado - h) / tasaMensual;
-    const meses = Math.max(0, mesesCrudos);
+    // A partir de acá, cada iteración necesita una tasa positiva para AMBAS
+    // divisiones que siguen (los meses de crecimiento hasta el umbral, y —
+    // si este reperfilado no resulta viable — los meses hasta Cambio). Sin
+    // eso, H nunca se movería y la proyección jamás convergería: se corta
+    // acá mismo, antes de que Infinity/NaN contaminen el resultado.
+    if (tasaMensual <= 0) {
+      throw new ProyeccionNoConvergeError();
+    }
+
+    const meses = Math.max(0, (umbrales.hUmbralReperfilado - h) / tasaMensual);
     const fechaReperfilado = sumarMeses(fecha, meses);
 
     const hAntes = h + tasaMensual * meses;
@@ -103,7 +143,6 @@ export function proyectarCiclos(
           mesesHastaFecha: mesesAcumulados + mesesHastaCambio,
           fechaEstimada: sumarMeses(fechaReperfilado, mesesHastaCambio),
         },
-        truncado: false,
       };
     }
 
@@ -122,7 +161,7 @@ export function proyectarCiclos(
     fecha = fechaReperfilado;
   }
 
-  return { ciclosReperfilado, cicloCambio: null, truncado: true };
+  throw new ProyeccionNoConvergeError();
 }
 
 export interface PuntoProyectado {

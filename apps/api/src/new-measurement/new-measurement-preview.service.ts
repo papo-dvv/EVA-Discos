@@ -39,7 +39,10 @@ import {
   generarEsqueleto48,
   type PosicionEsqueleto,
 } from './new-measurement-esqueleto';
-import { NewMeasurementValidationService } from './new-measurement-validation.service';
+import {
+  NewMeasurementValidationService,
+  type FlagsFichaNivelRaiz,
+} from './new-measurement-validation.service';
 
 // kilometraje/kilometrajeOriginalCsv se exponen como number (nunca el
 // Prisma.Decimal crudo de MeasurementSheet): un Decimal serializa a STRING en
@@ -56,7 +59,12 @@ export interface FichaDetalle extends Omit<
   instrumentos: MeasurementSheetInstrumento[];
 }
 
-export interface PreviewMedicionResult extends PreviewResult {
+// kmInvalido/fechaInvalido viajan a nivel RAÍZ acá también (ver
+// FlagsFichaNivelRaiz) — nunca replicados dentro de cada fila de `rows` (ver
+// PreviewRow en scan-record-query.ts, que solo expone tInvalido/rdInvalido
+// por fila): mismo criterio que ResumenVerificacion (POST .../validate).
+export interface PreviewMedicionResult
+  extends PreviewResult, FlagsFichaNivelRaiz {
   ficha: FichaDetalle;
   esqueleto: PosicionEsqueleto[];
 }
@@ -79,7 +87,7 @@ export class NewMeasurementPreviewService {
     q: PreviewQueryDto,
   ): Promise<PreviewMedicionResult> {
     const ficha = await this.cargarFicha(fichaId);
-    const [detalle, preview, numerosCoche] = await Promise.all([
+    const [detalle, preview, numerosCoche, flagsRaiz] = await Promise.all([
       this.conDetalle(ficha),
       buscarScanRecordsPaginado(
         this.prisma,
@@ -87,10 +95,14 @@ export class NewMeasurementPreviewService {
         q,
       ),
       this.numerosCochePorFicha(ficha),
+      // kmInvalido/fechaInvalido a nivel raíz — NUNCA por fila (ver
+      // PreviewMedicionResult y motivosInvalidosDeFila en scan-record-query.ts).
+      this.validationService.obtenerFlagsRaiz(fichaId),
     ]);
     return {
       ficha: detalle,
       esqueleto: generarEsqueleto48(numerosCoche),
+      ...flagsRaiz,
       ...preview,
     };
   }
@@ -109,10 +121,7 @@ export class NewMeasurementPreviewService {
     const tocaHeaderBloqueado =
       dto.trenNumero !== undefined ||
       dto.kilometraje !== undefined ||
-      dto.fechaFicha !== undefined ||
-      dto.puestoTrabajo !== undefined ||
-      dto.fechaHoraInicio !== undefined ||
-      dto.fechaHoraFin !== undefined;
+      dto.fechaFicha !== undefined;
     if (tocaHeaderBloqueado && ficha.tablaBloqueada) {
       throw new HttpException(
         'La tabla de mediciones está bloqueada: Tren/Fecha/Kilometraje ya no se pueden editar.',
@@ -136,12 +145,6 @@ export class NewMeasurementPreviewService {
     }
     if (dto.fechaFicha !== undefined)
       cambios.fechaFicha = new Date(dto.fechaFicha);
-    if (dto.puestoTrabajo !== undefined)
-      cambios.puestoTrabajo = dto.puestoTrabajo;
-    if (dto.fechaHoraInicio !== undefined)
-      cambios.fechaHoraInicio = new Date(dto.fechaHoraInicio);
-    if (dto.fechaHoraFin !== undefined)
-      cambios.fechaHoraFin = new Date(dto.fechaHoraFin);
     // Km/Fecha/Tren cambiaron: la validación cruzada (kmInvalido/fechaInvalido)
     // ya calculada queda desactualizada — obliga a un POST .../validate nuevo
     // antes de poder bloquear (ver NewMeasurementValidationService).
@@ -153,6 +156,7 @@ export class NewMeasurementPreviewService {
     if (dto.responsableMantenimientoNombre !== undefined)
       cambios.responsableMantenimientoNombre =
         dto.responsableMantenimientoNombre;
+    if (dto.ptCodigo !== undefined) cambios.ptCodigo = dto.ptCodigo;
     if (dto.responsableMantenimientoFirma !== undefined)
       cambios.responsableMantenimientoFirma = dto.responsableMantenimientoFirma;
     if (dto.responsableMantenimientoFecha !== undefined)
@@ -278,9 +282,6 @@ export class NewMeasurementPreviewService {
     const cambios: Prisma.ScanRecordUpdateInput = {};
     if (dto.fecha !== undefined) cambios.fecha = new Date(dto.fecha);
     if (dto.observacion !== undefined) cambios.observacion = dto.observacion;
-    if (dto.rugosidadRa !== undefined && ficha.motivo !== 'Reperfilado') {
-      cambios.rugosidadRa = dto.rugosidadRa;
-    }
 
     if (dto.ejeNumero !== undefined || dto.lado !== undefined) {
       const ejeFinal = dto.ejeNumero ?? original.ejeExcel!;
@@ -327,9 +328,7 @@ export class NewMeasurementPreviewService {
       if (dto.tValue !== undefined) cambios.tValue = dto.tValue;
       if (dto.hValue !== undefined) cambios.hValue = dto.hValue;
       cambios.rdValue = rd;
-      if (ficha.motivo === 'Reperfilado') cambios.rugosidadRa = rd;
       cambios.estadoCalculado = evaluador.clasificarEstadoConReperfilado(rd, h);
-      if (ficha.motivo === 'Reperfilado') cambios.reperfiladoCompletado = true;
     }
 
     const actualizada = await this.prisma.$transaction(async (tx) => {
@@ -417,7 +416,7 @@ export class NewMeasurementPreviewService {
           trenNumero: ficha.trenNumero,
           kilometraje: ficha.kilometraje,
           fecha: dto.fecha ? new Date(dto.fecha) : ficha.fechaFicha,
-          motivo: ficha.motivo ?? MOTIVO_MEDICION,
+          motivo: MOTIVO_MEDICION,
           tValue: dto.tValue,
           hValue: dto.hValue,
           rdValue,
@@ -429,8 +428,6 @@ export class NewMeasurementPreviewService {
           ubicacionExcel: dto.lado,
           ruedaExcel: ruedaNumero,
           observacion: dto.observacion ?? null,
-          rugosidadRa: ficha.motivo === 'Reperfilado' ? rdValue : (dto.rugosidadRa ?? null),
-          reperfiladoCompletado: ficha.motivo === 'Reperfilado',
           ordenFisico: calcularOrdenFisico({
             tipoCoche: identidad.tipoCoche,
             bogieCodigo: identidad.bogieCodigo,

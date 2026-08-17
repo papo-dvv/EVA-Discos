@@ -15,8 +15,6 @@ import { resolverLado } from '../migration/migration-excel.parser';
 
 export const MOTIVO_MEDICION = 'Medición';
 export const ACTIVIDAD_BAJO_BASTIDOR = 'BAJO BASTIDOR - TREN ALSTOM';
-export const MOTIVO_REPERFILADO = 'Reperfilado';
-export const ACTIVIDAD_TORNO_FOSA = 'CONTROL DE TRABAJOS EN TORNO FOSA - DISCOS DE FRENO TREN ALSTOM';
 
 // Motivos que el prompt reconoce a futuro pero que este módulo NO implementa
 // todavía — se validan acá para que el mensaje de rechazo sea uniforme entre
@@ -141,8 +139,6 @@ export interface FilaNuevaMedicion {
   rdValue: number; // SIEMPRE recalculado por el backend (T-H), nunca del CSV
   estadoCalculado: EstadoDiscoAmpliado;
   measPointNameOriginal: string;
-  measTimeOriginal: string | null;
-  profileLinkOriginal: string | null;
 }
 
 export interface DiscrepanciaRd {
@@ -222,8 +218,6 @@ interface GrupoDisco {
   tValue: number | null;
   rdCsv: number | null;
   fecha: Date | null;
-  measTime: string | null;
-  profileLink: string | null;
 }
 
 const DIMENSIONES_DISCO_FRENO = new Set(['h', 't', 'rd']);
@@ -258,22 +252,12 @@ export function procesarCsvMedicion(
     lineas[3] !== undefined
       ? partirLinea(lineas[3]).map((v) => v.toLowerCase())
       : [];
-  const indiceHeader = (nombre: string) =>
-    posibleHeader.findIndex((valor) => valor.replace(/[^a-z]/g, '') === nombre);
-  const tieneHeader = indiceHeader('measpointname') !== -1;
-  if (tieneHeader) {
+  if (
+    posibleHeader[0]?.includes('measobject') &&
+    posibleHeader[1]?.includes('measpoint')
+  ) {
     inicioDatos = 4;
   }
-  const columnas = tieneHeader
-    ? {
-        measPoint: indiceHeader('measpointname'),
-        dimension: indiceHeader('dimensionname'),
-        value: indiceHeader('dimensionvalue'),
-        date: indiceHeader('measdate'),
-        time: indiceHeader('meastime'),
-        profileLink: indiceHeader('profilelink'),
-      }
-    : { measPoint: 1, dimension: 2, value: 3, date: 5, time: 6, profileLink: 7 };
 
   const grupos = new Map<string, GrupoDisco>();
   // measPointName -> motivo. Mapa (no array) para no duplicar el mismo error
@@ -285,12 +269,12 @@ export function procesarCsvMedicion(
     const linea = lineas[i];
     if (linea.trim() === '') continue;
     const campos = partirLinea(linea);
-    const measPointName = campos[columnas.measPoint] ?? '';
-    const dimensionName = campos[columnas.dimension] ?? '';
-    const dimensionValue = campos[columnas.value] ?? '';
-    const measDate = campos[columnas.date] ?? '';
-    const measTime = campos[columnas.time]?.trim() || null;
-    const profileLink = campos[columnas.profileLink]?.trim() || null;
+    // campos[0] (MeasObject.Name) no se usa: la identidad real del coche se
+    // resuelve por eje, no por este campo — ver resolverIdentidadPorEje.
+    const measPointName = campos[1] ?? '';
+    const dimensionName = campos[2] ?? '';
+    const dimensionValue = campos[3] ?? '';
+    const measDate = campos[5] ?? '';
 
     // Filtro obligatorio: SOLO disco_freno_N_lado, y SOLO H/T/Rd. Todo lo
     // demás (Rueda_N con FlHeight/FlThickness/qR, Punto_N con Dp/Dcr, u otra
@@ -334,15 +318,11 @@ export function procesarCsvMedicion(
       tValue: null,
       rdCsv: null,
       fecha: null,
-      measTime: null,
-      profileLink: null,
     };
     if (dimensionNormalizada === 'h') grupo.hValue = valor;
     else if (dimensionNormalizada === 't') grupo.tValue = valor;
     else if (dimensionNormalizada === 'rd') grupo.rdCsv = valor;
     if (grupo.fecha === null) grupo.fecha = parsearFechaCompacta(measDate);
-    if (grupo.measTime === null) grupo.measTime = measTime;
-    if (grupo.profileLink === null) grupo.profileLink = profileLink;
     grupos.set(clave, grupo);
   }
 
@@ -413,8 +393,6 @@ export function procesarCsvMedicion(
       rdValue,
       estadoCalculado,
       measPointNameOriginal: grupo.measPointName,
-      measTimeOriginal: grupo.measTime,
-      profileLinkOriginal: grupo.profileLink,
     });
   }
 

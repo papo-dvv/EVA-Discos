@@ -46,6 +46,49 @@ const CAMPO_ORDEN: Record<ColumnaOrdenable, keyof ScanRecord> = {
   estado: 'estadoCalculado',
 };
 
+// Campo cuyo flag de validación cruzada automática (NewMeasurementModule)
+// quedó en true — ver motivosInvalidosDeFila más abajo.
+export type CampoInvalido = 't' | 'rd' | 'kilometraje' | 'fecha';
+
+export interface MotivoInvalido {
+  campo: CampoInvalido;
+  motivo: string;
+}
+
+// Texto legible de cada motivo de exclusión — vive ACÁ (junto a aPreviewRow)
+// para que GET .../preview y POST .../validate (NewMeasurementModule)
+// devuelvan EXACTAMENTE el mismo texto sin duplicar el catálogo en 2 lugares
+// (ver NewMeasurementValidationService.verificar, que reusa este mismo mapa
+// para los campos kmInvalido/fechaInvalido a nivel ficha).
+export const TEXTO_MOTIVO_INVALIDO: Record<CampoInvalido, string> = {
+  kilometraje: 'Kilometraje menor al último registrado para este tren',
+  fecha: 'Fecha anterior a la última medición registrada para este tren',
+  t: 'Espesor medido (T) mayor al último valor registrado para este disco',
+  rd: 'Vida útil (Rd) mayor al último valor registrado para este disco',
+};
+
+// Traduce los 2 flags booleanos POR FILA (tInvalido/rdInvalido, ver
+// ScanRecord) a un array de motivos legibles. kmInvalido/fechaInvalido NO
+// entran acá a propósito: son a nivel FICHA/TREN (el mismo valor calculado
+// para las ~48 filas de la ficha, ver NewMeasurementValidationService.
+// recalcularFlags) — repetir su motivo en cada fila sería puro ruido
+// duplicado, así que viajan ÚNICAMENTE a nivel raíz de la respuesta (ver
+// ResumenVerificacion.kmInvalido/fechaInvalido). Vacío (nunca null) cuando
+// ningún flag por fila está activo — el caso común para filas de migración/
+// confirmados normales, que siempre tienen los 2 en false.
+export function motivosInvalidosDeFila(f: {
+  tInvalido: boolean;
+  rdInvalido: boolean;
+}): MotivoInvalido[] {
+  const campos: CampoInvalido[] = [];
+  if (f.tInvalido) campos.push('t');
+  if (f.rdInvalido) campos.push('rd');
+  return campos.map((campo) => ({
+    campo,
+    motivo: TEXTO_MOTIVO_INVALIDO[campo],
+  }));
+}
+
 export interface PreviewRow {
   id: string;
   // Nulo en el borrador de una migración (disc_id se resuelve recién al
@@ -75,18 +118,19 @@ export interface PreviewRow {
   // Exclusivo de NewMeasurementModule (ver comentario en ScanRecord.observacion
   // del schema) — null en filas de migración/confirmados normales.
   observacion: string | null;
-  rugosidadRa: number | null;
-  reperfiladoTAntes: number | null;
-  reperfiladoHAntes: number | null;
-  reperfiladoCompletado: boolean;
-  // Flags de validación cruzada automática — exclusivos de NewMeasurementModule
-  // (ver ScanRecord.kmInvalido/etc. y NewMeasurementValidationService), siempre
-  // false en filas de migración/confirmados normales.
-  kmInvalido: boolean;
-  fechaInvalido: boolean;
+  // Flags de validación cruzada automática POR FILA — exclusivos de
+  // NewMeasurementModule (ver ScanRecord.tInvalido/rdInvalido y
+  // NewMeasurementValidationService), siempre false en filas de migración/
+  // confirmados normales. kmInvalido/fechaInvalido NO se exponen acá: son a
+  // nivel FICHA/TREN, no por fila — ver el comentario de motivosInvalidosDeFila
+  // más abajo y ResumenVerificacion.kmInvalido/fechaInvalido (a nivel raíz).
   tInvalido: boolean;
   rdInvalido: boolean;
-  excluidaDelCommit: boolean;
+  // Espejo legible de los 2 flags de arriba (ver motivosInvalidosDeFila) —
+  // así el frontend puede repintar el motivo de cada fila desde /preview sin
+  // tener que volver a llamar a POST .../validate. Vacío cuando los 2 flags
+  // están en false (el caso normal fuera de NewMeasurementModule).
+  motivos: MotivoInvalido[];
 }
 
 export interface PreviewResult {
@@ -236,13 +280,17 @@ function condicionUbicacionPorLado(
 // common/orden-fisico.ts) — nunca alfabético — y por último fecha ASC como
 // desempate cuando dos filas comparten exactamente la misma identidad física
 // (mismo disco, mediciones en fechas distintas). Un sortBy/sortDir explícito
-// tiene prioridad y reemplaza esto por completo (ver más abajo).
-const ORDEN_FISICO_DEFECTO: Prisma.ScanRecordOrderByWithRelationInput[] = [
-  { trenNumero: 'asc' },
-  { ordenFisico: 'asc' },
-  { fecha: 'asc' },
-  { id: 'asc' }, // desempate final, estable
-];
+// tiene prioridad y reemplaza esto por completo (ver más abajo). Exportado:
+// NewMeasurementValidationService.recalcularFlags lo reutiliza tal cual para
+// que filasExcluidas de POST .../validate venga en el MISMO orden jerárquico
+// que ya usa toda la pantalla — nunca un criterio propio duplicado.
+export const ORDEN_FISICO_DEFECTO: Prisma.ScanRecordOrderByWithRelationInput[] =
+  [
+    { trenNumero: 'asc' },
+    { ordenFisico: 'asc' },
+    { fecha: 'asc' },
+    { id: 'asc' }, // desempate final, estable
+  ];
 
 function construirOrderByScanRecord(
   q: PreviewQueryDto,
@@ -572,14 +620,8 @@ export function aPreviewRow(r: ScanRecord): PreviewRow {
     discrepanciaEstadoExcel: r.discrepanciaEstadoExcel,
     hojaExcelOrigen: r.hojaExcelOrigen,
     observacion: r.observacion,
-    rugosidadRa: r.rugosidadRa !== null ? Number(r.rugosidadRa) : null,
-    reperfiladoTAntes: r.reperfiladoTAntes !== null ? Number(r.reperfiladoTAntes) : null,
-    reperfiladoHAntes: r.reperfiladoHAntes !== null ? Number(r.reperfiladoHAntes) : null,
-    reperfiladoCompletado: r.reperfiladoCompletado,
-    kmInvalido: r.kmInvalido,
-    fechaInvalido: r.fechaInvalido,
     tInvalido: r.tInvalido,
     rdInvalido: r.rdInvalido,
-    excluidaDelCommit: r.excluidaDelCommit,
+    motivos: motivosInvalidosDeFila(r),
   };
 }

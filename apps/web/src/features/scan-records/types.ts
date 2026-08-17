@@ -28,10 +28,15 @@ export type CampoValoresDistintos = (typeof CAMPOS_VALORES_DISTINTOS)[number]
 // del eje de forma independiente.
 export type AccionRecomendada = 'CRITICO' | 'CAMBIO' | 'REPERFILADO' | 'NINGUNA'
 
+// Espejo de CampoInvalido/MotivoInvalido (apps/api/src/scan-records/scan-record-query.ts).
+export type CampoInvalido = 't' | 'rd' | 'kilometraje' | 'fecha'
+
+export interface MotivoInvalido {
+  campo: CampoInvalido
+  motivo: string
+}
+
 export interface PreviewRow {
-  measPointNameOriginal?: string | null
-  measTimeOriginal?: string | null
-  profileLinkOriginal?: string | null
   id: string
   responsableNombre: string
   trenNumero: number
@@ -56,20 +61,18 @@ export interface PreviewRow {
   // Exclusivo de features/new-measurement (ficha de medición individual) —
   // null en filas de migración/confirmados normales.
   observacion: string | null
-  rugosidadRa: number | null
-  reperfiladoTAntes: number | null
-  reperfiladoHAntes: number | null
-  reperfiladoCompletado: boolean
-  // Flags de validación cruzada automática — exclusivos de features/new-measurement
-  // (siempre false en filas de migración/confirmados normales). kmInvalido/
-  // fechaInvalido son a nivel FICHA (mismo valor en todas las filas); tInvalido/
-  // rdInvalido son por disco individual (por fila). excluidaDelCommit se fija
-  // recién tras POST .../validate.
-  kmInvalido: boolean
-  fechaInvalido: boolean
+  // Flags de validación cruzada automática POR FILA — exclusivos de
+  // features/new-measurement (siempre false en filas de migración/
+  // confirmados normales). kmInvalido/fechaInvalido NO viajan acá: son a
+  // nivel FICHA (mismo valor en las ~48 filas), así que se exponen UNA sola
+  // vez a nivel raíz de la respuesta (ver PreviewFichaResult/ResumenVerificacion
+  // en features/new-measurement/types.ts) — nunca replicados por fila.
   tInvalido: boolean
   rdInvalido: boolean
-  excluidaDelCommit: boolean
+  // Espejo legible de los 2 flags de arriba — permite repintar el motivo de
+  // cada fila desde /preview sin volver a llamar a POST .../validate. Vacío
+  // cuando ambos están en false.
+  motivos: MotivoInvalido[]
 }
 
 export interface PreviewResult {

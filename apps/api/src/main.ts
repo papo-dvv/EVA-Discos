@@ -12,14 +12,7 @@ async function bootstrap() {
   // exist". 'extended' usa la librería `qs`, que sí interpreta ese formato
   // (y también "estado=OK&estado=CRITICO" repetido) como { estado: [...] }.
   app.set('query parser', 'extended');
-  const webOrigins = (
-    process.env.WEB_ORIGIN ??
-    'http://localhost:5173,http://127.0.0.1:5173'
-  )
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean);
-  app.enableCors({ origin: webOrigins });
+  app.enableCors({ origin: process.env.WEB_ORIGIN ?? 'http://localhost:5173' });
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
@@ -29,4 +22,4 @@ async function bootstrap() {
   );
   await app.listen(process.env.PORT ?? 3000);
 }
-void bootstrap();
+bootstrap();

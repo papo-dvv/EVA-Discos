@@ -1,5 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import type { ScanRecord } from '../../generated/prisma';
+import type {
+  MeasurementSheetInstrumento,
+  MeasurementSheetTecnico,
+  ScanRecord,
+} from '../../generated/prisma';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   aPreviewRow,
@@ -8,7 +12,7 @@ import {
 import type { TipoReferencia } from './dto/reference-query.dto';
 import {
   resolverNumerosCochePorTren,
-  validarTrenCatalogo,
+  validarTrenAlstom,
 } from './new-measurement-catalogo';
 import {
   generarEsqueleto48,
@@ -39,8 +43,26 @@ export interface ReferenciaUltimaFicha {
   fechaFicha: string;
   kilometraje: number;
   responsable: string | null;
+  // P.T. (Puesto de Trabajo) de ESA ficha histórica — ver comentario en
+  // MeasurementSheet.ptCodigo. Exclusivo de 'ultima_ficha' (igual que
+  // tecnicos/instrumentos/ingMr*): 'ultima_medicion' no tiene P.T. porque no
+  // proviene de ninguna ficha real.
+  ptCodigo: string | null;
   esqueleto: PosicionEsqueleto[];
   rows: PreviewRow[];
+  // Exclusivo de 'ultima_ficha' (ver comentario en obtener): a diferencia de
+  // 'ultima_medicion' —que no proviene de ninguna ficha real, solo de
+  // ScanRecords individuales—, acá SÍ hay una ficha histórica completa detrás,
+  // así que el frontend puede mostrar estas secciones en modo solo-lectura
+  // (ver ModalMedicionAnterior). Mismas 2 tablas que FichaDetalle.tecnicos/
+  // instrumentos.
+  responsableMantenimientoFirma: string | null;
+  responsableMantenimientoFecha: string | null;
+  ingMrNombre: string | null;
+  ingMrFirma: string | null;
+  ingMrFecha: string | null;
+  tecnicos: MeasurementSheetTecnico[];
+  instrumentos: MeasurementSheetInstrumento[];
 }
 
 export type ResultadoReferencia =
@@ -54,7 +76,7 @@ export class NewMeasurementReferenceService {
     trenNumero: number,
     tipo: TipoReferencia,
   ): Promise<ResultadoReferencia> {
-    const tren = await validarTrenCatalogo(this.prisma, trenNumero);
+    const tren = await validarTrenAlstom(this.prisma, trenNumero);
     return tipo === 'ultima_medicion'
       ? this.ultimaMedicion(tren.id, trenNumero)
       : this.ultimaFicha(tren.id, trenNumero);
@@ -84,6 +106,29 @@ export class NewMeasurementReferenceService {
     const masReciente = confirmados[0];
     const numerosCoche = await resolverNumerosCochePorTren(this.prisma, trenId);
 
+    // ejeExcel/ubicacionExcel del ScanRecord reflejan el texto ORIGINAL con el
+    // que se cargó esa medición — para el historial migrado en bloque desde
+    // Excel eso es texto libre ("disco_freno_22_derecho"), no el 'izquierdo'/
+    // 'derecho' canónico que usa el esqueleto (ver generarEsqueleto48 y
+    // construirFilasEspejo en el frontend, que arma la clave eje|lado para
+    // juntar cada fila con su posición — con texto libre esa clave nunca
+    // matchea y la tabla queda vacía aunque la card del header sí se vea, ya
+    // que esa no depende de este join). discId ya identifica el disco físico
+    // sin ambigüedad, así que acá se resuelve la identidad eje/lado desde el
+    // BrakeDisc real (disc_id -> brake_discs) en vez de confiar en ese texto.
+    const discos = await this.prisma.brakeDisc.findMany({
+      where: { id: { in: [...porDisco.keys()] } },
+    });
+    const discoPorId = new Map(discos.map((d) => [d.id, d]));
+
+    const rows = [...porDisco.values()].map((r) => {
+      const fila = aPreviewRow(r);
+      const disco = discoPorId.get(r.discId!);
+      return disco
+        ? { ...fila, ejeExcel: disco.ejeNumero, ubicacionExcel: disco.lado }
+        : fila;
+    });
+
     return {
       disponible: true,
       tren: trenNumero,
@@ -91,7 +136,7 @@ export class NewMeasurementReferenceService {
       kilometraje: Number(masReciente.kilometraje),
       responsable: masReciente.responsableNombre,
       esqueleto: generarEsqueleto48(numerosCoche),
-      rows: [...porDisco.values()].map(aPreviewRow),
+      rows,
     };
   }
 
@@ -109,12 +154,20 @@ export class NewMeasurementReferenceService {
     });
     if (!ficha || !ficha.uploadedFileId) return { disponible: false };
 
-    const [filas, numerosCoche] = await Promise.all([
+    const [filas, numerosCoche, tecnicos, instrumentos] = await Promise.all([
       this.prisma.scanRecord.findMany({
         where: { fileId: ficha.uploadedFileId },
         orderBy: [{ ordenFisico: 'asc' }],
       }),
       resolverNumerosCochePorTren(this.prisma, trenId),
+      this.prisma.measurementSheetTecnico.findMany({
+        where: { measurementSheetId: ficha.id },
+        orderBy: { posicion: 'asc' },
+      }),
+      this.prisma.measurementSheetInstrumento.findMany({
+        where: { measurementSheetId: ficha.id },
+        orderBy: { posicion: 'asc' },
+      }),
     ]);
 
     return {
@@ -123,8 +176,20 @@ export class NewMeasurementReferenceService {
       fechaFicha: ficha.fechaFicha.toISOString().slice(0, 10),
       kilometraje: Number(ficha.kilometraje),
       responsable: ficha.responsableMantenimientoNombre,
+      ptCodigo: ficha.ptCodigo,
       esqueleto: generarEsqueleto48(numerosCoche),
       rows: filas.map(aPreviewRow),
+      responsableMantenimientoFirma: ficha.responsableMantenimientoFirma,
+      responsableMantenimientoFecha: ficha.responsableMantenimientoFecha
+        ? ficha.responsableMantenimientoFecha.toISOString().slice(0, 10)
+        : null,
+      ingMrNombre: ficha.ingMrNombre,
+      ingMrFirma: ficha.ingMrFirma,
+      ingMrFecha: ficha.ingMrFecha
+        ? ficha.ingMrFecha.toISOString().slice(0, 10)
+        : null,
+      tecnicos,
+      instrumentos,
     };
   }
 }

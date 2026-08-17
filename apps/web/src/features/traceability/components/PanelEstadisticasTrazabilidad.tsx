@@ -1,4 +1,3 @@
-import { GlassSurface } from '../../../components/GlassSurface'
 import { Widget } from '../../../components/Widget'
 import { DESCRIPCION_ASIMETRIA, ETIQUETA_ASIMETRIA, GLIFO_ASIMETRIA } from '../asimetria'
 import type { AsimetriaResumen, EstadisticasGenerales } from '../types'
@@ -9,6 +8,10 @@ type Props = {
   conteoTotalHistorico: number
   conteoMostradoEnPeriodo: number
   etiquetaPeriodo: string
+  // Mismo valor que estadisticas.conteo (ver TraceabilitySummaryResult,
+  // backend) pero expuesto en la raíz del summary — se pasa tal cual, sin
+  // recalcularlo acá, para la card "Pares Tras Recorte".
+  paresTrasRecorte: number
 }
 
 export function PanelEstadisticasTrazabilidad({
@@ -17,9 +20,10 @@ export function PanelEstadisticasTrazabilidad({
   conteoTotalHistorico,
   conteoMostradoEnPeriodo,
   etiquetaPeriodo,
+  paresTrasRecorte,
 }: Props) {
   return (
-    <GlassSurface fuerte className="rounded-glass p-4">
+    <>
       <h3 className="mb-1 font-display text-base font-semibold text-concreto-oscuro">Estadísticas generales</h3>
       <p className="mb-3 font-body text-xs text-concreto">
         <span className="font-data text-concreto-oscuro">{conteoTotalHistorico}</span> históricos · mostrando{' '}
@@ -32,6 +36,7 @@ export function PanelEstadisticasTrazabilidad({
         <Widget tamano="s" etiqueta="Desv. estándar" valor={estadisticas.desviacionEstandar.toFixed(4)} />
         <Widget tamano="s" etiqueta="Mínimo" valor={estadisticas.minimo.toFixed(4)} />
         <Widget tamano="s" etiqueta="Máximo" valor={estadisticas.maximo.toFixed(4)} />
+        <Widget tamano="s" etiqueta="Pares Tras Recorte" valor={paresTrasRecorte} />
 
         {/* Exclusivo de Trazabilidad (no Tasa de Desgaste ni otro panel).
             Ícono/flecha de apoyo en vez de color: NO usa los colores
@@ -63,6 +68,6 @@ export function PanelEstadisticasTrazabilidad({
         Todo lo de arriba es sobre datos limpios (post-recorte/exclusión del consenso de "Métodos y límites"), no
         sobre el valor crudo.
       </p>
-    </GlassSurface>
+    </>
   )
 }

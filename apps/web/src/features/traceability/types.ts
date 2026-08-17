@@ -70,28 +70,6 @@ export interface AsimetriaResumen {
   clasificacion: ClasificacionAsimetria | null
 }
 
-// Promedio calculado APARTE, solo sobre los pares cuyo diferenciaKm cae en
-// [kmMinimo, kmMaximo]: ese subconjunto define sus PROPIOS límites (Gauss/
-// Percentiles/Tukey -> consenso) y su propio recorte, en vez de heredar el
-// consenso del alcance completo — ver el mismo comentario en
-// TraceabilityService (backend). Por eso `consenso` acá casi nunca coincide
-// con el consenso global del summary.
-export interface PromedioRangoKm {
-  kmMinimo: number
-  kmMaximo: number
-  // Pares válidos del alcance con diferenciaKm en el rango — el conjunto CRUDO
-  // que alimenta a los 3 métodos de esta card.
-  conteo: number
-  // false si hay menos de 20 pares en el rango: los límites se calculan igual,
-  // pero con tan pocos puntos no tienen valor estadístico y la card lo advierte.
-  confiable: boolean
-  // null solo si no hay con qué calcular (menos de 2 pares en el rango).
-  consenso: ConsensoLimites | null
-  // Pares que sobreviven al recorte/exclusión de ESE consenso.
-  conteoLimpio: number
-  promedio: number | null
-}
-
 export interface TraceabilitySummaryInsuficiente {
   datosInsuficientes: true
   conteo: number
@@ -105,7 +83,10 @@ export interface TraceabilitySummaryResult {
   tukey: MetodoDescrito
   consenso: ConsensoLimites
   estadisticas: EstadisticasGenerales
-  promedioRangoKm: PromedioRangoKm
+  // Mismo valor que estadisticas.conteo (pares tras recorte/exclusión del
+  // consenso), expuesto en la raíz — lo consume GraficoTrazabilidad sin
+  // desanidar.
+  paresTrasRecorte: number
   asimetria: AsimetriaResumen
 }
 
@@ -163,16 +144,35 @@ export type TraceabilitySeriesResult = TraceabilitySeriesResultCrudo | Traceabil
 
 export type TraceabilitySeriesResponse = TraceabilitySeriesInsuficiente | TraceabilitySeriesResult
 
-// Promedio de valorLimpio agrupado por tren (o toda la flota si `tren` es
-// null) — SIN tipoCoche/bogieCodigo y SIN ningún recorte de km (ni el fijo de
-// esta pantalla ni el configurable de Proyección): el scope completo de ese
-// tren. Por eso nunca se ve afectado por filtrarPorRangoKm — espejo de
-// PromedioPorTren en TraceabilityService (backend).
-export interface PromedioPorTren {
-  tren: number | null
-  conteo: number
-  confiable: boolean
-  consenso: ConsensoLimites | null
-  conteoLimpio: number
+export interface PromedioPorTrenParams {
+  // Default true en el backend (ver TraceabilityPromedioPorTrenQueryDto) —
+  // igual que TraceabilityScopeParams, se manda siempre explícito.
+  filtrarPorRangoKm?: boolean
+  // true solo para el modal "ver más" (39 trenes con desglose por tipo de
+  // coche) — la card principal (10 primeros) no lo necesita.
+  incluirDetalle?: boolean
+}
+
+// Mismo desglose que PromedioPorTrenItem pero acotado a un tipoCoche
+// específico dentro de un tren — solo viaja si se pidió incluirDetalle=true.
+export interface PromedioPorTrenTipoCocheItem {
+  tipoCoche: string
   promedio: number | null
+  paresTrasRecorte: number
+  conteoParesUsados: number
+  datosLimitados: boolean
+}
+
+// Promedio de valorLimpio de un tren (T06–T44), combinando todo tipoCoche/
+// bogie — mismo pipeline que TraceabilitySummaryResult, aplicado tren por
+// tren. Siempre se calcula (nunca "datos insuficientes"): con pocos pares el
+// promedio igual sale, marcado con datosLimitados — espejo de
+// PromedioPorTrenItem en TraceabilityService (backend).
+export interface PromedioPorTrenItem {
+  tren: number
+  promedio: number | null
+  paresTrasRecorte: number
+  conteoParesUsados: number
+  datosLimitados: boolean
+  porTipoCoche?: PromedioPorTrenTipoCocheItem[]
 }

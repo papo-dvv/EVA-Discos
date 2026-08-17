@@ -1,3 +1,4 @@
+import { forwardRef } from 'react'
 import type { HTMLAttributes, ReactNode } from 'react'
 import { usePunteroTilt } from '../hooks/usePunteroTilt'
 
@@ -14,16 +15,19 @@ type GlassSurfaceProps = HTMLAttributes<HTMLDivElement> & {
   children?: ReactNode
 }
 
-export function GlassSurface({
-  fuerte = false,
-  vivo = false,
-  iris = false,
-  elevar = false,
-  tilt = false,
-  className = '',
-  children,
-  ...rest
-}: GlassSurfaceProps) {
+export const GlassSurface = forwardRef<HTMLDivElement, GlassSurfaceProps>(function GlassSurface(
+  {
+    fuerte = false,
+    vivo = false,
+    iris = false,
+    elevar = false,
+    tilt = false,
+    className = '',
+    children,
+    ...rest
+  },
+  ref,
+) {
   const tiltRef = usePunteroTilt()
 
   const clases = [
@@ -39,8 +43,16 @@ export function GlassSurface({
     .join(' ')
 
   return (
-    <div ref={tilt ? tiltRef : undefined} className={clases} {...rest}>
+    <div
+      ref={(node) => {
+        if (tilt) tiltRef(node)
+        if (typeof ref === 'function') ref(node)
+        else if (ref) ref.current = node
+      }}
+      className={clases}
+      {...rest}
+    >
       {children}
     </div>
   )
-}
+})

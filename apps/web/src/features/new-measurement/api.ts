@@ -8,11 +8,13 @@ import type {
   PreviewFichaResult,
   PreviewParams,
   PreviewRow,
+  ResultadoDuplicadoDetectado,
   ResultadoReferencia,
   ResumenBloqueo,
   ResumenCargaMedicion,
   ResumenCommitMedicion,
   ResumenFichaManual,
+  ResumenReset,
   ResumenVerificacion,
   TipoReferencia,
 } from './types'
@@ -22,30 +24,15 @@ import type {
 
 export async function subirCsvMedicion(
   file: File,
-): Promise<ResumenCargaMedicion> {
+  motivo?: MotivoFicha,
+): Promise<ResumenCargaMedicion | ResultadoDuplicadoDetectado> {
   const form = new FormData()
   form.append('file', file)
-  const { data } = await apiClient.post<ResumenCargaMedicion>('/new-measurement/upload', form)
-  return data
-}
-
-export interface ResultadoOcrReperfilado {
-  trenNumero: number | null
-  kilometraje: number | null
-  puestoTrabajo: string | null
-  fecha: string | null
-  horaInicio: string | null
-  horaFin: string | null
-  confianza: number
-  filas: Array<{ ejeNumero: number; lado: 'izquierdo' | 'derecho'; tValue: number; hValue: number; confianza: number }>
-  advertencias: string[]
-  textoReconocido: string
-}
-
-export async function leerFotoReperfilado(file: File): Promise<ResultadoOcrReperfilado> {
-  const form = new FormData()
-  form.append('file', file)
-  const { data } = await apiClient.post<ResultadoOcrReperfilado>('/new-measurement/reprofiling/photo', form)
+  if (motivo) form.append('motivo', motivo)
+  const { data } = await apiClient.post<ResumenCargaMedicion | ResultadoDuplicadoDetectado>(
+    '/new-measurement/upload',
+    form,
+  )
   return data
 }
 
@@ -62,16 +49,6 @@ export async function crearFichaManual(dto: {
 export async function obtenerFicha(fichaId: string): Promise<FichaMedicion> {
   const { data } = await apiClient.get<FichaMedicion>(`/new-measurement/${fichaId}`)
   return data
-}
-
-export async function descargarPdfReperfilado(fichaId: string): Promise<void> {
-  const { data } = await apiClient.get<Blob>(`/new-measurement/${fichaId}/reprofiling/pdf`, { responseType: 'blob' })
-  const url = URL.createObjectURL(data)
-  const enlace = document.createElement('a')
-  enlace.href = url
-  enlace.download = `reperfilado-${fichaId}.pdf`
-  enlace.click()
-  URL.revokeObjectURL(url)
 }
 
 export async function obtenerPreviewFicha(
@@ -150,5 +127,10 @@ export async function cancelarFicha(
   const { data } = await apiClient.delete<{ fichaId: string; cancelado: boolean }>(
     `/new-measurement/${fichaId}`,
   )
+  return data
+}
+
+export async function reiniciarFicha(fichaId: string): Promise<ResumenReset> {
+  const { data } = await apiClient.post<ResumenReset>(`/new-measurement/${fichaId}/reset`)
   return data
 }

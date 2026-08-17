@@ -1,4 +1,6 @@
 import { HttpException } from '@nestjs/common';
+import { BrakeDiscRulesEngine } from '../brake-disc-rules/brake-disc-rules.engine';
+import { UMBRALES_POR_DEFECTO } from '../brake-disc-rules/umbrales';
 import { NewMeasurementPreviewService } from './new-measurement-preview.service';
 
 interface FakeFicha {
@@ -269,7 +271,6 @@ describe('NewMeasurementPreviewService.editarFila — bloqueo y reseteo de verif
       fechaInvalido: false,
       tInvalido: false,
       rdInvalido: false,
-      excluidaDelCommit: false,
     };
 
     const base = {
@@ -356,5 +357,37 @@ describe('NewMeasurementPreviewService.editarFila — bloqueo y reseteo de verif
       expect(e).toBeInstanceOf(HttpException);
       expect((e as HttpException).getStatus()).toBe(423);
     }
+  });
+
+  // Punto 1 del enunciado: "Observación" NO es un campo de texto libre — es
+  // el estado calculado del disco (clasificarEstadoConReperfilado, el mismo
+  // motor que Migración/Mediciones), expuesto en estadoCalculado. El campo
+  // `observacion` (texto libre) sigue existiendo aparte, sin relación con esto.
+  it('editar H/T calcula estadoCalculado con clasificarEstadoConReperfilado (REPERFILADO), nunca un texto libre', async () => {
+    const { prisma } = crearEntornoFila();
+    const brakeDiscRules = {
+      obtenerEvaluador: jest
+        .fn()
+        .mockResolvedValue(new BrakeDiscRulesEngine(UMBRALES_POR_DEFECTO)),
+    };
+    const validationService = {};
+    const service = new NewMeasurementPreviewService(
+      prisma as never,
+      brakeDiscRules as never,
+      validationService as never,
+    );
+
+    // H=1.8 (>=1.6) y T=3.3 -> Rd=T-H=1.5; (Rd-0.8)=0.7 > 0.4 -> REPERFILADO
+    // (ver BrakeDiscRulesEngine.clasificarEstadoConReperfilado).
+    const fila = await service.editarFila(
+      'ficha-1',
+      'fila-1',
+      { hValue: 1.8, tValue: 3.3, observacion: 'texto libre sin relación' },
+      'user-1',
+    );
+
+    expect(fila.estadoCalculado).toBe('REPERFILADO');
+    // Decoupled del texto libre: observacion no influye en el cálculo.
+    expect(fila.observacion).toBe('texto libre sin relación');
   });
 });

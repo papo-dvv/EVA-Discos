@@ -10,8 +10,6 @@ import {
   Post,
   Query,
   UploadedFile,
-  Res,
-  StreamableFile,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
@@ -21,7 +19,6 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import type { AuthenticatedUser } from '../auth/interfaces/jwt-payload.interface';
-import type { Response } from 'express';
 import { PreviewQueryDto } from '../migration/dto/preview-query.dto';
 import { AgregarFilaDto } from './dto/agregar-fila.dto';
 import { CrearManualDto } from './dto/crear-manual.dto';
@@ -34,11 +31,8 @@ import { NewMeasurementPreviewService } from './new-measurement-preview.service'
 import { NewMeasurementReferenceService } from './new-measurement-reference.service';
 import { NewMeasurementValidationService } from './new-measurement-validation.service';
 import { NewMeasurementService } from './new-measurement.service';
-import { ReprofilingGeminiService } from './reprofiling-gemini.service';
-import { ReprofilingPdfService } from './reprofiling-pdf.service';
 
-const MAX_TAMANO_BYTES = 10 * 1024 * 1024;
-const EXTENSIONES_TABULARES = ['.csv', '.tsv', '.xlsx', '.xls', '.xlsm', '.ods'];
+const MAX_TAMANO_BYTES = 10 * 1024 * 1024; // ~10 MB — CSV de una ficha, nunca miles de filas como la migración
 
 // Ficha de medición individual (motivo 'Medición' únicamente por ahora) —
 // carga de CSV de Nextsense/cpo o ingreso 100% manual. Igual criterio de
@@ -54,8 +48,6 @@ export class NewMeasurementController {
     private readonly commitService: NewMeasurementCommitService,
     private readonly validationService: NewMeasurementValidationService,
     private readonly referenceService: NewMeasurementReferenceService,
-    private readonly reprofilingGeminiService: ReprofilingGeminiService,
-    private readonly reprofilingPdfService: ReprofilingPdfService,
   ) {}
 
   // Registrado ANTES de ':fichaId' a propósito: si quedara después, Nest
@@ -72,14 +64,8 @@ export class NewMeasurementController {
     FileInterceptor('file', {
       limits: { fileSize: MAX_TAMANO_BYTES },
       fileFilter: (_req, file, cb) => {
-        const nombre = file.originalname.toLowerCase();
-        if (!EXTENSIONES_TABULARES.some((extension) => nombre.endsWith(extension))) {
-          cb(
-            new BadRequestException(
-              'Solo se aceptan archivos tabulares .csv, .tsv, .xlsx, .xls, .xlsm u .ods.',
-            ),
-            false,
-          );
+        if (!file.originalname.toLowerCase().endsWith('.csv')) {
+          cb(new BadRequestException('Solo se acepta un archivo .csv.'), false);
           return;
         }
         cb(null, true);
@@ -100,40 +86,6 @@ export class NewMeasurementController {
     @CurrentUser() usuario: AuthenticatedUser,
   ) {
     return this.service.crearManual(dto, usuario.userId);
-  }
-
-  @Post('reprofiling/photo')
-  @UseInterceptors(FileInterceptor('file', {
-    limits: { fileSize: MAX_TAMANO_BYTES },
-    fileFilter: (_req, file, cb) => {
-      if (!/^image\/(jpeg|png|webp|heic|heif)$/i.test(file.mimetype)) {
-        cb(new BadRequestException('Solo se acepta una fotografía JPG, PNG, WEBP o HEIC.'), false);
-        return;
-      }
-      cb(null, true);
-    },
-  }))
-  leerFotoReperfilado(@UploadedFile() archivo: Express.Multer.File) {
-    return this.reprofilingGeminiService.leer(archivo);
-  }
-
-  @Get(':fichaId/reprofiling/pdf')
-  async descargarPdfReperfilado(
-    @Param('fichaId', ParseUUIDPipe) fichaId: string,
-    @Res({ passthrough: true }) response: Response,
-  ) {
-    const pdf = await this.reprofilingPdfService.generar(fichaId);
-    response.setHeader('Content-Type', 'application/pdf');
-    response.setHeader('Content-Disposition', `attachment; filename="reperfilado-${fichaId}.pdf"`);
-    return new StreamableFile(Buffer.from(pdf));
-  }
-
-  @Post(':fichaId/reprofiling')
-  crearReperfiladoDesdeMedicion(
-    @Param('fichaId', ParseUUIDPipe) fichaId: string,
-    @CurrentUser() usuario: AuthenticatedUser,
-  ) {
-    return this.service.crearReperfiladoDesdeMedicion(fichaId, usuario.userId);
   }
 
   @Get(':fichaId')
@@ -212,5 +164,16 @@ export class NewMeasurementController {
   @Delete(':fichaId')
   cancelar(@Param('fichaId', ParseUUIDPipe) fichaId: string) {
     return this.commitService.cancelar(fichaId);
+  }
+
+  // "Resubir CSV" / "Reiniciar ficha": vacía la tabla de mediciones actual
+  // reutilizando el mismo fichaId, a diferencia de DELETE .../:fichaId
+  // (cancelar), que borra la ficha entera — ver NewMeasurementCommitService.reiniciar.
+  @Post(':fichaId/reset')
+  reiniciar(
+    @Param('fichaId', ParseUUIDPipe) fichaId: string,
+    @CurrentUser() usuario: AuthenticatedUser,
+  ) {
+    return this.commitService.reiniciar(fichaId, usuario.userId);
   }
 }

@@ -356,6 +356,24 @@ body {
 .tabla-chip--critico { background: var(--tabla-estado-critico-bg); color: var(--tabla-estado-critico-text); }
 .tabla-chip--reperfilado { background: var(--tabla-accion-reperfilado-bg); color: var(--tabla-accion-reperfilado-text); }
 
+/* Modificador para chips con texto LARGO/variable (ej. el comentario de un
+   par de Tasa de Desgaste no válido) — .tabla-chip asume una sola línea
+   corta y usa border-radius:999px (media píldora) para lograrlo; con texto
+   que envuelve a 2-3 líneas ese mismo radio "muerde" las esquinas y el
+   texto se ve cortado/desbordado contra el contorno. Acá el radio baja a un
+   valor fijo razonable (deja de ser una píldora, pasa a rectángulo
+   redondeado) y el padding de .tabla-chip queda simétrico en las 4
+   direcciones sin importar cuántas líneas ocupe el texto. */
+.tabla-chip--envolver {
+  display: inline-flex;
+  align-items: flex-start;
+  white-space: normal;
+  overflow-wrap: break-word;
+  text-align: left;
+  border-radius: 12px;
+  max-width: 100%;
+}
+
 /* --- Scrollbar propio (reemplaza el nativo en listas largas) ---
    Estética styles.md §6: thumb en verde institucional translúcido, track en
    arena suave, delgado tipo iOS, aparece solo en hover/scroll activo y hace

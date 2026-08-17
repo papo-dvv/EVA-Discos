@@ -57,7 +57,7 @@ function DetalleHTRd({
 }) {
   return (
     <p className="mt-0.5 font-data text-[0.6875rem] leading-tight text-concreto">
-      H {h.toFixed(2)} · T {t.toFixed(2)} · Rd {rdAntes.toFixed(2)}→{rdDespues.toFixed(2)}
+      H {h.toFixed(2)} · T {t.toFixed(2)} · Rd {rdAntes.toFixed(2)} ➔ {rdDespues.toFixed(2)}
     </p>
   )
 }
@@ -112,14 +112,6 @@ function CeldaFecha({
     )
   }
   return <span className="text-concreto">—</span>
-}
-
-function BadgeTruncado() {
-  return (
-    <WarningTooltip texto="Llegó al tope de 5 ciclos de reperfilado sin caer en condición de cambio — revisar manualmente.">
-      <span className="tabla-chip tabla-chip--seguimiento">5+ ciclos</span>
-    </WarningTooltip>
-  )
 }
 
 type Props = {
@@ -348,7 +340,6 @@ function construirColumnas(
       header: 'Siguiente cambio',
       cell: ({ row }) => {
         const fila = row.original
-        if (fila.truncado) return <BadgeTruncado />
         return (
           <CeldaFecha
             fecha={fila.cicloCambio?.fechaEstimada ?? null}

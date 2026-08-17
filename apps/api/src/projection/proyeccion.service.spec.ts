@@ -65,7 +65,6 @@ function proyeccionFixture(
     responsableUltimaMedicion: 'Responsable Test',
     ciclosReperfilado: [],
     cicloCambio: null,
-    truncado: false,
     ...overrides,
   };
 }
@@ -823,7 +822,7 @@ describe('ProyeccionService.obtenerPromedioPorVagon', () => {
   });
 });
 
-describe('ProyeccionService.obtenerPronostico12Meses', () => {
+describe('ProyeccionService.obtenerPronostico', () => {
   afterEach(() => {
     jest.useRealTimers();
   });
@@ -874,7 +873,7 @@ describe('ProyeccionService.obtenerPronostico12Meses', () => {
       crearBrakeDiscRules(),
     );
 
-    const meses = await service.obtenerPronostico12Meses({});
+    const meses = await service.obtenerPronostico({ meses: 12 });
 
     expect(meses).toHaveLength(12);
     expect(meses[0].mes).toBe('2026-01');
@@ -900,7 +899,7 @@ describe('ProyeccionService.obtenerPronostico12Meses', () => {
     }
   });
 
-  it('un disco no proyectable mantiene su estado ACTUAL fijo en los 12 meses', async () => {
+  it('un disco CRITICO no proyectable se cuenta como Cambio pendiente en el mes actual', async () => {
     jest.useFakeTimers().setSystemTime(new Date('2026-01-15T00:00:00.000Z'));
 
     const discos = [discoBrakeFixture({ id: 'd1', trenNumero: 1 })];
@@ -915,7 +914,7 @@ describe('ProyeccionService.obtenerPronostico12Meses', () => {
     } as unknown as PrismaService;
     const proyeccion = proyeccionFixture({
       discId: 'd1',
-      estado: 'CAMBIO',
+      estado: 'CRITICO',
       proyectable: false,
       motivo: 'Sin datos suficientes...',
       tasaMensual: null,
@@ -932,12 +931,251 @@ describe('ProyeccionService.obtenerPronostico12Meses', () => {
       calculator,
       crearBrakeDiscRules(),
     );
-    const meses = await service.obtenerPronostico12Meses({});
+    const meses = await service.obtenerPronostico({ meses: 12 });
 
-    for (const mes of meses) {
-      expect(mes.desgloseEstado.cambio).toBe(1);
+    for (const [indice, mes] of meses.entries()) {
+      expect(mes.desgloseEstado.critico).toBe(1);
       expect(mes.reperfilados).toBe(0);
-      expect(mes.cambios).toBe(0);
+      expect(mes.cambios).toBe(indice === 0 ? 1 : 0);
     }
+  });
+
+  // proyectarCiclos asume reperfilado instantáneo apenas H cruza el umbral,
+  // así que interpolarEnFecha nunca devuelve REPERFILADO por sí solo — ni
+  // siquiera para un disco que YA está en ese estado real hoy (ver el
+  // comentario de estadoProyectadoEnMes). Este test cubre el parche: en el
+  // mes que contiene "hoy" se prioriza el estado real por sobre el
+  // interpolado.
+  it('un disco YA en REPERFILADO real se refleja así en el mes en curso, no en los siguientes', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-01-15T00:00:00.000Z'));
+
+    const discos = [discoBrakeFixture({ id: 'd1', trenNumero: 1 })];
+    const prisma = {
+      brakeDisc: {
+        findMany: jest.fn().mockResolvedValue(discos),
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
+    } as unknown as PrismaService;
+    const proyeccion = proyeccionFixture({
+      discId: 'd1',
+      estado: 'REPERFILADO',
+      h: 1.8,
+      t: 6.8,
+      rd: 5.0,
+      fechaUltimaMedicion: new Date('2026-01-01T00:00:00.000Z'),
+      tasaMensual: 0.25,
+      ciclosReperfilado: [
+        {
+          numero: 1,
+          mesesHastaFecha: 0,
+          fechaEstimada: new Date('2026-01-01T00:00:00.000Z'),
+          hEnEseMomento: 1.8,
+          tEnEseMomento: 6.8,
+          rdAntes: 5.0,
+          rdDespues: 4.2,
+        },
+      ],
+      cicloCambio: {
+        mesesHastaFecha: 50,
+        fechaEstimada: new Date('2030-01-01T00:00:00.000Z'),
+      },
+    });
+    const calculator = {
+      proyectarDisco: jest.fn().mockResolvedValue(proyeccion),
+    } as unknown as ProyeccionCalculatorService;
+
+    const service = new ProyeccionService(
+      prisma,
+      crearRate(),
+      calculator,
+      crearBrakeDiscRules(),
+    );
+    const meses = await service.obtenerPronostico({ meses: 12 });
+
+    expect(meses[0].mes).toBe('2026-01');
+    expect(meses[0].desgloseEstado.reperfilado).toBe(1);
+
+    expect(meses[1].mes).toBe('2026-02');
+    expect(meses[1].desgloseEstado.reperfilado).toBe(0);
+  });
+
+  // Punto 2 del enunciado: rango extendido de pronóstico — mismo shape de
+  // response, agregación siempre MENSUAL, solo cambia la cantidad de filas
+  // según `meses` (12/24/36/48/60, ver ProyeccionPronosticoQueryDto).
+  it('meses=60 devuelve 60 filas mensuales (rango de 5 años)', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-01-15T00:00:00.000Z'));
+
+    const prisma = {
+      brakeDisc: { findMany: jest.fn().mockResolvedValue([]) },
+    } as unknown as PrismaService;
+    const calculator = {
+      proyectarDisco: jest.fn(),
+    } as unknown as ProyeccionCalculatorService;
+
+    const service = new ProyeccionService(
+      prisma,
+      crearRate(),
+      calculator,
+      crearBrakeDiscRules(),
+    );
+    const meses = await service.obtenerPronostico({ meses: 60 });
+
+    expect(meses).toHaveLength(60);
+    expect(meses[0].mes).toBe('2026-01');
+    expect(meses[59].mes).toBe('2030-12');
+  });
+
+  it('meses=77 alcanza diciembre de 2032 desde agosto de 2026', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-08-14T00:00:00.000Z'));
+
+    const prisma = {
+      brakeDisc: { findMany: jest.fn().mockResolvedValue([]) },
+    } as unknown as PrismaService;
+    const service = new ProyeccionService(
+      prisma,
+      crearRate(),
+      { proyectarDisco: jest.fn() } as unknown as ProyeccionCalculatorService,
+      crearBrakeDiscRules(),
+    );
+
+    const meses = await service.obtenerPronostico({ meses: 77 });
+
+    expect(meses).toHaveLength(77);
+    expect(meses[0].mes).toBe('2026-08');
+    expect(meses[76].mes).toBe('2032-12');
+  });
+
+  it('devuelve eventos exactos del período con tipo y posición del disco', async () => {
+    const discos = [
+      discoBrakeFixture({
+        id: 'd1',
+        trenNumero: 7,
+        tipoCoche: 'MB1',
+        numeroCoche: 204,
+        bogieCodigo: 'PB4',
+        ejeNumero: 2,
+        lado: 'derecho',
+      }),
+    ];
+    const prisma = {
+      brakeDisc: {
+        findMany: jest.fn().mockResolvedValue(discos),
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
+    } as unknown as PrismaService;
+    const calculator = {
+      proyectarDisco: jest.fn().mockResolvedValue(
+        proyeccionFixture({
+          discId: 'd1',
+          posicion: posicion({
+            tipoCoche: 'MB1',
+            numeroCoche: 204,
+            bogieCodigo: 'PB4',
+            ejeNumero: 2,
+            lado: 'derecho',
+          }),
+          ciclosReperfilado: [
+            {
+              numero: 1,
+              mesesHastaFecha: 1,
+              fechaEstimada: new Date('2027-03-10T00:00:00.000Z'),
+              hEnEseMomento: 1.6,
+              tEnEseMomento: 3.6,
+              rdAntes: 2,
+              rdDespues: 1.2,
+            },
+          ],
+          cicloCambio: {
+            mesesHastaFecha: 1,
+            fechaEstimada: new Date('2027-03-25T00:00:00.000Z'),
+          },
+        }),
+      ),
+    } as unknown as ProyeccionCalculatorService;
+    const service = new ProyeccionService(
+      prisma,
+      crearRate(),
+      calculator,
+      crearBrakeDiscRules(),
+    );
+
+    const todos = await service.obtenerDetallePronostico({
+      periodo: '2027-03',
+    });
+    const cambios = await service.obtenerDetallePronostico({
+      periodo: '2027',
+      tipo: 'CAMBIO',
+    });
+
+    expect(todos).toEqual([
+      expect.objectContaining({
+        tipo: 'REPERFILADO',
+        fechaEstimada: '2027-03-10',
+        trenNumero: 7,
+      }),
+      expect.objectContaining({
+        tipo: 'CAMBIO',
+        fechaEstimada: '2027-03-25',
+        trenNumero: 7,
+      }),
+    ]);
+    expect(todos[0].posiciones).toEqual([
+      expect.objectContaining({
+        tipoCoche: 'MB1',
+        numeroCoche: 204,
+        bogieCodigo: 'PB4',
+        ejeNumero: 2,
+        lado: 'derecho',
+      }),
+    ]);
+    expect(cambios).toEqual([
+      expect.objectContaining({ tipo: 'CAMBIO', fechaEstimada: '2027-03-25' }),
+    ]);
+  });
+
+  it('cuenta una intervención por eje y reúne izquierdo y derecho en el detalle', async () => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-01-15T00:00:00.000Z'));
+    const discos = [
+      discoBrakeFixture({ id: 'izq', trenNumero: 3, lado: 'izquierdo' }),
+      discoBrakeFixture({ id: 'der', trenNumero: 3, lado: 'derecho' }),
+    ];
+    const ciclo = (fechaEstimada: string) => ({
+      numero: 1,
+      mesesHastaFecha: 2,
+      fechaEstimada: new Date(fechaEstimada),
+      hEnEseMomento: 1.6,
+      tEnEseMomento: 3.6,
+      rdAntes: 2,
+      rdDespues: 1.2,
+    });
+    const calculator = {
+      proyectarDisco: jest.fn((discId: string) =>
+        Promise.resolve(
+          proyeccionFixture({
+            discId,
+            posicion: posicion({ lado: discId === 'izq' ? 'izquierdo' : 'derecho' }),
+            ciclosReperfilado: [ciclo(discId === 'izq' ? '2026-03-10T00:00:00.000Z' : '2026-04-10T00:00:00.000Z')],
+            cicloCambio: {
+              mesesHastaFecha: 5,
+              fechaEstimada: new Date(discId === 'izq' ? '2026-06-10T00:00:00.000Z' : '2026-07-10T00:00:00.000Z'),
+            },
+          }),
+        ),
+      ),
+    } as unknown as ProyeccionCalculatorService;
+    const service = new ProyeccionService(
+      { brakeDisc: { findMany: jest.fn().mockResolvedValue(discos) } } as unknown as PrismaService,
+      crearRate(),
+      calculator,
+      crearBrakeDiscRules(),
+    );
+
+    const meses = await service.obtenerPronostico({ meses: 12 });
+    const detalle = await service.obtenerDetallePronostico({ periodo: '2026-03' });
+
+    expect(meses.find((mes) => mes.mes === '2026-03')!.reperfilados).toBe(1);
+    expect(meses.find((mes) => mes.mes === '2026-06')!.cambios).toBe(1);
+    expect(detalle).toHaveLength(1);
+    expect(detalle[0].posiciones.map((posicion) => posicion.lado).sort()).toEqual(['derecho', 'izquierdo']);
   });
 });

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { read, utils, type WorkBook } from 'xlsx';
+import { read } from 'xlsx';
 import { BrakeDiscRulesService } from '../brake-disc-rules/brake-disc-rules.service';
 import { SISTEMA_USER_ID } from '../common/constants';
 import { Prisma } from '../../generated/prisma';
@@ -154,57 +154,16 @@ export class MigrationService {
       // bookVBA:false: se ignora el vbaProject.bin (macros) desde la lectura. Solo
       // se leen valores de celda con la API de SheetJS —que nunca ejecuta VBA—;
       // no se usa ningún motor de Excel real (LibreOffice/COM) en ningún paso.
-      const workbook = read(archivo.buffer, {
+      return read(archivo.buffer, {
         type: 'buffer',
         cellDates: true,
         bookVBA: false,
       });
-      const nombre = archivo.originalname.toLowerCase();
-      if (nombre.endsWith('.csv') || nombre.endsWith('.tsv')) {
-        return this.separarArchivoPlanoPorTren(workbook);
-      }
-      return workbook;
     } catch {
       throw new BadRequestException(
-        'No se pudo leer el archivo como una tabla CSV o Excel válida.',
+        'No se pudo leer el archivo como un Excel válido.',
       );
     }
-  }
-
-  private separarArchivoPlanoPorTren(workbook: WorkBook): WorkBook {
-    const primeraHoja = workbook.SheetNames[0];
-    if (!primeraHoja) return workbook;
-    const filas = utils.sheet_to_json<unknown[]>(workbook.Sheets[primeraHoja], {
-      header: 1,
-      raw: true,
-      defval: null,
-    });
-    const normalizar = (valor: unknown) =>
-      String(valor ?? '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    const indiceEncabezado = filas.findIndex((fila) =>
-      fila.some((celda) => normalizar(celda) === 'tren'),
-    );
-    if (indiceEncabezado === -1) return workbook;
-    const encabezado = filas[indiceEncabezado];
-    const indiceTren = encabezado.findIndex((celda) => normalizar(celda) === 'tren');
-    if (indiceTren === -1) return workbook;
-
-    const porTren = new Map<number, unknown[][]>();
-    for (const fila of filas.slice(indiceEncabezado + 1)) {
-      const tren = Number(fila[indiceTren]);
-      if (!Number.isInteger(tren) || tren < 6 || tren > 44) continue;
-      const grupo = porTren.get(tren) ?? [];
-      grupo.push(fila);
-      porTren.set(tren, grupo);
-    }
-    if (porTren.size === 0) return workbook;
-
-    const resultado = utils.book_new();
-    for (const [tren, datos] of porTren) {
-      const hoja = utils.aoa_to_sheet([encabezado, ...datos]);
-      utils.book_append_sheet(resultado, hoja, `T${String(tren).padStart(2, '0')}`);
-    }
-    return resultado;
   }
 
   // disc_id se deja sin resolver (null) a propósito: la identidad cruda del

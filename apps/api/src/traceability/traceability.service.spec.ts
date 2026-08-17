@@ -2,7 +2,10 @@ import 'reflect-metadata';
 import type { PrismaService } from '../prisma/prisma.service';
 import { TraceabilitySeriesQueryDto } from './dto/traceability-series-query.dto';
 import { TraceabilityStatsService } from './traceability-stats.service';
-import { TraceabilityService } from './traceability.service';
+import {
+  TraceabilityService,
+  type PromedioPorTrenItem,
+} from './traceability.service';
 
 // Construye un TraceabilitySeriesQueryDto completo (con los defaults reales
 // de la clase, incluido agregacion='auto') partiendo de overrides — mismo
@@ -270,17 +273,10 @@ describe('TraceabilityService.obtenerSummary — umbral de 20 pares', () => {
       9,
     );
     expect(resultado.asimetria.clasificacion).toBe('SIMETRICA');
-    // Las 20 filas usan el diferenciaKm por defecto de fila() (10_000, dentro
-    // de [7000, 15000]) -> el subconjunto por km ES el conjunto completo, así
-    // que su consenso propio coincide con el global y su promedio con la media
-    // de estadisticas.
-    expect(resultado.promedioRangoKm.kmMinimo).toBe(7000);
-    expect(resultado.promedioRangoKm.kmMaximo).toBe(15000);
-    expect(resultado.promedioRangoKm.conteo).toBe(20);
-    expect(resultado.promedioRangoKm.confiable).toBe(true);
-    expect(resultado.promedioRangoKm.consenso).toEqual(resultado.consenso);
-    expect(resultado.promedioRangoKm.conteoLimpio).toBe(16);
-    expect(resultado.promedioRangoKm.promedio).toBeCloseTo(9.5, 9);
+    // paresTrasRecorte vive en la raíz de la response, mismo valor que
+    // estadisticas.conteo (ambos son valoresLimpios.length).
+    expect(resultado.paresTrasRecorte).toBe(16);
+    expect(resultado.paresTrasRecorte).toBe(resultado.estadisticas.conteo);
   });
 
   it('asimetria: el umbral configurable (asimetria_umbral_simetrica) mueve el límite de clasificación', async () => {
@@ -307,107 +303,6 @@ describe('TraceabilityService.obtenerSummary — umbral de 20 pares', () => {
       9,
     );
     expect(resultado.asimetria.clasificacion).toBe('SESGO_NEGATIVO');
-  });
-
-  it('promedioRangoKm calcula su PROPIO consenso sobre los pares del rango, no hereda el global', async () => {
-    // 20 filas 1..20 dentro del rango de km (mismo dataset ya verificado a
-    // mano arriba: consenso limite={4.8,12.4}, 16 limpios, media 9.5) + 10
-    // filas con tasas extremas FUERA del rango de km. Esas 10 mueven el
-    // consenso global, pero no deben tocar el del subconjunto: es exactamente
-    // la diferencia entre calcular aparte y heredar los límites de arriba.
-    const dentro = Array.from({ length: 20 }, (_, i) =>
-      fila({ id: `dentro${i}`, tasaMensual: i + 1, diferenciaKm: 10_000 }),
-    );
-    const fuera = Array.from({ length: 10 }, (_, i) =>
-      fila({ id: `fuera${i}`, tasaMensual: 500 + i, diferenciaKm: 40_000 }),
-    );
-    const { prisma } = crearPrismaConFixture([...dentro, ...fuera]);
-    const servicio = new TraceabilityService(
-      prisma,
-      new TraceabilityStatsService(),
-      crearConsensoConfigFake(),
-      crearAsimetriaConfigFake(),
-      crearProyeccionConfigFake(),
-    );
-
-    const resultado = await servicio.obtenerSummary({});
-    if (resultado.datosInsuficientes)
-      throw new Error('esperaba datosInsuficientes:false');
-
-    // El subconjunto (las 20 en rango) reproduce exactamente el consenso del
-    // test anterior, ajeno a las 10 filas extremas.
-    expect(resultado.promedioRangoKm.conteo).toBe(20);
-    expect(resultado.promedioRangoKm.confiable).toBe(true);
-    expect(
-      resultado.promedioRangoKm.consenso?.limiteConsenso.inferior,
-    ).toBeCloseTo(4.8, 9);
-    expect(
-      resultado.promedioRangoKm.consenso?.limiteConsenso.superior,
-    ).toBeCloseTo(12.4, 9);
-    expect(resultado.promedioRangoKm.conteoLimpio).toBe(16);
-    expect(resultado.promedioRangoKm.promedio).toBeCloseTo(9.5, 9);
-    // ...y el global, contaminado por las 10 extremas, es OTRO.
-    expect(resultado.consenso.limiteConsenso.superior).not.toBeCloseTo(12.4, 9);
-  });
-
-  it('promedioRangoKm marca confiable:false con menos de 20 pares en el rango, pero calcula igual', async () => {
-    // 5 filas en rango (>= CONTEO_MINIMO_CALCULABLE, < CONTEO_MINIMO) + 20
-    // fuera, para que el summary global sí supere el umbral y llegue a la
-    // rama de cálculo.
-    const dentro = Array.from({ length: 5 }, (_, i) =>
-      fila({ id: `dentro${i}`, tasaMensual: i + 1, diferenciaKm: 10_000 }),
-    );
-    const fuera = Array.from({ length: 20 }, (_, i) =>
-      fila({ id: `fuera${i}`, tasaMensual: i + 1, diferenciaKm: 40_000 }),
-    );
-    const { prisma } = crearPrismaConFixture([...dentro, ...fuera]);
-    const servicio = new TraceabilityService(
-      prisma,
-      new TraceabilityStatsService(),
-      crearConsensoConfigFake(),
-      crearAsimetriaConfigFake(),
-      crearProyeccionConfigFake(),
-    );
-
-    const resultado = await servicio.obtenerSummary({});
-    if (resultado.datosInsuficientes)
-      throw new Error('esperaba datosInsuficientes:false');
-
-    expect(resultado.promedioRangoKm.conteo).toBe(5);
-    expect(resultado.promedioRangoKm.confiable).toBe(false);
-    // Decisión de producto: con pocos datos igual se calcula (marcado como
-    // poco confiable), NO se devuelve vacío.
-    expect(resultado.promedioRangoKm.consenso).not.toBeNull();
-    expect(resultado.promedioRangoKm.promedio).not.toBeNull();
-    expect(resultado.promedioRangoKm.conteoLimpio).toBeGreaterThan(0);
-  });
-
-  it('promedioRangoKm queda en null cuando no hay con qué calcular (0 pares en el rango)', async () => {
-    const filas = Array.from({ length: 20 }, (_, i) =>
-      fila({ id: `v${i}`, tasaMensual: i + 1, diferenciaKm: 500 }),
-    );
-    const { prisma } = crearPrismaConFixture(filas);
-    const servicio = new TraceabilityService(
-      prisma,
-      new TraceabilityStatsService(),
-      crearConsensoConfigFake(),
-      crearAsimetriaConfigFake(),
-      crearProyeccionConfigFake(),
-    );
-
-    const resultado = await servicio.obtenerSummary({});
-    if (resultado.datosInsuficientes)
-      throw new Error('esperaba datosInsuficientes:false');
-
-    expect(resultado.promedioRangoKm).toEqual({
-      kmMinimo: 7000,
-      kmMaximo: 15000,
-      conteo: 0,
-      confiable: false,
-      consenso: null,
-      conteoLimpio: 0,
-      promedio: null,
-    });
   });
 });
 
@@ -726,28 +621,6 @@ describe('TraceabilityService.obtenerSummary — filtrarPorRangoKm', () => {
     expect(sinFiltrar.consenso).not.toEqual(filtrado.consenso);
   });
 
-  it('promedioRangoKm NUNCA se ve afectado por filtrarPorRangoKm (siempre corre sobre el scope completo)', async () => {
-    const { prisma } = crearPrismaConFixture(fixtureDentroYFuera());
-    const servicio = new TraceabilityService(
-      prisma,
-      new TraceabilityStatsService(),
-      crearConsensoConfigFake(),
-      crearAsimetriaConfigFake(),
-      crearProyeccionConfigFake(),
-    );
-
-    const filtrado = await servicio.obtenerSummary({ filtrarPorRangoKm: true });
-    const sinFiltrar = await servicio.obtenerSummary({
-      filtrarPorRangoKm: false,
-    });
-    if (filtrado.datosInsuficientes || sinFiltrar.datosInsuficientes) {
-      throw new Error('esperaba datosInsuficientes:false en ambos');
-    }
-
-    expect(filtrado.promedioRangoKm).toEqual(sinFiltrar.promedioRangoKm);
-    expect(filtrado.promedioRangoKm.conteo).toBe(20);
-  });
-
   it('un objeto plano sin filtrarPorRangoKm (undefined) se comporta como false, NO filtra — el default=true vive en el DTO (ver Transform), no en el servicio', async () => {
     const { prisma } = crearPrismaConFixture(fixtureDentroYFuera());
     const servicio = new TraceabilityService(
@@ -825,29 +698,21 @@ describe('TraceabilityService.obtenerSeries — filtrarPorRangoKm', () => {
   });
 });
 
+// Busca la entrada de un tren puntual dentro del array de 39 — falla fuerte
+// (en vez de devolver undefined) si el tren no está, porque el propio
+// contrato del endpoint garantiza que SIEMPRE están los 39 (6..44).
+function entradaTren(
+  resultado: PromedioPorTrenItem[],
+  tren: number,
+): PromedioPorTrenItem {
+  const item = resultado.find((r) => r.tren === tren);
+  if (!item) throw new Error(`tren ${tren} no encontrado en el resultado`);
+  return item;
+}
+
 describe('TraceabilityService.obtenerPromedioPorTren', () => {
-  it('sin tren -> promedia TODA la flota, sin filtrar por tipoCoche/bogieCodigo', async () => {
-    const filas = [
-      ...Array.from({ length: 10 }, (_, i) =>
-        fila({
-          id: `t1-${i}`,
-          trenNumero: 1,
-          tipoCoche: 'MA1',
-          bogieCodigo: 'PB1',
-          tasaMensual: i + 1,
-        }),
-      ),
-      ...Array.from({ length: 10 }, (_, i) =>
-        fila({
-          id: `t2-${i}`,
-          trenNumero: 2,
-          tipoCoche: 'MB1',
-          bogieCodigo: 'PB2',
-          tasaMensual: i + 11,
-        }),
-      ),
-    ];
-    const { prisma, findManyMock } = crearPrismaConFixture(filas);
+  it('siempre devuelve 39 entradas (tren 6..44, ascendente), incluso sin ningún par en toda la flota', async () => {
+    const { prisma } = crearPrismaConFixture([]);
     const servicio = new TraceabilityService(
       prisma,
       new TraceabilityStatsService(),
@@ -856,55 +721,41 @@ describe('TraceabilityService.obtenerPromedioPorTren', () => {
       crearProyeccionConfigFake(),
     );
 
-    const resultado = await servicio.obtenerPromedioPorTren();
+    const resultado = await servicio.obtenerPromedioPorTren(true, false);
 
-    expect(resultado.tren).toBeNull();
-    expect(resultado.conteo).toBe(20);
-    // El WHERE nunca agrega trenNumero/tipoCoche/bogieCodigo cuando no se
-    // pide un tren puntual — solo esValido:true.
+    expect(resultado).toHaveLength(39);
+    expect(resultado.map((r) => r.tren)).toEqual(
+      Array.from({ length: 39 }, (_, i) => i + 6),
+    );
+    expect(resultado.every((r) => r.promedio === null)).toBe(true);
+    expect(resultado.every((r) => r.paresTrasRecorte === 0)).toBe(true);
+    expect(resultado.every((r) => r.conteoParesUsados === 0)).toBe(true);
+    expect(resultado.every((r) => r.datosLimitados === true)).toBe(true);
+    expect(resultado.every((r) => r.porTipoCoche === undefined)).toBe(true);
+  });
+
+  it('una sola consulta a Prisma con esValido:true, sin trenNumero/tipoCoche en el WHERE — agrupa los 39 trenes en memoria', async () => {
+    const { prisma, findManyMock } = crearPrismaConFixture([]);
+    const servicio = new TraceabilityService(
+      prisma,
+      new TraceabilityStatsService(),
+      crearConsensoConfigFake(),
+      crearAsimetriaConfigFake(),
+      crearProyeccionConfigFake(),
+    );
+
+    await servicio.obtenerPromedioPorTren(false, false);
+
+    expect(findManyMock).toHaveBeenCalledTimes(1);
     const [{ where }] = findManyMock.mock.calls[0];
     expect(where).toEqual({ esValido: true });
   });
 
-  it('tren=1 -> promedia SOLO ese tren, combinando todos sus tipoCoche/bogie juntos', async () => {
-    const filas = [
-      ...Array.from({ length: 20 }, (_, i) =>
-        fila({
-          id: `t1-${i}`,
-          trenNumero: 1,
-          tipoCoche: i % 2 === 0 ? 'MA1' : 'MB1',
-          bogieCodigo: i % 2 === 0 ? 'PB1' : 'PB2',
-          tasaMensual: i + 1,
-        }),
-      ),
-      ...Array.from({ length: 5 }, (_, i) =>
-        fila({ id: `t2-${i}`, trenNumero: 2, tasaMensual: 999 }),
-      ),
-    ];
-    const { prisma, findManyMock } = crearPrismaConFixture(filas);
-    const servicio = new TraceabilityService(
-      prisma,
-      new TraceabilityStatsService(),
-      crearConsensoConfigFake(),
-      crearAsimetriaConfigFake(),
-      crearProyeccionConfigFake(),
-    );
-
-    const resultado = await servicio.obtenerPromedioPorTren(1);
-
-    expect(resultado.tren).toBe(1);
-    expect(resultado.conteo).toBe(20);
-    const [{ where }] = findManyMock.mock.calls[0];
-    expect(where).toEqual({ esValido: true, trenNumero: 1 });
-  });
-
-  it('NUNCA filtra por rango de km (ni el fijo de Trazabilidad ni el configurable de Proyección)', async () => {
-    // Mismo dataset 1..20 ya verificado a mano (media limpia 9.5, 16
-    // limpios), pero con diferenciaKm bien fuera de CUALQUIER rango conocido
-    // — si este método filtrara por km, quedaría en datosInsuficientes o con
-    // otro resultado.
+  it('agrupa por tren combinando todo tipoCoche/bogie — dataset 1..20 conocido da promedio 9.5 con 16 pares tras recorte', async () => {
+    // Mismo dataset 1..20 ya verificado a mano en obtenerSummary (consenso
+    // limite={4.8,12.4}, 16 limpios, media 9.5).
     const filas = Array.from({ length: 20 }, (_, i) =>
-      fila({ id: `v${i}`, tasaMensual: i + 1, diferenciaKm: 1_000_000 }),
+      fila({ id: `t6-${i}`, trenNumero: 6, tasaMensual: i + 1 }),
     );
     const { prisma } = crearPrismaConFixture(filas);
     const servicio = new TraceabilityService(
@@ -915,19 +766,148 @@ describe('TraceabilityService.obtenerPromedioPorTren', () => {
       crearProyeccionConfigFake(),
     );
 
-    const resultado = await servicio.obtenerPromedioPorTren();
+    const resultado = await servicio.obtenerPromedioPorTren(true, false);
+    const tren6 = entradaTren(resultado, 6);
 
-    expect(resultado.conteo).toBe(20);
-    expect(resultado.confiable).toBe(true);
-    expect(resultado.conteoLimpio).toBe(16);
-    expect(resultado.promedio).toBeCloseTo(9.5, 9);
+    expect(tren6.conteoParesUsados).toBe(20);
+    expect(tren6.paresTrasRecorte).toBe(16);
+    expect(tren6.promedio).toBeCloseTo(9.5, 9);
+    expect(tren6.datosLimitados).toBe(false);
+    expect(tren6.porTipoCoche).toBeUndefined();
+
+    // Un tren sin pares propios queda en null/0/true, sin contaminarse con
+    // los del tren 6.
+    const tren7 = entradaTren(resultado, 7);
+    expect(tren7.conteoParesUsados).toBe(0);
+    expect(tren7.promedio).toBeNull();
+    expect(tren7.datosLimitados).toBe(true);
+  });
+
+  it('filtrarPorRangoKm=true excluye pares fuera de proyeccion_km_rango_min/max antes de calcular; false los incluye', async () => {
+    const dentro = Array.from({ length: 20 }, (_, i) =>
+      fila({
+        id: `dentro${i}`,
+        trenNumero: 6,
+        tasaMensual: i + 1,
+        diferenciaKm: 10_000,
+      }),
+    );
+    const fuera = Array.from({ length: 10 }, (_, i) =>
+      fila({
+        id: `fuera${i}`,
+        trenNumero: 6,
+        tasaMensual: 500 + i,
+        diferenciaKm: 40_000,
+      }),
+    );
+    const { prisma } = crearPrismaConFixture([...dentro, ...fuera]);
+    const servicio = new TraceabilityService(
+      prisma,
+      new TraceabilityStatsService(),
+      crearConsensoConfigFake(),
+      crearAsimetriaConfigFake(),
+      crearProyeccionConfigFake(), // default 7000-15000
+    );
+
+    const filtrado = entradaTren(
+      await servicio.obtenerPromedioPorTren(true, false),
+      6,
+    );
+    const sinFiltrar = entradaTren(
+      await servicio.obtenerPromedioPorTren(false, false),
+      6,
+    );
+
+    expect(filtrado.conteoParesUsados).toBe(20);
+    expect(filtrado.promedio).toBeCloseTo(9.5, 9);
+
+    expect(sinFiltrar.conteoParesUsados).toBe(30);
+    expect(sinFiltrar.promedio).not.toBeCloseTo(9.5, 9);
+  });
+
+  it('tren con solo 12 pares (< CONTEO_MINIMO=20) igual calcula el promedio, marcado datosLimitados:true', async () => {
+    const filas = Array.from({ length: 12 }, (_, i) =>
+      fila({ id: `t6-${i}`, trenNumero: 6, tasaMensual: i + 1 }),
+    );
+    const { prisma } = crearPrismaConFixture(filas);
+    const servicio = new TraceabilityService(
+      prisma,
+      new TraceabilityStatsService(),
+      crearConsensoConfigFake(),
+      crearAsimetriaConfigFake(),
+      crearProyeccionConfigFake(),
+    );
+
+    const tren6 = entradaTren(
+      await servicio.obtenerPromedioPorTren(true, false),
+      6,
+    );
+
+    expect(tren6.conteoParesUsados).toBe(12);
+    expect(tren6.datosLimitados).toBe(true);
+    expect(tren6.promedio).not.toBeNull();
+    expect(tren6.paresTrasRecorte).toBeGreaterThan(0);
+  });
+
+  it('tren sin pares (0) devuelve promedio null', async () => {
+    // Solo el tren 7 tiene filas — el 6 queda en 0 pares.
+    const filas = Array.from({ length: 20 }, (_, i) =>
+      fila({ id: `t7-${i}`, trenNumero: 7, tasaMensual: i + 1 }),
+    );
+    const { prisma } = crearPrismaConFixture(filas);
+    const servicio = new TraceabilityService(
+      prisma,
+      new TraceabilityStatsService(),
+      crearConsensoConfigFake(),
+      crearAsimetriaConfigFake(),
+      crearProyeccionConfigFake(),
+    );
+
+    const tren6 = entradaTren(
+      await servicio.obtenerPromedioPorTren(true, false),
+      6,
+    );
+
+    expect(tren6.conteoParesUsados).toBe(0);
+    expect(tren6.promedio).toBeNull();
+    expect(tren6.paresTrasRecorte).toBe(0);
+  });
+
+  it('con menos de 3 pares (piso técnico) el pipeline ni corre -> promedio null', async () => {
+    const filas = [
+      fila({ id: 'a', trenNumero: 6, tasaMensual: 5 }),
+      fila({ id: 'b', trenNumero: 6, tasaMensual: 6 }),
+    ];
+    const { prisma } = crearPrismaConFixture(filas);
+    const servicio = new TraceabilityService(
+      prisma,
+      new TraceabilityStatsService(),
+      crearConsensoConfigFake(),
+      crearAsimetriaConfigFake(),
+      crearProyeccionConfigFake(),
+    );
+
+    const tren6 = entradaTren(
+      await servicio.obtenerPromedioPorTren(true, false),
+      6,
+    );
+
+    expect(tren6.conteoParesUsados).toBe(2);
+    expect(tren6.promedio).toBeNull();
+    expect(tren6.paresTrasRecorte).toBe(0);
+    expect(tren6.datosLimitados).toBe(true);
   });
 
   it('un par inválido nunca cuenta', async () => {
     const validas = Array.from({ length: 20 }, (_, i) =>
-      fila({ id: `v${i}`, tasaMensual: i + 1 }),
+      fila({ id: `t6-${i}`, trenNumero: 6, tasaMensual: i + 1 }),
     );
-    const invalida = fila({ id: 'inv', esValido: false, tasaMensual: 999 });
+    const invalida = fila({
+      id: 'inv',
+      trenNumero: 6,
+      esValido: false,
+      tasaMensual: 999,
+    });
     const { prisma } = crearPrismaConFixture([...validas, invalida]);
     const servicio = new TraceabilityService(
       prisma,
@@ -937,13 +917,21 @@ describe('TraceabilityService.obtenerPromedioPorTren', () => {
       crearProyeccionConfigFake(),
     );
 
-    const resultado = await servicio.obtenerPromedioPorTren();
+    const tren6 = entradaTren(
+      await servicio.obtenerPromedioPorTren(true, false),
+      6,
+    );
 
-    expect(resultado.conteo).toBe(20);
+    expect(tren6.conteoParesUsados).toBe(20);
   });
 
-  it('con menos de 2 pares no hay con qué calcular -> consenso y promedio null', async () => {
-    const { prisma } = crearPrismaConFixture([fila({ id: 'a' })]);
+  it('el resultado siempre viene ordenado ascendente de tren 6 a 44, sin importar el orden de inserción de las filas', async () => {
+    const filas = [
+      fila({ id: 'x44', trenNumero: 44, tasaMensual: 5 }),
+      fila({ id: 'x6', trenNumero: 6, tasaMensual: 5 }),
+      fila({ id: 'x25', trenNumero: 25, tasaMensual: 5 }),
+    ];
+    const { prisma } = crearPrismaConFixture(filas);
     const servicio = new TraceabilityService(
       prisma,
       new TraceabilityStatsService(),
@@ -952,15 +940,76 @@ describe('TraceabilityService.obtenerPromedioPorTren', () => {
       crearProyeccionConfigFake(),
     );
 
-    const resultado = await servicio.obtenerPromedioPorTren();
+    const resultado = await servicio.obtenerPromedioPorTren(true, false);
 
-    expect(resultado).toEqual({
-      tren: null,
-      conteo: 1,
-      confiable: false,
-      consenso: null,
-      conteoLimpio: 0,
-      promedio: null,
-    });
+    expect(resultado.map((r) => r.tren)).toEqual(
+      Array.from({ length: 39 }, (_, i) => i + 6),
+    );
+  });
+
+  it('incluirDetalle=true agrega 6 entradas de porTipoCoche (una por TipoCoche) en cada uno de los 39 trenes', async () => {
+    const { prisma } = crearPrismaConFixture([]);
+    const servicio = new TraceabilityService(
+      prisma,
+      new TraceabilityStatsService(),
+      crearConsensoConfigFake(),
+      crearAsimetriaConfigFake(),
+      crearProyeccionConfigFake(),
+    );
+
+    const resultado = await servicio.obtenerPromedioPorTren(true, true);
+
+    expect(resultado).toHaveLength(39);
+    for (const item of resultado) {
+      expect(item.porTipoCoche).toHaveLength(6);
+      expect(
+        [...(item.porTipoCoche ?? [])].map((t) => t.tipoCoche).sort(),
+      ).toEqual(['MA1', 'MA2', 'MB1', 'MB2', 'MB3', 'REM'].sort());
+    }
+  });
+
+  it('incluirDetalle=true calcula cada tipoCoche de forma independiente dentro de un mismo tren', async () => {
+    const ma1 = Array.from({ length: 20 }, (_, i) =>
+      fila({
+        id: `ma1-${i}`,
+        trenNumero: 6,
+        tipoCoche: 'MA1',
+        tasaMensual: i + 1,
+      }),
+    );
+    const mb1 = Array.from({ length: 5 }, (_, i) =>
+      fila({
+        id: `mb1-${i}`,
+        trenNumero: 6,
+        tipoCoche: 'MB1',
+        tasaMensual: 100 + i,
+      }),
+    );
+    const { prisma } = crearPrismaConFixture([...ma1, ...mb1]);
+    const servicio = new TraceabilityService(
+      prisma,
+      new TraceabilityStatsService(),
+      crearConsensoConfigFake(),
+      crearAsimetriaConfigFake(),
+      crearProyeccionConfigFake(),
+    );
+
+    const tren6 = entradaTren(
+      await servicio.obtenerPromedioPorTren(true, true),
+      6,
+    );
+
+    // El tren combinado (sin desglose) mezcla ambos tipoCoche.
+    expect(tren6.conteoParesUsados).toBe(25);
+
+    const detalleMa1 = tren6.porTipoCoche?.find((t) => t.tipoCoche === 'MA1');
+    const detalleMb1 = tren6.porTipoCoche?.find((t) => t.tipoCoche === 'MB1');
+    const detalleMb3 = tren6.porTipoCoche?.find((t) => t.tipoCoche === 'MB3');
+
+    expect(detalleMa1?.conteoParesUsados).toBe(20);
+    expect(detalleMa1?.promedio).toBeCloseTo(9.5, 9);
+    expect(detalleMb1?.conteoParesUsados).toBe(5);
+    expect(detalleMb3?.conteoParesUsados).toBe(0);
+    expect(detalleMb3?.promedio).toBeNull();
   });
 });

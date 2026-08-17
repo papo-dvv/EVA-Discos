@@ -1,9 +1,11 @@
-import { useState, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent } from 'react'
 import { GlassButton } from '../../../components/GlassButton'
 import { GlassField } from '../../../components/GlassField'
+import { GlassModal } from '../../../components/GlassModal'
 import { SegmentedControl } from '../../../components/SegmentedControl'
 import { extraerMensajeError } from '../../../lib/extraerMensajeError'
 import { crearFichaManual, subirCsvMedicion } from '../api'
+import type { ResultadoDuplicadoDetectado } from '../types'
 
 // Punto de entrada de una ficha nueva (motivo 'Medición'): subir el .csv de
 // Nextsense/cpo (autocompleta todo el header) o registrar manualmente
@@ -12,7 +14,12 @@ import { crearFichaManual, subirCsvMedicion } from '../api'
 // MigracionUpload (dropzone), en un panel más chico porque vive embebido en
 // la propia pantalla de Nuevas Mediciones, no en una ruta aparte.
 type Props = {
-  onCreada: (fichaId: string) => void
+  // autoVerificar=true SOLO en el flujo de carga por CSV exitosa (nunca en
+  // modo manual, que arranca con la tabla vacía y no tiene nada que
+  // verificar todavía) — NuevasMediciones.tsx lo usa para disparar
+  // automáticamente la misma verificación que dispararía un click manual en
+  // "Verificar", sin esperar a que el usuario la pida.
+  onCreada: (fichaId: string, autoVerificar?: boolean) => void
 }
 
 export function CargaInicialFicha({ onCreada }: Props) {
@@ -22,6 +29,12 @@ export function CargaInicialFicha({ onCreada }: Props) {
   const [kilometraje, setKilometraje] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [cargando, setCargando] = useState(false)
+  // POST .../upload puede responder duplicadoDetectado en vez de crear la
+  // ficha — se guarda acá para mostrar el aviso. Es definitivo: no existe
+  // ningún camino para forzar esta carga puntual, solo cerrar el aviso y
+  // subir un archivo distinto (ver reintentarConOtroArchivo).
+  const [duplicado, setDuplicado] = useState<ResultadoDuplicadoDetectado | null>(null)
+  const inputArchivoRef = useRef<HTMLInputElement>(null)
 
   async function subir(event: FormEvent) {
     event.preventDefault()
@@ -30,12 +43,26 @@ export function CargaInicialFicha({ onCreada }: Props) {
     setCargando(true)
     try {
       const resumen = await subirCsvMedicion(file)
-      onCreada(resumen.fichaId)
+      if ('duplicadoDetectado' in resumen) {
+        setDuplicado(resumen)
+        return
+      }
+      onCreada(resumen.fichaId, true)
     } catch (err) {
       setError(extraerMensajeError(err, 'No se pudo procesar el archivo.'))
     } finally {
       setCargando(false)
     }
+  }
+
+  // Único camino hacia adelante tras un duplicado exacto (punto 4 de la
+  // ampliación): cierra el aviso, limpia el archivo elegido y reabre el
+  // selector de inmediato — nunca un botón de "continuar de todas formas".
+  function reintentarConOtroArchivo() {
+    setDuplicado(null)
+    setFile(null)
+    if (inputArchivoRef.current) inputArchivoRef.current.value = ''
+    inputArchivoRef.current?.click()
   }
 
   async function crearManual(event: FormEvent) {
@@ -60,7 +87,7 @@ export function CargaInicialFicha({ onCreada }: Props) {
       <SegmentedControl
         ariaLabel="Origen de la ficha"
         opciones={[
-          { valor: 'csv', etiqueta: 'Subir CSV o Excel' },
+          { valor: 'csv', etiqueta: 'Subir archivo .csv' },
           { valor: 'manual', etiqueta: 'Registrar manualmente' },
         ]}
         valor={modo}
@@ -72,14 +99,15 @@ export function CargaInicialFicha({ onCreada }: Props) {
           <label className="glass-field flex cursor-pointer flex-col items-center gap-2 border-dashed py-7 text-center transition-colors hover:border-[color:var(--color-verde-institucional)]">
             <span className="font-display text-2xl text-verde-oscuro">⇪</span>
             <span className="font-body text-sm font-semibold text-concreto-oscuro">
-              {file ? file.name : 'Elegir CSV o Excel'}
+              {file ? file.name : 'Elegir archivo .csv'}
             </span>
             <span className="font-body text-xs text-concreto">
-              {file ? 'Clic para cambiar' : 'CSV o Excel exportado de Nextsense/cpo'}
+              {file ? 'Clic para cambiar' : 'Exportado de Nextsense/cpo'}
             </span>
             <input
+              ref={inputArchivoRef}
               type="file"
-              accept=".csv,.tsv,.xlsx,.xls,.xlsm,.ods"
+              accept=".csv"
               className="hidden"
               onChange={(e) => setFile(e.target.files?.[0] ?? null)}
             />
@@ -127,6 +155,26 @@ export function CargaInicialFicha({ onCreada }: Props) {
             </GlassButton>
           </div>
         </form>
+      )}
+
+      {duplicado && (
+        <GlassModal
+          titulo="Posible carga duplicada"
+          onCerrar={reintentarConOtroArchivo}
+          footer={
+            <div className="mt-5 flex justify-end">
+              <GlassButton type="button" onClick={reintentarConOtroArchivo} className="px-5 py-2.5 text-xs">
+                Subir otro CSV
+              </GlassButton>
+            </div>
+          }
+        >
+          <p className="font-body text-sm text-concreto-oscuro">
+            Este archivo tiene la misma fecha, kilometraje y medidas que la última ficha confirmada del Tren{' '}
+            {duplicado.tren} ({duplicado.fecha}). No se puede volver a cargar — subí un archivo distinto para
+            continuar.
+          </p>
+        </GlassModal>
       )}
     </div>
   )

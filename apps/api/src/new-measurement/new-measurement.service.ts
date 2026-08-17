@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { read, utils } from 'xlsx';
 import { Prisma, type TipoCoche } from '../../generated/prisma';
 import { BrakeDiscRulesService } from '../brake-disc-rules/brake-disc-rules.service';
 import { calcularOrdenFisico } from '../common/orden-fisico';
@@ -9,7 +8,6 @@ import type { CrearManualDto } from './dto/crear-manual.dto';
 import type { UploadCsvDto } from './dto/upload-csv.dto';
 import {
   resolverNumerosCochePorTren,
-  validarTrenCatalogo,
   validarTrenAlstom,
 } from './new-measurement-catalogo';
 import {
@@ -18,9 +16,7 @@ import {
 } from './new-measurement-esqueleto';
 import {
   ACTIVIDAD_BAJO_BASTIDOR,
-  ACTIVIDAD_TORNO_FOSA,
   MOTIVO_MEDICION,
-  MOTIVO_REPERFILADO,
   procesarCsvMedicion,
   type DiscrepanciaRd,
   type FilaMedicionInvalida,
@@ -40,6 +36,28 @@ export interface ResumenCargaMedicion {
   discrepanciasRd: DiscrepanciaRd[];
 }
 
+// Respuesta de POST .../upload cuando el CSV coincide EXACTAMENTE (fecha +
+// kilometraje + cada H/T de cada disco presente) con la última ficha
+// CONFIRMADA de ese mismo tren — ver NewMeasurementService.buscarDuplicadoExacto.
+// La ficha borrador NUNCA se crea en este caso: no existe ningún camino para
+// forzar esta carga puntual. El único camino hacia adelante es subir un
+// archivo distinto.
+export interface ResultadoDuplicadoDetectado {
+  duplicadoDetectado: true;
+  fichaConfirmadaId: string;
+  fecha: string;
+  kilometraje: number;
+  tren: number;
+}
+
+// Tolerancia para comparar H/T contra el histórico confirmado — mismo
+// criterio que EPSILON_DISCREPANCIA_RD del parser, evita falsos negativos por
+// redondeo de punto flotante entre el valor guardado y el recién parseado.
+const EPSILON_COMPARACION_DUPLICADO = 1e-6;
+function valoresIguales(a: number, b: number): boolean {
+  return Math.abs(a - b) < EPSILON_COMPARACION_DUPLICADO;
+}
+
 export interface ResumenFichaManual {
   fichaId: string;
   trenNumero: number;
@@ -47,20 +65,17 @@ export interface ResumenFichaManual {
   esqueleto: PosicionEsqueleto[];
 }
 
-export interface ResumenReperfiladoDesdeMedicion {
-  fichaId: string;
-  sourceFichaId: string;
-  reutilizada: boolean;
-  filasCopiadas: number;
-}
-
+// Valida que el motivo pedido sea el único implementado por este módulo.
+// Reperfilado y Cambio existen en el enunciado como alcance futuro; se
+// reconocen acá SOLO para poder rechazarlos con un mensaje claro en vez de un
+// 400 genérico de "valor inválido".
 export function validarMotivoImplementado(
   motivo: MotivoFicha | undefined,
 ): void {
   const resuelto = motivo ?? MOTIVO_MEDICION;
-  if (resuelto !== MOTIVO_MEDICION && resuelto !== MOTIVO_REPERFILADO) {
+  if (resuelto !== MOTIVO_MEDICION) {
     throw new BadRequestException(
-      `Motivo '${resuelto}' no implementado aún.`,
+      `Motivo '${resuelto}' no implementado aún. Este módulo solo soporta '${MOTIVO_MEDICION}'.`,
     );
   }
 }
@@ -77,30 +92,24 @@ export class NewMeasurementService {
     archivo: Express.Multer.File,
     dto: UploadCsvDto,
     usuarioId: string,
-  ): Promise<ResumenCargaMedicion> {
+  ): Promise<ResumenCargaMedicion | ResultadoDuplicadoDetectado> {
     validarMotivoImplementado(dto.motivo);
-    const motivo = dto.motivo ?? MOTIVO_MEDICION;
-    if (motivo === MOTIVO_REPERFILADO) {
-      throw new BadRequestException(
-        'Reperfilado no admite CSV ni Excel; usa registro manual o fotografía.',
-      );
-    }
     if (!archivo?.buffer?.length) {
       throw new BadRequestException('No se recibió ningún archivo.');
     }
 
-    const contenido = this.convertirArchivoATextoTabular(archivo);
+    const contenido = archivo.buffer.toString('utf-8');
     const evaluador = await this.brakeDiscRules.obtenerEvaluador();
     const resultado = procesarCsvMedicion(contenido, evaluador);
 
     if (resultado.metadata.trenNumero === null) {
       throw new BadRequestException(
-        'No se pudo determinar el tren (ID_del_tren) desde el archivo.',
+        'No se pudo determinar el tren (ID_del_tren) desde el CSV.',
       );
     }
     if (resultado.metadata.kilometraje === null) {
       throw new BadRequestException(
-        'No se pudo determinar el Kilometraje desde el archivo.',
+        'No se pudo determinar el Kilometraje desde el CSV.',
       );
     }
     if (resultado.filas.length === 0) {
@@ -119,10 +128,27 @@ export class NewMeasurementService {
     );
 
     const fechaFicha = resultado.filas[0].fecha;
-    const fechasHora = resultado.filas
-      .map((fila) => this.combinarFechaHora(fila.fecha, fila.measTimeOriginal))
-      .filter((fecha): fecha is Date => fecha !== null)
-      .sort((a, b) => a.getTime() - b.getTime());
+
+    // Detección de duplicado exacto contra la última ficha CONFIRMADA de este
+    // mismo tren: un duplicado detectado corta acá, definitivamente — la
+    // ficha borrador nunca se crea para este archivo. No existe ningún
+    // endpoint/parámetro para forzar esta carga puntual; la única forma de
+    // continuar es subir un archivo distinto.
+    const duplicado = await this.buscarDuplicadoExacto(
+      tren.numero,
+      fechaFicha,
+      resultado.metadata.kilometraje,
+      resultado.filas,
+    );
+    if (duplicado) {
+      return {
+        duplicadoDetectado: true,
+        fichaConfirmadaId: duplicado.id,
+        fecha: fechaFicha.toISOString().slice(0, 10),
+        kilometraje: resultado.metadata.kilometraje,
+        tren: tren.numero,
+      };
+    }
 
     const { fichaId, fileId } = await this.prisma.$transaction(
       async (tx) => {
@@ -144,10 +170,7 @@ export class NewMeasurementService {
             trenNumero: tren.numero,
             kilometraje: resultado.metadata.kilometraje!,
             fechaFicha,
-            fechaHoraInicio: fechasHora[0] ?? null,
-            fechaHoraFin: fechasHora.at(-1) ?? null,
             actividad: ACTIVIDAD_BAJO_BASTIDOR,
-            motivo,
             trenOriginalCsv: tren.numero,
             kilometrajeOriginalCsv: resultado.metadata.kilometraje!,
           },
@@ -162,7 +185,6 @@ export class NewMeasurementService {
             tren.numero,
             resultado.metadata.kilometraje!,
             numerosCoche,
-            motivo,
           ),
         );
         await tx.scanRecord.createMany({ data: scanRecords });
@@ -190,43 +212,12 @@ export class NewMeasurementService {
     };
   }
 
-  private convertirArchivoATextoTabular(archivo: Express.Multer.File): string {
-    const nombre = archivo.originalname.toLowerCase();
-    if (nombre.endsWith('.csv')) return archivo.buffer.toString('utf-8');
-
-    try {
-      const workbook = read(archivo.buffer, {
-        type: 'buffer',
-        cellDates: true,
-        bookVBA: false,
-      });
-      const primeraHoja = workbook.SheetNames[0];
-      if (!primeraHoja) {
-        throw new Error('Libro sin hojas');
-      }
-      // El parser de fichas trabaja con el formato tabular exportado por el
-      // equipo. Normalizamos Excel/TSV al mismo texto separado por punto y coma.
-      return utils.sheet_to_csv(workbook.Sheets[primeraHoja], {
-        FS: ';',
-        RS: '\n',
-        blankrows: false,
-      });
-    } catch {
-      throw new BadRequestException(
-        'No se pudo leer el archivo como una tabla válida de Excel/CSV.',
-      );
-    }
-  }
-
   async crearManual(
     dto: CrearManualDto,
     usuarioId: string,
   ): Promise<ResumenFichaManual> {
     validarMotivoImplementado(dto.motivo);
-    const motivo = dto.motivo ?? MOTIVO_MEDICION;
-    const tren = motivo === MOTIVO_REPERFILADO
-      ? await validarTrenCatalogo(this.prisma, dto.trenNumero)
-      : await validarTrenAlstom(this.prisma, dto.trenNumero);
+    const tren = await validarTrenAlstom(this.prisma, dto.trenNumero);
     const numerosCoche = await resolverNumerosCochePorTren(
       this.prisma,
       tren.id,
@@ -241,7 +232,7 @@ export class NewMeasurementService {
       // práctica, ninguna ficha sin file_id — ver comentario en el schema.
       const uploadedFile = await tx.uploadedFile.create({
         data: {
-          filename: `${motivo} manual — Tren ${tren.numero}`,
+          filename: `Ingreso manual — Tren ${tren.numero}`,
           tipoCarga: 'ficha_medicion_individual',
           uploadedBy: usuarioId,
           status: 'review',
@@ -257,10 +248,7 @@ export class NewMeasurementService {
           trenNumero: tren.numero,
           kilometraje: dto.kilometraje,
           fechaFicha,
-          actividad: motivo === MOTIVO_REPERFILADO
-            ? `CONTROL DE TRABAJOS EN TORNO FOSA - DISCOS DE FRENO TREN ${tren.modelo === 'ansaldo_mb300' ? 'ANSALDO' : 'ALSTOM'}`
-            : ACTIVIDAD_BAJO_BASTIDOR,
-          motivo,
+          actividad: ACTIVIDAD_BAJO_BASTIDOR,
         },
       });
 
@@ -277,84 +265,48 @@ export class NewMeasurementService {
     };
   }
 
-  async crearReperfiladoDesdeMedicion(
-    sourceFichaId: string,
-    usuarioId: string,
-  ): Promise<ResumenReperfiladoDesdeMedicion> {
-    const existente = await this.prisma.measurementSheet.findUnique({
-      where: { sourceMeasurementSheetId: sourceFichaId },
+  // Busca la ficha CONFIRMADA (uploadedFile.status='committed') más reciente
+  // de este tren y la compara contra el CSV recién subido: duplicado exacto
+  // solo si fecha Y kilometraje coinciden Y cada disco presente en el CSV
+  // tiene el mismo H/T que su equivalente confirmado (identidad por eje
+  // global + lado, igual que el resto del módulo — ver resolverIdentidadPorEje).
+  // Un disco del CSV sin equivalente confirmado (o con H/T distinto) descarta
+  // el duplicado de inmediato; discos que la ficha confirmada tenga de más no
+  // importan (el enunciado solo exige que los discos PRESENTES coincidan).
+  private async buscarDuplicadoExacto(
+    trenNumero: number,
+    fechaFicha: Date,
+    kilometraje: number,
+    filas: FilaNuevaMedicion[],
+  ): Promise<{ id: string } | null> {
+    const ultimaConfirmada = await this.prisma.measurementSheet.findFirst({
+      where: { trenNumero, uploadedFile: { status: 'committed' } },
+      orderBy: [{ fechaFicha: 'desc' }, { createdAt: 'desc' }],
     });
-    if (existente) {
-      const filas = existente.uploadedFileId
-        ? await this.prisma.scanRecord.count({ where: { fileId: existente.uploadedFileId } })
-        : 0;
-      return { fichaId: existente.id, sourceFichaId, reutilizada: true, filasCopiadas: filas };
+    if (!ultimaConfirmada?.uploadedFileId) return null;
+    if (ultimaConfirmada.fechaFicha.getTime() !== fechaFicha.getTime()) {
+      return null;
+    }
+    if (!valoresIguales(Number(ultimaConfirmada.kilometraje), kilometraje)) {
+      return null;
     }
 
-    const origen = await this.prisma.measurementSheet.findUnique({ where: { id: sourceFichaId } });
-    if (!origen || origen.motivo !== MOTIVO_MEDICION || !origen.uploadedFileId) {
-      throw new BadRequestException('La ficha de origen debe ser una Medición válida.');
-    }
-    const filasOrigen = await this.prisma.scanRecord.findMany({ where: { fileId: origen.uploadedFileId } });
-
-    const fichaId = await this.prisma.$transaction(async (tx) => {
-      const archivo = await tx.uploadedFile.create({
-        data: {
-          filename: `Reperfilado desde ${sourceFichaId}`,
-          tipoCarga: 'ficha_medicion_individual',
-          uploadedBy: usuarioId,
-          status: 'review',
-          totalRows: filasOrigen.length,
-          validRows: filasOrigen.length,
-          invalidRows: 0,
-        },
-      });
-      const ficha = await tx.measurementSheet.create({
-        data: {
-          uploadedFileId: archivo.id,
-          sourceMeasurementSheetId: sourceFichaId,
-          trenNumero: origen.trenNumero,
-          kilometraje: origen.kilometraje,
-          fechaFicha: origen.fechaFicha,
-          actividad: ACTIVIDAD_TORNO_FOSA,
-          motivo: MOTIVO_REPERFILADO,
-          trenOriginalCsv: origen.trenOriginalCsv,
-          kilometrajeOriginalCsv: origen.kilometrajeOriginalCsv,
-        },
-      });
-      await this.crearPlaceholdersFicha(tx, ficha.id);
-      if (filasOrigen.length) {
-        await tx.scanRecord.createMany({
-          data: filasOrigen.map((fila) => ({
-            id: randomUUID(),
-            fileId: archivo.id,
-            responsableNombre: '',
-            trenNumero: origen.trenNumero,
-            kilometraje: origen.kilometraje,
-            fecha: origen.fechaFicha,
-            motivo: MOTIVO_REPERFILADO,
-            tValue: fila.tValue,
-            hValue: fila.hValue,
-            rdValue: fila.rdValue,
-            estadoCalculado: fila.estadoCalculado,
-            cocheExcel: fila.cocheExcel,
-            numeroCocheExcel: fila.numeroCocheExcel,
-            bogieExcel: fila.bogieExcel,
-            ejeExcel: fila.ejeExcel,
-            ubicacionExcel: fila.ubicacionExcel,
-            ruedaExcel: fila.ruedaExcel,
-            observacion: fila.observacion,
-            ordenFisico: fila.ordenFisico,
-            reperfiladoTAntes: fila.tValue,
-            reperfiladoHAntes: fila.hValue,
-            reperfiladoCompletado: false,
-          })),
-        });
-      }
-      return ficha.id;
+    const confirmados = await this.prisma.scanRecord.findMany({
+      where: { fileId: ultimaConfirmada.uploadedFileId },
     });
 
-    return { fichaId, sourceFichaId, reutilizada: false, filasCopiadas: filasOrigen.length };
+    const todosCoinciden = filas.every((fila) => {
+      const referencia = confirmados.find(
+        (r) => r.ejeExcel === fila.ejeNumero && r.ubicacionExcel === fila.lado,
+      );
+      return (
+        referencia !== undefined &&
+        valoresIguales(Number(referencia.tValue), fila.tValue) &&
+        valoresIguales(Number(referencia.hValue), fila.hValue)
+      );
+    });
+
+    return todosCoinciden ? { id: ultimaConfirmada.id } : null;
   }
 
   private async crearPlaceholdersFicha(
@@ -383,7 +335,6 @@ export class NewMeasurementService {
     trenNumero: number,
     kilometraje: number,
     numerosCoche: Partial<Record<TipoCoche, number>>,
-    motivo: MotivoFicha = MOTIVO_MEDICION,
   ) {
     return {
       id: randomUUID(),
@@ -392,7 +343,7 @@ export class NewMeasurementService {
       trenNumero,
       kilometraje,
       fecha: fila.fecha,
-      motivo,
+      motivo: MOTIVO_MEDICION,
       tValue: fila.tValue,
       hValue: fila.hValue,
       rdValue: fila.rdValue,
@@ -403,30 +354,12 @@ export class NewMeasurementService {
       ejeExcel: fila.ejeNumero,
       ubicacionExcel: fila.lado,
       ruedaExcel: fila.ruedaNumero,
-      measPointNameOriginal: fila.measPointNameOriginal,
-      measTimeOriginal: fila.measTimeOriginal,
-      profileLinkOriginal: fila.profileLinkOriginal,
       ordenFisico: calcularOrdenFisico({
         tipoCoche: fila.tipoCoche,
         bogieCodigo: fila.bogieCodigo,
         ejeNumero: fila.ejeNumero,
         ruedaNumero: fila.ruedaNumero,
       }),
-      ...(motivo === MOTIVO_REPERFILADO
-        ? { rugosidadRa: fila.rdValue, reperfiladoCompletado: false }
-        : {}),
     };
-  }
-
-  private combinarFechaHora(fecha: Date, hora: string | null): Date | null {
-    if (!hora || !/^\d{6}$/.test(hora)) return null;
-    const resultado = new Date(fecha);
-    resultado.setUTCHours(
-      Number(hora.slice(0, 2)),
-      Number(hora.slice(2, 4)),
-      Number(hora.slice(4, 6)),
-      0,
-    );
-    return resultado;
   }
 }

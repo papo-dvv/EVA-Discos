@@ -100,9 +100,8 @@ function ContenidoProyeccion() {
       </p>
       <p className="text-concreto">
         Si Rd cae al o por debajo del umbral de cambio en cualquier punto (antes o después de aplicar
-        el descuento), se proyecta un Cambio en vez de otro reperfilado. Al quinto ciclo de reperfilado
-        sin llegar a esa condición, la proyección se corta ahí (badge "5+ ciclos") y pide revisión
-        manual.
+        el descuento), se proyecta un Cambio en vez de otro reperfilado — sin importar cuántos ciclos de
+        reperfilado hicieron falta antes de eso.
       </p>
     </div>
   )

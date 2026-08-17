@@ -26,6 +26,10 @@ import {
 import { ProyeccionRateService } from './proyeccion-rate.service';
 import type { ProyeccionDiscosQueryDto } from './dto/proyeccion-discos-query.dto';
 import type { ProyeccionPronosticoQueryDto } from './dto/proyeccion-pronostico-query.dto';
+import type {
+  ProyeccionPronosticoDetalleQueryDto,
+  TipoEventoPronostico,
+} from './dto/proyeccion-pronostico-detalle-query.dto';
 
 export interface CicloReperfiladoApi {
   numero: number;
@@ -66,7 +70,6 @@ export interface ProyeccionDiscoApi {
   motivo: string | null;
   ciclosReperfilado: CicloReperfiladoApi[];
   cicloCambio: CicloCambioApi | null;
-  truncado: boolean;
 }
 
 export interface ProyeccionDiscosResult {
@@ -96,6 +99,25 @@ export interface PronosticoMesApi {
   reperfilados: number;
   cambios: number;
   desgloseEstado: DesgloseEstadoApi;
+}
+
+export interface EventoPronosticoApi {
+  tipo: TipoEventoPronostico;
+  fechaEstimada: string;
+  pendiente: boolean;
+  fechaUltimaMedicion: string;
+  diasHastaEvento: number;
+  trenNumero: number;
+  posiciones: PosicionDisco[];
+}
+
+interface EventoPronosticoCalculado {
+  tipo: TipoEventoPronostico;
+  fechaEstimada: Date;
+  pendiente: boolean;
+  fechaUltimaMedicion: Date;
+  trenNumero: number;
+  posiciones: PosicionDisco[];
 }
 
 interface DiscoEnScope {
@@ -352,13 +374,16 @@ export class ProyeccionService {
     }));
   }
 
-  // Agrega, mes a mes (12 meses calendario desde hoy), cuántos discos del
-  // scope tienen un reperfilado o un cambio proyectado cayendo en ese mes, y
-  // el desglose de estado AMPLIADO proyectado de la flota en ese punto (con
-  // el H/Rd interpolados a esa fecha, no el estado actual). A diferencia de
-  // /discos, acá SÍ hace falta proyectar TODOS los discos del scope (no solo
-  // una página): cada uno aporta a la suma de todos los meses.
-  async obtenerPronostico12Meses(
+  // Agrega, mes a mes (rango calendario desde hoy, ver q.meses — 12/24/36/
+  // 48/60, ProyeccionPronosticoQueryDto), cuántos discos del scope tienen un
+  // reperfilado o un cambio proyectado cayendo en ese mes, y el desglose de
+  // estado AMPLIADO proyectado de la flota en ese punto (con el H/Rd
+  // interpolados a esa fecha, no el estado actual). Agregación siempre
+  // MENSUAL sin importar el rango elegido — mismo shape de response, solo
+  // cambia la cantidad de filas. A diferencia de /discos, acá SÍ hace falta
+  // proyectar TODOS los discos del scope (no solo una página): cada uno
+  // aporta a la suma de todos los meses.
+  async obtenerPronostico(
     q: ProyeccionPronosticoQueryDto,
   ): Promise<PronosticoMesApi[]> {
     const discosEnScope = await this.resolverDiscosEnScope({ tren: q.tren });
@@ -373,18 +398,216 @@ export class ProyeccionService {
         ),
       )
     ).filter((p): p is ProyeccionDisco => p !== null);
+    const trenPorDiscId = new Map(
+      discosEnScope.map((d) => [d.discId, d.trenNumero]),
+    );
+    const eventos = await this.resolverEventosPronostico(
+      proyecciones,
+      trenPorDiscId,
+      tasasPorTipoCoche,
+    );
 
-    const meses = generarMesesForecast(new Date());
-    return meses.map((mes) => this.agregarMes(mes, proyecciones, evaluador));
+    const hoy = new Date();
+    const meses = generarMesesForecast(hoy, q.meses);
+    return meses.map((mes) =>
+      this.agregarMes(mes, proyecciones, eventos, evaluador, hoy),
+    );
+  }
+
+  // Detalle bajo demanda de una barra/fila del pronóstico. Usa exactamente
+  // los ciclos calculados para la agregación mensual; solo cambia que acá se
+  // conservan los eventos individuales y su posición física.
+  async obtenerDetallePronostico(
+    q: ProyeccionPronosticoDetalleQueryDto,
+  ): Promise<EventoPronosticoApi[]> {
+    const discosEnScope = await this.resolverDiscosEnScope({ tren: q.tren });
+    const tasasPorTipoCoche = await this.rate.calcularTasasPorTipoCoche();
+    const proyecciones = (
+      await Promise.all(
+        discosEnScope.map((d) =>
+          this.calculator.proyectarDisco(d.discId, tasasPorTipoCoche),
+        ),
+      )
+    ).filter((p): p is ProyeccionDisco => p !== null);
+    const trenPorDiscId = new Map(
+      discosEnScope.map((d) => [d.discId, d.trenNumero]),
+    );
+
+    const eventos = await this.resolverEventosPronostico(
+      proyecciones,
+      trenPorDiscId,
+      tasasPorTipoCoche,
+    );
+
+    return eventos
+      .filter(
+        (evento) =>
+          (q.tipo === undefined || evento.tipo === q.tipo) &&
+          this.fechaCaeEnPeriodo(evento.fechaEstimada, q.periodo),
+      )
+      .map((evento) => ({
+        ...evento,
+        fechaEstimada: evento.fechaEstimada.toISOString().slice(0, 10),
+        fechaUltimaMedicion: evento.fechaUltimaMedicion
+          .toISOString()
+          .slice(0, 10),
+        diasHastaEvento: this.diasEntreFechas(
+          evento.fechaUltimaMedicion,
+          evento.fechaEstimada,
+        ),
+      }))
+      .sort(
+      (a, b) =>
+        a.fechaEstimada.localeCompare(b.fechaEstimada) ||
+        a.tipo.localeCompare(b.tipo) ||
+        a.trenNumero - b.trenNumero ||
+        a.posiciones[0]!.numeroCoche - b.posiciones[0]!.numeroCoche ||
+        a.posiciones[0]!.bogieCodigo.localeCompare(
+          b.posiciones[0]!.bogieCodigo,
+        ) ||
+        a.posiciones[0]!.ejeNumero - b.posiciones[0]!.ejeNumero,
+    );
+  }
+
+  private fechaCaeEnPeriodo(fecha: Date, periodo: string): boolean {
+    const iso = fecha.toISOString().slice(0, periodo.length);
+    return iso === periodo;
+  }
+
+  private diasEntreFechas(desde: Date, hasta: Date): number {
+    const dias = (hasta.getTime() - desde.getTime()) / (24 * 60 * 60 * 1000);
+    return Math.trunc(dias * 10) / 10;
+  }
+
+  // Una intervención cuenta por eje físico, no por lado. El primer
+  // reperfilado y el cambio se sincronizan a la fecha más próxima, igual que
+  // la tabla principal; los ciclos posteriores permanecen propios porque el
+  // modelo solo define ese override para el primer ciclo.
+  private async resolverEventosPronostico(
+    proyecciones: ProyeccionDisco[],
+    trenPorDiscId: Map<string, number>,
+    tasasPorTipoCoche: Partial<Record<TipoCoche, number | null>>,
+  ): Promise<EventoPronosticoCalculado[]> {
+    const overrides = await this.resolverOverridesPorEje(
+      proyecciones,
+      tasasPorTipoCoche,
+    );
+    const eventos = new Map<string, EventoPronosticoCalculado>();
+    const hoy = new Date();
+
+    const agregar = (
+      clave: string,
+      tipo: TipoEventoPronostico,
+      fechaEstimada: Date,
+      pendiente: boolean,
+      disco: ProyeccionDisco,
+    ) => {
+      const existente = eventos.get(clave);
+      if (existente) {
+        if (!existente.posiciones.some((p) => p.lado === disco.posicion.lado)) {
+          existente.posiciones.push(disco.posicion);
+        }
+        if (disco.fechaUltimaMedicion > existente.fechaUltimaMedicion) {
+          existente.fechaUltimaMedicion = disco.fechaUltimaMedicion;
+        }
+        if (!existente.pendiente && fechaEstimada < existente.fechaEstimada) {
+          existente.fechaEstimada = fechaEstimada;
+          existente.pendiente = pendiente;
+        } else if (pendiente) {
+          existente.pendiente = true;
+        }
+        return;
+      }
+      eventos.set(clave, {
+        tipo,
+        fechaEstimada,
+        pendiente,
+        fechaUltimaMedicion: disco.fechaUltimaMedicion,
+        trenNumero: trenPorDiscId.get(disco.discId)!,
+        posiciones: [disco.posicion],
+      });
+    };
+
+    for (const disco of proyecciones) {
+      const override = overrides.get(disco.discId);
+      const primerReperfilado =
+        override?.reperfilado?.cicloMasProximo ?? disco.ciclosReperfilado[0];
+      const reperfiladoPendiente = this.esPendiente(disco, 'REPERFILADO');
+      if (reperfiladoPendiente) {
+        agregar(
+          `${this.claveEje(disco.posicion)}|REPERFILADO|1`,
+          'REPERFILADO',
+          hoy,
+          true,
+          disco,
+        );
+      } else if (primerReperfilado) {
+        agregar(
+          `${this.claveEje(disco.posicion)}|REPERFILADO|1`,
+          'REPERFILADO',
+          primerReperfilado.fechaEstimada,
+          false,
+          disco,
+        );
+      }
+      for (const ciclo of disco.ciclosReperfilado.slice(1)) {
+        agregar(
+          `${disco.discId}|REPERFILADO|${ciclo.numero}`,
+          'REPERFILADO',
+          ciclo.fechaEstimada,
+          false,
+          disco,
+        );
+      }
+
+      const cambio = override?.cambio?.cicloMasProximo ?? disco.cicloCambio;
+      const cambioPendiente = this.esPendiente(disco, 'CAMBIO');
+      if (cambioPendiente) {
+        agregar(
+          `${this.claveEje(disco.posicion)}|CAMBIO`,
+          'CAMBIO',
+          hoy,
+          true,
+          disco,
+        );
+      } else if (cambio) {
+        agregar(
+          `${this.claveEje(disco.posicion)}|CAMBIO`,
+          'CAMBIO',
+          cambio.fechaEstimada,
+          false,
+          disco,
+        );
+      }
+    }
+
+    return [...eventos.values()];
+  }
+
+  private esPendiente(
+    disco: ProyeccionDisco,
+    tipo: TipoEventoPronostico,
+  ): boolean {
+    return tipo === 'REPERFILADO'
+      ? disco.estado === 'REPERFILADO'
+      : disco.estado === 'CAMBIO' || disco.estado === 'CRITICO';
   }
 
   private agregarMes(
     mes: MesForecast,
     discos: ProyeccionDisco[],
+    eventos: EventoPronosticoCalculado[],
     evaluador: BrakeDiscRulesEngine,
+    hoy: Date,
   ): PronosticoMesApi {
-    let reperfilados = 0;
-    let cambios = 0;
+    const reperfilados = eventos.filter(
+      (evento) =>
+        evento.tipo === 'REPERFILADO' && fechaCaeEnMes(evento.fechaEstimada, mes),
+    ).length;
+    const cambios = eventos.filter(
+      (evento) =>
+        evento.tipo === 'CAMBIO' && fechaCaeEnMes(evento.fechaEstimada, mes),
+    ).length;
     const conteo: Record<EstadoDiscoAmpliado, number> = {
       OK: 0,
       SEGUIMIENTO: 0,
@@ -394,16 +617,7 @@ export class ProyeccionService {
     };
 
     for (const disco of discos) {
-      reperfilados += disco.ciclosReperfilado.filter((c) =>
-        fechaCaeEnMes(c.fechaEstimada, mes),
-      ).length;
-      if (
-        disco.cicloCambio &&
-        fechaCaeEnMes(disco.cicloCambio.fechaEstimada, mes)
-      ) {
-        cambios += 1;
-      }
-      conteo[this.estadoProyectadoEnMes(disco, mes, evaluador)] += 1;
+      conteo[this.estadoProyectadoEnMes(disco, mes, evaluador, hoy)] += 1;
     }
 
     return {
@@ -428,8 +642,25 @@ export class ProyeccionService {
     disco: ProyeccionDisco,
     mes: MesForecast,
     evaluador: BrakeDiscRulesEngine,
+    hoy: Date,
   ): EstadoDiscoAmpliado {
     if (!disco.proyectable || disco.tasaMensual === null) return disco.estado;
+
+    // proyectarCiclos asume que el reperfilado ocurre INSTANTÁNEAMENTE apenas
+    // H cruza el umbral (sin tiempo de permanencia) — para un disco que YA
+    // está sobre el umbral en su última medición real, esto colapsa su
+    // primer ciclo al día mismo de esa medición, así que interpolarEnFecha
+    // jamás devuelve REPERFILADO, ni siquiera para el mes en curso: el disco
+    // "ya fue reperfilado" en el modelo antes de que el pronóstico arranque.
+    // En el mes en curso (el que contiene "hoy") sí hay un dato real y no
+    // solo interpolado: si el disco está en REPERFILADO ahora mismo (según
+    // su última medición), todavía no fue atendido en la realidad, así que
+    // se prioriza ese estado real por sobre el interpolado. Los meses
+    // futuros siguen sin poder representar el tiempo de permanencia en
+    // REPERFILADO — limitación del motor de proyección, no de este parche.
+    if (disco.estado === 'REPERFILADO' && fechaCaeEnMes(hoy, mes)) {
+      return 'REPERFILADO';
+    }
 
     const punto = interpolarEnFecha(
       { h: disco.h, rd: disco.rd, fecha: disco.fechaUltimaMedicion },
@@ -658,7 +889,6 @@ export class ProyeccionService {
         : p.cicloCambio
           ? this.cicloCambioApi(p.cicloCambio, null)
           : null,
-      truncado: p.truncado,
     };
   }
 

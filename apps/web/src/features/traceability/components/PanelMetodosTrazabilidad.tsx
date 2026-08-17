@@ -1,6 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { ConfirmDialog } from '../../../components/ConfirmDialog'
-import { GlassSurface } from '../../../components/GlassSurface'
 import { Widget } from '../../../components/Widget'
 import type { SystemParamItem } from '../../system-params/api'
 import { AvisoAjusteConsenso } from '../../system-params/components/AvisoAjusteConsenso'
@@ -82,7 +81,7 @@ export function PanelMetodosTrazabilidad({
   }
 
   return (
-    <GlassSurface fuerte className="rounded-glass p-4">
+    <>
       <h3 className="mb-1 font-display text-base font-semibold text-concreto-oscuro">Métodos y límites</h3>
       <p className="mb-3 font-body text-xs text-concreto">Calculados sobre el histórico completo del alcance actual.</p>
 
@@ -206,6 +205,6 @@ export function PanelMetodosTrazabilidad({
           }
         />
       )}
-    </GlassSurface>
+    </>
   )
 }

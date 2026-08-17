@@ -32,6 +32,13 @@ const ORDEN_GRUPO_CONSENSO = [
 // Único parámetro editable donde un valor vacío es válido ("sin
 // restricción") — ver el mismo criterio en ConsensoConfigService.obtenerAmplitudMaximaExtremo.
 const CLAVES_PERMITEN_VACIO = new Set(['amplitud_maxima_extremo'])
+// Estos tres parámetros se editan exclusivamente desde Proyección, donde se
+// ven junto a la fórmula y al pronóstico que afectan.
+const CLAVES_EXCLUSIVAS_PROYECCION = new Set([
+  'h_umbral_reperfilado',
+  'rd_umbral_seguimiento',
+  'reperfilado_descuento_rd',
+])
 
 // Parámetros del sistema editables inline, con confirmación previa al PATCH.
 // Genérico y reutilizable: lista TODO parámetro con editable=true que
@@ -49,7 +56,11 @@ export function PanelParametros() {
   // dedicado (rango 1-6) dentro de la card de brecha de fechas — ver
   // TarjetaBrechaFechas, mismo criterio de exclusión que outlier_metodo.
   const editables = (params.data ?? []).filter(
-    (p) => p.editable && p.clave !== 'outlier_metodo' && p.clave !== 'measurement_gap_umbral_meses',
+    (p) =>
+      p.editable &&
+      p.clave !== 'outlier_metodo' &&
+      p.clave !== 'measurement_gap_umbral_meses' &&
+      !CLAVES_EXCLUSIVAS_PROYECCION.has(p.clave),
   )
   // Umbrales de Rd agrupados y en orden fijo (ok, seguimiento, cambio — este
   // último aparece automáticamente en cuanto el backend lo devuelva); el resto

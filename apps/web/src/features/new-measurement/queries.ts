@@ -9,6 +9,7 @@ import {
   eliminarFilaFicha,
   obtenerPreviewFicha,
   obtenerReferenciaFicha,
+  reiniciarFicha,
   verificarFicha,
 } from './api'
 import type {
@@ -121,5 +122,17 @@ export function useReferenciaFicha(trenNumero: number | undefined, tipo: TipoRef
 export function useCancelarFicha(fichaId: string) {
   return useMutation({
     mutationFn: () => cancelarFicha(fichaId),
+  })
+}
+
+// POST .../reset ("Resubir CSV" / "Reiniciar ficha") — vacía la tabla de
+// mediciones actual reutilizando el mismo fichaId (nunca crea una ficha
+// nueva). Invalida para que preview/ficha reflejen el estado recién
+// reiniciado: 0 filas, verificado=false, tablaBloqueada=false.
+export function useReiniciarFicha(fichaId: string) {
+  const invalidar = useInvalidarFicha(fichaId)
+  return useMutation({
+    mutationFn: () => reiniciarFicha(fichaId),
+    onSuccess: invalidar,
   })
 }

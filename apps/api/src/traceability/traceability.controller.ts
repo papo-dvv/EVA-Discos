@@ -40,6 +40,9 @@ export class TraceabilityController {
 
   @Get('promedio-por-tren')
   promedioPorTren(@Query() query: TraceabilityPromedioPorTrenQueryDto) {
-    return this.traceability.obtenerPromedioPorTren(query.tren);
+    return this.traceability.obtenerPromedioPorTren(
+      query.filtrarPorRangoKm,
+      query.incluirDetalle,
+    );
   }
 }

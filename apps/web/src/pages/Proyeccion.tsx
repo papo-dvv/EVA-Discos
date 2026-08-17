@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { BotonVolverInicio } from '../components/BotonVolverInicio'
 import { CardFormulas } from '../components/CardFormulas'
 import { GlassSurface } from '../components/GlassSurface'
 import { PantallaFondo } from '../components/PantallaFondo'
@@ -9,15 +9,17 @@ import { SidebarTrenes } from '../features/scan-records/components/SidebarTrenes
 import { useScanRecordsResumenPorTren } from '../features/scan-records/queries'
 import { PanelFiltrosProyeccion } from '../features/projection/components/PanelFiltrosProyeccion'
 import { PanelPromedioPorVagon } from '../features/projection/components/PanelPromedioPorVagon'
+import { PanelUmbralesProyeccion } from '../features/projection/components/PanelUmbralesProyeccion'
 import { TablaProyeccion } from '../features/projection/components/TablaProyeccion'
-import { TablaPronostico12Meses } from '../features/projection/components/TablaPronostico12Meses'
+import { TablaPronostico } from '../features/projection/components/TablaPronostico'
 import {
   aplicarFiltrosProyeccion,
   contarFiltrosActivosProyeccion,
   FILTROS_VACIOS_PROYECCION,
   type FiltrosStateProyeccion,
 } from '../features/projection/filtros'
-import { usePromedioPorVagon, useProyeccionDiscos, usePronostico12Meses } from '../features/projection/queries'
+import { usePromedioPorVagon, useProyeccionDiscos, usePronostico } from '../features/projection/queries'
+import type { RangoPronosticoMeses } from '../features/projection/types'
 import { extraerMensajeError } from '../lib/extraerMensajeError'
 
 const PAGE_SIZE = 25
@@ -28,15 +30,17 @@ const MODOS: { valor: Modo; etiqueta: string }[] = [
 ]
 
 // Proyección de Reperfilado y Cambio: mismo patrón Global/Por tren + sidebar
-// que Tasa de Desgaste (ver TasaDesgaste.tsx) — el pronóstico de 12 meses y
-// la tabla principal respetan el mismo `tren` efectivo; el promedio por
-// vagón es siempre fleet-wide (no depende del alcance).
+// que Tasa de Desgaste (ver TasaDesgaste.tsx) — el pronóstico (rango elegible
+// 12/24/36/48/60 meses) y la tabla principal respetan el mismo `tren`
+// efectivo; el promedio por vagón es siempre fleet-wide (no depende del
+// alcance).
 export function Proyeccion() {
   const [modo, setModo] = useState<Modo>('global')
   const [trenSeleccionado, setTrenSeleccionado] = useState<number | null>(null)
   const [page, setPage] = useState(1)
   const [filtros, setFiltros] = useState<FiltrosStateProyeccion>(FILTROS_VACIOS_PROYECCION)
   const [filtrosAbiertos, setFiltrosAbiertos] = useState(false)
+  const [rangoPronostico, setRangoPronostico] = useState<RangoPronosticoMeses>(12)
 
   const trenEfectivo = modo === 'tren' ? (trenSeleccionado ?? undefined) : undefined
 
@@ -49,7 +53,7 @@ export function Proyeccion() {
   const resumenTrenes = useScanRecordsResumenPorTren({})
   const discos = useProyeccionDiscos(params)
   const promedioPorVagon = usePromedioPorVagon()
-  const pronostico = usePronostico12Meses(trenEfectivo)
+  const pronostico = usePronostico(trenEfectivo, rangoPronostico)
 
   const filtrosActivos = contarFiltrosActivosProyeccion(filtros)
 
@@ -113,18 +117,14 @@ export function Proyeccion() {
                 ))}
               </div>
               <EstadoActualizacionModulo modulo="proyeccion" />
-              <Link
-                to="/"
-                className="font-body text-xs text-concreto underline underline-offset-2 transition-colors hover:text-concreto-oscuro"
-              >
-                ← Volver al inicio
-              </Link>
+              <BotonVolverInicio />
             </div>
           </GlassSurface>
 
           {/* Promedio por vagón + fórmulas arriba de la tabla en pantallas sin columna derecha */}
           <div className="mt-4 space-y-4 xl:hidden">
             <PanelPromedioPorVagon datos={promedioPorVagon.data} cargando={promedioPorVagon.isLoading} />
+            <PanelUmbralesProyeccion />
             <CardFormulas variante="proyeccion" />
           </div>
 
@@ -144,7 +144,7 @@ export function Proyeccion() {
               <span className="text-concreto">{filtrosAbiertos ? '▲' : '▼'}</span>
             </button>
             <p className="font-body text-xs text-concreto">
-              Estos filtros no afectan el pronóstico de 12 meses ni el promedio por vagón.
+              Estos filtros no afectan el pronóstico ni el promedio por vagón.
             </p>
           </div>
 
@@ -168,13 +168,20 @@ export function Proyeccion() {
             <PaginacionNumerica page={page} totalPaginas={totalPaginas} onPage={setPage} />
           </div>
 
-          <TablaPronostico12Meses meses={pronostico.data} cargando={pronostico.isLoading} />
+          <TablaPronostico
+            meses={pronostico.data}
+            cargando={pronostico.isLoading}
+            rango={rangoPronostico}
+            onCambiarRango={setRangoPronostico}
+            tren={trenEfectivo}
+          />
         </main>
 
         {/* Columna derecha: promedio por vagón + fórmulas (desde xl) */}
         <aside className="hidden w-[21.25rem] flex-shrink-0 xl:block">
           <div className="sticky top-6 space-y-4">
             <PanelPromedioPorVagon datos={promedioPorVagon.data} cargando={promedioPorVagon.isLoading} />
+            <PanelUmbralesProyeccion />
             <CardFormulas variante="proyeccion" />
           </div>
         </aside>

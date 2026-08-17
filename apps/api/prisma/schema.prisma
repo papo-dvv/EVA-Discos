@@ -406,30 +406,23 @@ model ScanRecord {
   // ningún otro flujo — no rompe la migración masiva ni las mediciones
   // confirmadas existentes.
   observacion String? @db.VarChar(500)
-  measPointNameOriginal String? @map("meas_point_name_original") @db.VarChar(100)
-  measTimeOriginal      String? @map("meas_time_original") @db.VarChar(20)
-  profileLinkOriginal   String? @map("profile_link_original") @db.Text
-  // Rugosidad superficial posterior al trabajo de torno fosa (Ra, µm).
-  // Solo aplica a fichas de Reperfilado; queda null en mediciones normales.
-  rugosidadRa Decimal? @map("rugosidad_ra") @db.Decimal(6, 3)
-  reperfiladoTAntes Decimal? @map("reperfilado_t_antes") @db.Decimal(6, 3)
-  reperfiladoHAntes Decimal? @map("reperfilado_h_antes") @db.Decimal(6, 3)
-  reperfiladoCompletado Boolean @default(false) @map("reperfilado_completado")
 
   // Flags de validación cruzada automática (NewMeasurementModule, ficha en
   // borrador) — ver NewMeasurementValidationService. kmInvalido/fechaInvalido
   // son a nivel FICHA/TREN (mismo valor calculado para todas las filas de la
-  // ficha); tInvalido/rdInvalido son por disco físico individual. Todos en
-  // false por defecto y sin uso fuera de NewMeasurementModule — no afectan la
-  // migración masiva ni las mediciones ya confirmadas. excluidaDelCommit se
-  // fija recién en POST .../validate: una fila que sigue con algún flag activo
-  // tras la re-evaluación queda fuera del commit sin borrarse físicamente (ver
-  // NewMeasurementCommitService.confirmar).
-  kmInvalido        Boolean @default(false) @map("km_invalido")
-  fechaInvalido     Boolean @default(false) @map("fecha_invalido")
-  tInvalido         Boolean @default(false) @map("t_invalido")
-  rdInvalido        Boolean @default(false) @map("rd_invalido")
-  excluidaDelCommit Boolean @default(false) @map("excluida_del_commit")
+  // ficha) y NUNCA se exponen por fila en la API (ver motivosInvalidosDeFila
+  // en scan-record-query.ts) — solo a nivel raíz de la ficha, con su motivo,
+  // en las respuestas de POST .../validate y GET .../preview.
+  // tInvalido/rdInvalido son por disco físico individual, así que sí se
+  // exponen por fila. Todos en false por defecto y sin uso fuera de
+  // NewMeasurementModule — no afectan la migración masiva ni las mediciones
+  // ya confirmadas. El modelo de este módulo es binario (todoValido o no):
+  // no existe un flag de "excluida del commit" — POST .../commit siempre
+  // confirma TODAS las filas de la ficha (ver NewMeasurementCommitService.confirmar).
+  kmInvalido    Boolean @default(false) @map("km_invalido")
+  fechaInvalido Boolean @default(false) @map("fecha_invalido")
+  tInvalido     Boolean @default(false) @map("t_invalido")
+  rdInvalido    Boolean @default(false) @map("rd_invalido")
 
   // Orden FÍSICO real de coche+bogie+eje+lado (nunca alfabético) — precalculado
   // por calcularOrdenFisico (ver common/orden-fisico.ts) al insertar la fila
@@ -569,19 +562,20 @@ model MeasurementSheet {
   // ficha_medicion_individual) para agrupar sus filas incluso en modo manual
   // — ver comentario en NewMeasurementService.crearManual.
   uploadedFileId String?  @map("uploaded_file_id") @db.Uuid
-  // Ficha de Medición que originó este Reperfilado. Permite cambiar de
-  // módulo sin volver a subir el CSV y reutilizar siempre la misma ficha.
-  sourceMeasurementSheetId String? @unique @map("source_measurement_sheet_id") @db.Uuid
   trenNumero     Int      @map("tren_numero")
   kilometraje    Decimal  @db.Decimal(12, 2)
   fechaFicha     DateTime @map("fecha_ficha") @db.Date
   // Texto fijo por ahora ("BAJO BASTIDOR - TREN ALSTOM"), no editable —
   // exclusivo de fichas con motivo='Medición' (ver NewMeasurementService).
   actividad      String   @db.VarChar(200)
-  motivo         String   @default("Medición") @db.VarChar(100)
-  puestoTrabajo  String?  @map("puesto_trabajo") @db.VarChar(100)
-  fechaHoraInicio DateTime? @map("fecha_hora_inicio") @db.Timestamptz(6)
-  fechaHoraFin    DateTime? @map("fecha_hora_fin") @db.Timestamptz(6)
+
+  // P.T. (Puesto de Trabajo) — texto libre alfanumérico, sin formato
+  // restringido por ahora. Nunca lo trae el CSV: siempre ingreso manual (ver
+  // UpdateFichaDto). Obligatorio para bloquear (POST .../lock) Y para
+  // confirmar (POST .../commit) — mismo nivel de obligatoriedad que
+  // verificado=true y responsableMantenimientoNombre respectivamente, ver
+  // NewMeasurementValidationService.bloquear y NewMeasurementCommitService.confirmar.
+  ptCodigo String? @map("pt_codigo") @db.VarChar(100)
 
   // Discrepancia Tren/Kilometraje editado vs. el valor que trajo el CSV —
   // mismo patrón "corregidoPorHoja" de la migración masiva (ver

@@ -4,7 +4,10 @@
 // criterio que features/migration/types.ts.
 
 export type {
+  CampoInvalido,
+  EstadoDisco,
   LadoDisco,
+  MotivoInvalido,
   PreviewParams,
   PreviewResult,
   PreviewRow,
@@ -49,10 +52,6 @@ export interface FichaMedicion {
   kilometraje: number
   fechaFicha: string
   actividad: string
-  motivo: MotivoFicha
-  puestoTrabajo: string | null
-  fechaHoraInicio: string | null
-  fechaHoraFin: string | null
   trenOriginalCsv: number | null
   corregidoTren: boolean
   kilometrajeOriginalCsv: number | null
@@ -65,6 +64,10 @@ export interface FichaMedicion {
   ingMrNombre: string | null
   ingMrFirma: string | null
   ingMrFecha: string | null
+  // P.T. (Puesto de Trabajo) — texto libre, siempre manual (el CSV nunca lo
+  // trae). Obligatorio para bloquear (POST .../lock) y confirmar (POST
+  // .../commit), mismo nivel que responsableMantenimientoNombre.
+  ptCodigo: string | null
   createdAt: string
   tecnicos: FichaTecnico[]
   instrumentos: FichaInstrumento[]
@@ -74,7 +77,9 @@ export interface FichaMedicion {
 }
 
 // Espejo de PreviewMedicionResult (new-measurement-preview.service.ts): la
-// respuesta de GET /new-measurement/:fichaId/preview.
+// respuesta de GET /new-measurement/:fichaId/preview. kmInvalido/fechaInvalido
+// viajan ÚNICAMENTE acá, a nivel raíz (nunca por fila, ver PreviewRow) —
+// mismo criterio que ResumenVerificacion.
 export interface PreviewFichaResult {
   ficha: FichaMedicion
   esqueleto: PosicionEsqueleto[]
@@ -84,6 +89,8 @@ export interface PreviewFichaResult {
   total: number
   totalPages: number
   totalPaginas: number
+  kmInvalido: { motivo: string } | null
+  fechaInvalido: { motivo: string } | null
 }
 
 export interface DiscrepanciaRd {
@@ -108,6 +115,20 @@ export interface ResumenCargaMedicion {
   discrepanciasRd: DiscrepanciaRd[]
 }
 
+// Respuesta de POST /new-measurement/upload cuando el CSV coincide
+// EXACTAMENTE (fecha + kilometraje + cada H/T de cada disco presente) con la
+// última ficha CONFIRMADA de ese mismo tren — la ficha borrador NUNCA se crea
+// en este caso, sin excepción: no existe ningún camino para forzar esta carga
+// puntual, la única forma de continuar es subir un archivo distinto — ver
+// CargaInicialFicha.
+export interface ResultadoDuplicadoDetectado {
+  duplicadoDetectado: true
+  fichaConfirmadaId: string
+  fecha: string
+  kilometraje: number
+  tren: number
+}
+
 export interface ResumenFichaManual {
   fichaId: string
   trenNumero: number
@@ -123,20 +144,32 @@ export interface ResumenCommitMedicion {
   discosResueltos: number
 }
 
-// Espejo de FilaExcluida (new-measurement-validation.service.ts).
-export interface FilaExcluidaVerificacion {
-  id: string
-  cocheExcel: string | null
-  ejeExcel: number | null
-  ubicacionExcel: string | null
-  motivos: string[]
+// Respuesta de POST /new-measurement/:fichaId/reset ("Resubir CSV" /
+// "Reiniciar ficha") — espejo de ResumenReset (new-measurement-commit.service.ts).
+export interface ResumenReset {
+  fichaId: string
+  fileId: string
+  registrosEliminados: number
 }
 
-// Respuesta de POST /new-measurement/:fichaId/validate.
+// Espejo de FilaExcluida (new-measurement-validation.service.ts).
+export interface FilaExcluidaVerificacion {
+  recordId: string
+  eje: number | null
+  lado: string | null
+  motivos: import('../scan-records/types').MotivoInvalido[]
+}
+
+// Respuesta de POST /new-measurement/:fichaId/validate. filasExcluidas viene
+// YA ORDENADO por el mismo criterio jerárquico que el resto del sistema
+// (eje/lado físico) — se renderiza tal cual, sin reordenar en el frontend.
 export interface ResumenVerificacion {
   todoValido: boolean
   filasExcluidas: FilaExcluidaVerificacion[]
   filasIncluidas: number
+  // kmInvalido/fechaInvalido aplican a nivel FICHA (no a una fila puntual).
+  kmInvalido: { motivo: string } | null
+  fechaInvalido: { motivo: string } | null
 }
 
 // Respuesta de POST /new-measurement/:fichaId/lock.
@@ -168,14 +201,29 @@ export interface ReferenciaUltimaMedicion {
   rows: import('../scan-records/types').PreviewRow[]
 }
 
+// A diferencia de ReferenciaUltimaMedicion (que no proviene de ninguna ficha
+// real, solo de ScanRecords individuales), acá SÍ hay una ficha histórica
+// completa detrás — por eso trae también Lista de Instrumentos y Realizado
+// por/Ing. MR/Responsable de Mantenimiento, que ModalMedicionAnterior
+// muestra en modo solo lectura solo para esta opción (punto 7).
 export interface ReferenciaUltimaFicha {
   disponible: true
   tren: number
   fechaFicha: string
   kilometraje: number
   responsable: string | null
+  // P.T. de ESA ficha histórica — exclusivo de 'ultima_ficha' (no existe en
+  // ReferenciaUltimaMedicion, que no proviene de ninguna ficha real).
+  ptCodigo: string | null
   esqueleto: PosicionEsqueleto[]
   rows: import('../scan-records/types').PreviewRow[]
+  responsableMantenimientoFirma: string | null
+  responsableMantenimientoFecha: string | null
+  ingMrNombre: string | null
+  ingMrFirma: string | null
+  ingMrFecha: string | null
+  tecnicos: FichaTecnico[]
+  instrumentos: FichaInstrumento[]
 }
 
 export type ResultadoReferencia =
@@ -189,9 +237,6 @@ export interface CambiosFicha {
   trenNumero?: number
   kilometraje?: number
   fechaFicha?: string
-  puestoTrabajo?: string
-  fechaHoraInicio?: string
-  fechaHoraFin?: string
   todasConformes?: boolean
   comentariosActividad?: string
   responsableMantenimientoNombre?: string
@@ -200,6 +245,7 @@ export interface CambiosFicha {
   ingMrNombre?: string
   ingMrFirma?: string
   ingMrFecha?: string
+  ptCodigo?: string
   tecnicos?: { posicion: number; nombre?: string; firma?: string; fecha?: string }[]
   instrumentos?: {
     posicion: number
@@ -221,7 +267,6 @@ export interface AgregarFilaFicha {
   tValue: number
   fecha?: string
   observacion?: string
-  rugosidadRa?: number
 }
 
 // Payload de PATCH .../records/:id (espejo de UpdateFilaDto) — todo opcional.
@@ -232,5 +277,4 @@ export interface EditarFilaFicha {
   ejeNumero?: number
   lado?: 'izquierdo' | 'derecho'
   observacion?: string
-  rugosidadRa?: number
 }
