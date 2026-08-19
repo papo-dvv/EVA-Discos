@@ -253,6 +253,14 @@ function filaBase(overrides: Partial<FakeScanRecord>): FakeScanRecord {
   };
 }
 
+// Mock compartido de NewMeasurementHistoryService — ver mismo comentario en
+// new-measurement-commit.service.spec.ts.
+const historyMock = {
+  registrar: jest.fn(),
+  listar: jest.fn(),
+  buscarUltimoEventoDeTren: jest.fn(),
+};
+
 describe('NewMeasurementValidationService.recalcularFlags', () => {
   it('fila con T mayor al último confirmado del MISMO disco se marca t_invalido', async () => {
     const referenciaDisco = filaBase({
@@ -268,7 +276,10 @@ describe('NewMeasurementValidationService.recalcularFlags', () => {
     const { prisma, scanRecordsRef } = crearEntorno({
       scanRecords: [referenciaDisco, filaEnCurso],
     });
-    const service = new NewMeasurementValidationService(prisma as never);
+    const service = new NewMeasurementValidationService(
+      prisma as never,
+      historyMock as never,
+    );
 
     const resultado = await service.recalcularFlags('ficha-1');
 
@@ -293,7 +304,10 @@ describe('NewMeasurementValidationService.recalcularFlags', () => {
     const { prisma } = crearEntorno({
       scanRecords: [referenciaDisco, filaEnCurso],
     });
-    const service = new NewMeasurementValidationService(prisma as never);
+    const service = new NewMeasurementValidationService(
+      prisma as never,
+      historyMock as never,
+    );
 
     const [resultado] = await service.recalcularFlags('ficha-1');
 
@@ -318,7 +332,10 @@ describe('NewMeasurementValidationService.recalcularFlags', () => {
       ficha: { kilometraje: 120000 }, // < 150000
       scanRecords: [referenciaTren, fila1, fila2],
     });
-    const service = new NewMeasurementValidationService(prisma as never);
+    const service = new NewMeasurementValidationService(
+      prisma as never,
+      historyMock as never,
+    );
 
     await service.recalcularFlags('ficha-1');
 
@@ -334,7 +351,10 @@ describe('NewMeasurementValidationService.recalcularFlags', () => {
     const { prisma, scanRecordsRef } = crearEntorno({
       scanRecords: [fila1],
     });
-    const service = new NewMeasurementValidationService(prisma as never);
+    const service = new NewMeasurementValidationService(
+      prisma as never,
+      historyMock as never,
+    );
 
     await service.recalcularFlags('ficha-1');
 
@@ -390,7 +410,10 @@ describe('NewMeasurementValidationService.verificar', () => {
         filaInvalida,
       ],
     });
-    const service = new NewMeasurementValidationService(prisma as never);
+    const service = new NewMeasurementValidationService(
+      prisma as never,
+      historyMock as never,
+    );
 
     const resumen = await service.verificar('ficha-1');
 
@@ -426,7 +449,10 @@ describe('NewMeasurementValidationService.verificar', () => {
     const { prisma, fichaRef } = crearEntorno({
       scanRecords: [filaValida],
     });
-    const service = new NewMeasurementValidationService(prisma as never);
+    const service = new NewMeasurementValidationService(
+      prisma as never,
+      historyMock as never,
+    );
 
     const resumen = await service.verificar('ficha-1');
 
@@ -452,7 +478,10 @@ describe('NewMeasurementValidationService.verificar', () => {
       ficha: { kilometraje: 120000, fechaFicha: new Date('2026-03-01') },
       scanRecords: [referenciaTren, fila1],
     });
-    const service = new NewMeasurementValidationService(prisma as never);
+    const service = new NewMeasurementValidationService(
+      prisma as never,
+      historyMock as never,
+    );
 
     const resumen = await service.verificar('ficha-1');
 
@@ -503,7 +532,10 @@ describe('NewMeasurementValidationService.verificar', () => {
     const { prisma } = crearEntorno({
       scanRecords: [referenciaDisco, filaAlta, filaBaja, filaMedia],
     });
-    const service = new NewMeasurementValidationService(prisma as never);
+    const service = new NewMeasurementValidationService(
+      prisma as never,
+      historyMock as never,
+    );
 
     const resumen = await service.verificar('ficha-1');
 
@@ -530,7 +562,10 @@ describe('NewMeasurementValidationService.verificar — T/Rd/Km/Fecha', () => {
     const { prisma, fichaRef } = crearEntorno({
       scanRecords: [referenciaDisco, filaInvalida],
     });
-    const service = new NewMeasurementValidationService(prisma as never);
+    const service = new NewMeasurementValidationService(
+      prisma as never,
+      historyMock as never,
+    );
 
     const resumen = await service.verificar('ficha-1');
 
@@ -544,7 +579,10 @@ describe('NewMeasurementValidationService.verificar — T/Rd/Km/Fecha', () => {
 describe('NewMeasurementValidationService.bloquear', () => {
   it('rechaza con 422 si la ficha no fue verificada (verificado=false)', async () => {
     const { prisma } = crearEntorno({ ficha: { verificado: false } });
-    const service = new NewMeasurementValidationService(prisma as never);
+    const service = new NewMeasurementValidationService(
+      prisma as never,
+      historyMock as never,
+    );
 
     await expect(service.bloquear('ficha-1')).rejects.toThrow(
       UnprocessableEntityException,
@@ -553,7 +591,10 @@ describe('NewMeasurementValidationService.bloquear', () => {
 
   it('bloquea la tabla cuando la ficha está verificada', async () => {
     const { prisma } = crearEntorno({ ficha: { verificado: true } });
-    const service = new NewMeasurementValidationService(prisma as never);
+    const service = new NewMeasurementValidationService(
+      prisma as never,
+      historyMock as never,
+    );
 
     const resumen = await service.bloquear('ficha-1');
 
@@ -564,7 +605,10 @@ describe('NewMeasurementValidationService.bloquear', () => {
     const { prisma } = crearEntorno({
       ficha: { verificado: true, ptCodigo: null },
     });
-    const service = new NewMeasurementValidationService(prisma as never);
+    const service = new NewMeasurementValidationService(
+      prisma as never,
+      historyMock as never,
+    );
 
     await expect(service.bloquear('ficha-1')).rejects.toThrow(
       UnprocessableEntityException,
@@ -576,7 +620,10 @@ describe('NewMeasurementValidationService.bloquear', () => {
     const { prisma } = crearEntorno({
       ficha: { verificado: true, ptCodigo: '   ' },
     });
-    const service = new NewMeasurementValidationService(prisma as never);
+    const service = new NewMeasurementValidationService(
+      prisma as never,
+      historyMock as never,
+    );
 
     await expect(service.bloquear('ficha-1')).rejects.toThrow(
       UnprocessableEntityException,
@@ -592,7 +639,10 @@ describe('NewMeasurementValidationService.obtenerFlagsRaiz', () => {
       fechaInvalido: false,
     });
     const { prisma } = crearEntorno({ scanRecords: [fila1] });
-    const service = new NewMeasurementValidationService(prisma as never);
+    const service = new NewMeasurementValidationService(
+      prisma as never,
+      historyMock as never,
+    );
 
     const flags = await service.obtenerFlagsRaiz('ficha-1');
 
@@ -604,7 +654,10 @@ describe('NewMeasurementValidationService.obtenerFlagsRaiz', () => {
 
   it('sin filas todavía, ambos flags quedan null', async () => {
     const { prisma } = crearEntorno({ scanRecords: [] });
-    const service = new NewMeasurementValidationService(prisma as never);
+    const service = new NewMeasurementValidationService(
+      prisma as never,
+      historyMock as never,
+    );
 
     const flags = await service.obtenerFlagsRaiz('ficha-1');
 

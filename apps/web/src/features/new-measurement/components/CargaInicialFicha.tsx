@@ -6,6 +6,7 @@ import { GlassModal } from '../../../components/GlassModal'
 import { SegmentedControl } from '../../../components/SegmentedControl'
 import { extraerMensajeError } from '../../../lib/extraerMensajeError'
 import { crearFichaManual, subirCsvMedicion } from '../api'
+import { useInvalidarHistorialMediciones } from '../queries'
 import type { ResultadoDuplicadoDetectado } from '../types'
 
 // Punto de entrada de una ficha nueva (motivo 'Medición'): subir el .csv de
@@ -37,6 +38,7 @@ export function CargaInicialFicha({ onCreada, deshabilitada = false }: Props) {
   // subir un archivo distinto (ver reintentarConOtroArchivo).
   const [duplicado, setDuplicado] = useState<ResultadoDuplicadoDetectado | null>(null)
   const inputArchivoRef = useRef<HTMLInputElement>(null)
+  const invalidarHistorial = useInvalidarHistorialMediciones()
 
   async function subir(event: FormEvent) {
     event.preventDefault()
@@ -46,6 +48,7 @@ export function CargaInicialFicha({ onCreada, deshabilitada = false }: Props) {
     setCargando(true)
     try {
       const resumen = await subirCsvMedicion(file)
+      invalidarHistorial()
       if ('duplicadoDetectado' in resumen) {
         setDuplicado(resumen)
         return
@@ -78,6 +81,7 @@ export function CargaInicialFicha({ onCreada, deshabilitada = false }: Props) {
         trenNumero: Number(trenNumero),
         kilometraje: Number(kilometraje),
       })
+      invalidarHistorial()
       onCreada(resumen.fichaId)
     } catch (err) {
       setError(extraerMensajeError(err, 'No se pudo crear la ficha.'))
@@ -175,9 +179,12 @@ export function CargaInicialFicha({ onCreada, deshabilitada = false }: Props) {
           }
         >
           <p className="font-body text-sm text-concreto-oscuro">
-            Este archivo tiene la misma fecha, kilometraje y medidas que la última ficha confirmada del Tren{' '}
-            {duplicado.tren} ({duplicado.fecha}). No se puede volver a cargar — subí un archivo distinto para
-            continuar.
+            Este archivo tiene la misma fecha, kilometraje y medidas que{' '}
+            {duplicado.origen === 'reinicio'
+              ? 'la ficha que se reinició recién para este mismo tren'
+              : 'la última ficha confirmada'}{' '}
+            del Tren {duplicado.tren} ({duplicado.fecha}). No se puede volver a cargar — subí un archivo distinto
+            para continuar.
           </p>
         </GlassModal>
       )}

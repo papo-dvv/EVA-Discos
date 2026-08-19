@@ -79,7 +79,14 @@ export function ModalFilasConProblemas({ resumen, esOrigenCsv, onCorregir, onRei
         </p>
       )}
 
-      <ScrollArea className="mt-3 min-h-0 flex-1" viewportClassName="h-full">
+      {/* viewportClassName="flex-1 min-h-0" (no "h-full"/height:100%) a propósito:
+          en la práctica height:100% no resuelve contra el alto que le da flexbox
+          a .eva-scroll-area acá (paréntesis de layout confirmado en vivo — la
+          lista quedaba sin clip ni scrollbar, mostrando de más silenciosamente
+          fuera del área visible del modal), así que el contenedor (className)
+          también pasa a flex-column para que el viewport se ajuste con flex-1
+          en vez de un porcentaje. */}
+      <ScrollArea className="mt-3 flex min-h-0 flex-1 flex-col" viewportClassName="min-h-0 flex-1">
         <ul className="space-y-1 font-body text-xs text-concreto-oscuro">
           {resumen.filasExcluidas.map((f) => (
             <li key={f.recordId}>

@@ -171,21 +171,22 @@ model User {
   createdAt              DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt              DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  registrationRequests          RegistrationRequest[] @relation("UserRegistrationRequest")
-  registrationRequestsRevisadas RegistrationRequest[] @relation("RegistrationRequestRevisadoPor")
-  passwordResets                PasswordReset[]       @relation("UserPasswordReset")
-  passwordResetsGenerados       PasswordReset[]       @relation("PasswordResetGeneradoPor")
+  registrationRequests          RegistrationRequest[]     @relation("UserRegistrationRequest")
+  registrationRequestsRevisadas RegistrationRequest[]     @relation("RegistrationRequestRevisadoPor")
+  passwordResets                PasswordReset[]           @relation("UserPasswordReset")
+  passwordResetsGenerados       PasswordReset[]           @relation("PasswordResetGeneradoPor")
   providersRegistrados          Provider[]
   uploadedFiles                 UploadedFile[]
   scanEditLogs                  ScanEditLog[]
   discComments                  DiscComment[]
-  calendarEventsAgendados       CalendarEvent[]       @relation("CalendarEventAgendadoPor")
-  calendarEventsResponsable     CalendarEvent[]       @relation("CalendarEventResponsableAsignado")
+  calendarEventsAgendados       CalendarEvent[]           @relation("CalendarEventAgendadoPor")
+  calendarEventsResponsable     CalendarEvent[]           @relation("CalendarEventResponsableAsignado")
   notifications                 Notification[]
   reportRequests                ReportRequest[]
   systemParamsActualizados      SystemParam[]
   systemParamAudits             SystemParamAudit[]
   moduleSnapshotsGenerados      ModuleSnapshot[]
+  measurementHistoryEvents      MeasurementHistoryEvent[]
 
   @@index([rol], map: "idx_users_rol")
   @@index([estadoCuenta], map: "idx_users_estado_cuenta")
@@ -611,13 +612,57 @@ model MeasurementSheet {
 
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  uploadedFile UploadedFile?                 @relation(fields: [uploadedFileId], references: [id])
-  tecnicos     MeasurementSheetTecnico[]
-  instrumentos MeasurementSheetInstrumento[]
+  uploadedFile  UploadedFile?                 @relation(fields: [uploadedFileId], references: [id])
+  tecnicos      MeasurementSheetTecnico[]
+  instrumentos  MeasurementSheetInstrumento[]
+  historyEvents MeasurementHistoryEvent[]
 
   @@index([uploadedFileId], map: "idx_measurement_sheet_uploaded_file")
   @@index([trenNumero], map: "idx_measurement_sheet_tren")
   @@map("measurement_sheet")
+}
+
+enum TipoEventoHistorialMedicion {
+  csv_subido
+  csv_duplicado_bloqueado
+  ficha_creada_manual
+  ficha_reiniciada
+  ficha_cancelada
+  ficha_bloqueada
+  ficha_confirmada
+}
+
+// Historial global (todos los trenes, un solo feed — card de Nuevas
+// Mediciones) de eventos de ciclo de vida de una ficha de medición: subida de
+// CSV, duplicado bloqueado, alta manual, reinicio, cancelación, bloqueo y
+// confirmación. A diferencia de ScanEditLog (campo-por-campo, se borra en
+// cascada si se cancela la ficha), fichaId acá es onDelete:SetNull — el
+// evento debe sobrevivir a la cancelación, por eso trenNumero/nombreArchivo
+// van denormalizados en el propio evento y no dependen de la relación.
+// snapshotFilas (solo en ficha_reiniciada) guarda una foto de las filas justo
+// antes de borrarlas — la usa NewMeasurementService.subirCsv para detectar
+// una re-subida idéntica inmediatamente después de "Resubir CSV"/"Reiniciar
+// ficha", caso que buscarDuplicadoExacto (contra la última ficha CONFIRMADA)
+// no cubre.
+model MeasurementHistoryEvent {
+  id            String                      @id @default(uuid()) @db.Uuid
+  tipo          TipoEventoHistorialMedicion
+  trenNumero    Int                         @map("tren_numero")
+  fichaId       String?                     @map("ficha_id") @db.Uuid
+  nombreArchivo String?                     @map("nombre_archivo") @db.VarChar(300)
+  fechaFicha    DateTime?                   @map("fecha_ficha") @db.Date
+  kilometraje   Decimal?                    @db.Decimal(12, 2)
+  snapshotFilas Json?                       @map("snapshot_filas")
+  detalle       String?                     @db.Text
+  usuarioId     String                      @map("usuario_id") @db.Uuid
+  createdAt     DateTime                    @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  ficha   MeasurementSheet? @relation(fields: [fichaId], references: [id], onDelete: SetNull)
+  usuario User              @relation(fields: [usuarioId], references: [id])
+
+  @@index([createdAt], map: "idx_measurement_history_event_created_at")
+  @@index([trenNumero], map: "idx_measurement_history_event_tren")
+  @@map("measurement_history_event")
 }
 
 // "Realizado por": 4 filas FIJAS por ficha (posicion 1-4), todas nullable —

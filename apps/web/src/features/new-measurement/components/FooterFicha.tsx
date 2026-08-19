@@ -1,8 +1,10 @@
+import { CalendarClock } from 'lucide-react'
 import { useState } from 'react'
+import { GlassButton } from '../../../components/GlassButton'
 import { GlassSurface } from '../../../components/GlassSurface'
 import { WarningTooltip } from '../../../components/WarningTooltip'
 import { useSyncedState } from '../../../hooks/useSyncedState'
-import { aFechaCorta } from '../fecha'
+import { aFechaCorta, fechaHoyCorta } from '../fecha'
 import type { CambiosFicha, FichaInstrumento, FichaMedicion, FichaTecnico } from '../types'
 import { FirmaDigital } from './FirmaDigital'
 
@@ -240,13 +242,16 @@ function FilaTecnico({
           valor={form.firma}
           onGuardar={(firma) => guardarCampo('firma', firma)}
         />
-        <input
-          type="date"
-          className={CLASE_INPUT}
-          aria-label={`Fecha técnico ${tecnico.posicion}`}
-          value={form.fecha}
-          onChange={(e) => guardarCampo('fecha', e.target.value)}
-        />
+        <div className="flex items-center gap-1">
+          <input
+            type="date"
+            className={`${CLASE_INPUT} flex-1`}
+            aria-label={`Fecha técnico ${tecnico.posicion}`}
+            value={form.fecha}
+            onChange={(e) => guardarCampo('fecha', e.target.value)}
+          />
+          <BotonFechaHoy onClick={() => guardarCampo('fecha', fechaHoyCorta())} />
+        </div>
       </div>
     </div>
   )
@@ -301,17 +306,43 @@ function BloqueResponsable({
             onGuardar({ firma })
           }}
         />
-        <input
-          type="date"
-          className={CLASE_INPUT}
-          aria-label={`Fecha ${titulo}`}
-          value={borradorFecha}
-          onChange={(e) => {
-            setBorradorFecha(e.target.value)
-            onGuardar({ fecha: e.target.value })
-          }}
-        />
+        <div className="flex items-center gap-1">
+          <input
+            type="date"
+            className={`${CLASE_INPUT} flex-1`}
+            aria-label={`Fecha ${titulo}`}
+            value={borradorFecha}
+            onChange={(e) => {
+              setBorradorFecha(e.target.value)
+              onGuardar({ fecha: e.target.value })
+            }}
+          />
+          <BotonFechaHoy
+            onClick={() => {
+              setBorradorFecha(fechaHoyCorta())
+              onGuardar({ fecha: fechaHoyCorta() })
+            }}
+          />
+        </div>
       </div>
     </div>
+  )
+}
+
+// Botón compartido (técnicos + Ing.MR/Responsable de Mantenimiento) para
+// completar el campo de fecha con la fecha actual sin tipear — la mayoría de
+// las firmas se hacen el mismo día de la medición.
+function BotonFechaHoy({ onClick }: { onClick: () => void }) {
+  return (
+    <GlassButton
+      type="button"
+      variante="secundario"
+      onClick={onClick}
+      aria-label="Usar fecha de hoy"
+      title="Usar fecha de hoy"
+      className="px-2 py-1.5"
+    >
+      <CalendarClock size={14} aria-hidden />
+    </GlassButton>
   )
 }

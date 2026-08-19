@@ -38,6 +38,12 @@ type ConfirmDialogProps = {
   // vacío antes de poder bloquear la ficha). null/undefined: el botón
   // funciona como siempre.
   motivoConfirmarDeshabilitado?: string | null
+  // Con motivoConfirmarDeshabilitado presente, reemplaza el botón "deshabilitado
+  // + tooltip" de siempre por un botón normal (habilitado) que dispara esta
+  // acción en vez de onConfirm — ej. "Llenar ahora" en el modal de bloqueo de
+  // Nuevas Mediciones, que cierra el modal y hace scroll al campo faltante en
+  // vez de simplemente explicar por qué no se puede confirmar.
+  accionAlternativa?: { texto: string; onClick: () => void } | null
 }
 
 // Confirmación reutilizable con estética Liquid Glass (styles.md §4/§9): un
@@ -56,6 +62,7 @@ export function ConfirmDialog({
   children,
   ancho,
   motivoConfirmarDeshabilitado = null,
+  accionAlternativa = null,
 }: ConfirmDialogProps) {
   const [cargando, setCargando] = useState(false)
   const [error, setError] = useState<unknown>(null)
@@ -125,7 +132,17 @@ export function ConfirmDialog({
         >
           {textoCancelar}
         </GlassButton>
-        {motivoConfirmarDeshabilitado ? (
+        {motivoConfirmarDeshabilitado && accionAlternativa ? (
+          // Con accionAlternativa, el motivo no deshabilita el botón — lo
+          // reemplaza por una acción de ayuda (ej. "Llenar ahora": cierra el
+          // modal y hace scroll al campo faltante) en vez de solo explicar por
+          // WarningTooltip qué falta.
+          <WarningTooltip texto={motivoConfirmarDeshabilitado}>
+            <GlassButton type="button" onClick={accionAlternativa.onClick} className="px-5 py-2.5 text-xs">
+              {accionAlternativa.texto}
+            </GlassButton>
+          </WarningTooltip>
+        ) : motivoConfirmarDeshabilitado ? (
           // aria-disabled (nunca `disabled`): un botón nativo disabled no
           // dispara mouseenter/focus ni en él ni en sus ancestros, así que el
           // WarningTooltip que lo envuelve jamás llegaría a mostrarse por

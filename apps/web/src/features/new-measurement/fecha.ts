@@ -9,3 +9,14 @@ export function aFechaCorta(iso: string | null | undefined): string {
   if (!iso) return ''
   return iso.slice(0, 10)
 }
+
+// 'YYYY-MM-DD' de hoy en huso horario local — usado por el botón "usar fecha
+// de hoy" de los campos de fecha de técnicos/Ing.-Especialista/Responsable de
+// Mantenimiento (FooterFicha.tsx). NO usar toISOString() acá: convierte a UTC
+// primero, lo que puede devolver el día equivocado según la hora local.
+export function fechaHoyCorta(): string {
+  const hoy = new Date()
+  const mes = String(hoy.getMonth() + 1).padStart(2, '0')
+  const dia = String(hoy.getDate()).padStart(2, '0')
+  return `${hoy.getFullYear()}-${mes}-${dia}`
+}

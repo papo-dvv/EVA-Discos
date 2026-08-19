@@ -11,6 +11,7 @@ import {
   TEXTO_MOTIVO_INVALIDO,
   type MotivoInvalido,
 } from '../scan-records/scan-record-query';
+import { NewMeasurementHistoryService } from './new-measurement-history.service';
 
 // Validación cruzada automática de una ficha de medición individual en
 // borrador (motivo 'Medición' únicamente) contra el historial YA CONFIRMADO
@@ -25,7 +26,10 @@ import {
 //     referencia contra la cual comparar, no es un error).
 @Injectable()
 export class NewMeasurementValidationService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly history: NewMeasurementHistoryService,
+  ) {}
 
   // Recalcula y persiste los 4 flags (kmInvalido/fechaInvalido/tInvalido/
   // rdInvalido) de TODAS las filas de la ficha, sin tocar
@@ -206,9 +210,10 @@ export class NewMeasurementValidationService {
   // mismo nivel de obligatoriedad que verificado=true, ver
   // NewMeasurementCommitService.confirmar para el mismo requisito en el
   // commit final. No hay endpoint de desbloqueo todavía.
-  async bloquear(fichaId: string): Promise<ResumenBloqueo> {
+  async bloquear(fichaId: string, usuarioId: string): Promise<ResumenBloqueo> {
     const ficha = await this.prisma.measurementSheet.findUnique({
       where: { id: fichaId },
+      include: { uploadedFile: { select: { filename: true } } },
     });
     if (!ficha) {
       throw new NotFoundException('Ficha de medición no encontrada.');
@@ -227,6 +232,15 @@ export class NewMeasurementValidationService {
     await this.prisma.measurementSheet.update({
       where: { id: fichaId },
       data: { tablaBloqueada: true },
+    });
+    await this.history.registrar({
+      tipo: 'ficha_bloqueada',
+      trenNumero: ficha.trenNumero,
+      fichaId,
+      nombreArchivo: ficha.uploadedFile?.filename ?? null,
+      fechaFicha: ficha.fechaFicha,
+      kilometraje: Number(ficha.kilometraje),
+      usuarioId,
     });
 
     return { fichaId, tablaBloqueada: true };

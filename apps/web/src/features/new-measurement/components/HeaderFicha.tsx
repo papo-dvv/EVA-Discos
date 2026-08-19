@@ -23,6 +23,10 @@ type Props = {
   // alimenta el modal de Medición Anterior) — permite mostrar el valor previo
   // exacto en el tooltip de la alerta.
   referencia?: ReferenciaUltimaMedicion
+  // true por un tiempo breve tras clickear "Llenar ahora" en el modal de
+  // bloqueo (ver NuevasMediciones.tsx) cuando el P.T. está vacío — resalta el
+  // campo para que el usuario lo ubique rápido tras el scroll.
+  resaltarPt?: boolean
 }
 
 // Header fijo de la ficha (punto 2a del enunciado): actividad y unidad son
@@ -40,6 +44,7 @@ export function HeaderFicha({
   kmInvalido = null,
   fechaInvalido = null,
   referencia,
+  resaltarPt = false,
 }: Props) {
   const [fecha, setFecha] = useSyncedState(aFechaCorta(ficha.fechaFicha))
   const [tren, setTren] = useSyncedState(String(ficha.trenNumero))
@@ -52,6 +57,9 @@ export function HeaderFicha({
   const discrepanciaTren = ficha.corregidoTren && ficha.trenOriginalCsv !== null
   const discrepanciaKm = ficha.corregidoKilometraje && ficha.kilometrajeOriginalCsv !== null
   const ptVacio = !ficha.ptCodigo?.trim()
+  let claseResaltadoPt = ''
+  if (resaltarPt) claseResaltadoPt = 'ring-2 ring-[color:var(--color-estado-seguimiento)] transition-shadow'
+  else if (ptVacio) claseResaltadoPt = 'ring-1 ring-[color:var(--color-estado-critico)]/50'
 
   return (
     <div className="space-y-4">
@@ -123,7 +131,8 @@ export function HeaderFicha({
           <p className="font-display text-sm font-semibold text-concreto-oscuro">mm · CONTROL DISCO DE FRENO</p>
         </div>
 
-        <div className="flex items-end gap-1.5">
+        {/* id usado por NuevasMediciones.tsx para el scroll de "Llenar ahora" (modal de bloqueo) */}
+        <div id="campo-pt" className="flex items-end gap-1.5">
           <GlassField
             label={
               <span className="inline-flex items-center gap-1">
@@ -141,7 +150,7 @@ export function HeaderFicha({
             onBlur={() => {
               if (ptCodigo !== (ficha.ptCodigo ?? '')) onGuardar({ ptCodigo })
             }}
-            className={ptVacio ? 'ring-1 ring-[color:var(--color-estado-critico)]/50' : ''}
+            className={claseResaltadoPt}
             contenedorClassName="flex-1"
           />
         </div>

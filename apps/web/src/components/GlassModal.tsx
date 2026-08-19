@@ -18,13 +18,16 @@ type GlassModalProps = {
   // overflow:hidden — cualquier hijo directo de `children` que NO deba
   // scrollear (ej. un párrafo de descripción) simplemente ocupa su alto
   // natural, mientras que el que SÍ deba hacerlo debe ser un
-  // <ScrollArea className="min-h-0 flex-1" viewportClassName="h-full"> para
-  // quedarse con el espacio restante y scrollear con el mismo scrollbar
-  // delgado del resto de la app (ver ModalFilasConProblemas). `footer` (si se
-  // pasa) queda SIEMPRE visible, fuera de esa zona. Sin definir `altoMaximo`
-  // (default), el modal sigue creciendo libremente con su contenido — el
-  // comportamiento de siempre, pensado para diálogos cortos (ConfirmDialog y
-  // la mayoría de los modales).
+  // <ScrollArea className="min-h-0 flex-1 flex flex-col" viewportClassName="min-h-0 flex-1">
+  // para quedarse con el espacio restante y scrollear con el mismo scrollbar
+  // delgado del resto de la app (ver ModalFilasConProblemas). NO usar
+  // viewportClassName="h-full" (height:100%): no resuelve de forma confiable
+  // contra el alto que flexbox le da a .eva-scroll-area acá — sin clip ni
+  // scrollbar, la lista se corta en silencio por fuera del área visible del
+  // modal (confirmado en vivo). `footer` (si se pasa) queda SIEMPRE visible,
+  // fuera de esa zona. Sin definir `altoMaximo` (default), el modal sigue
+  // creciendo libremente con su contenido — el comportamiento de siempre,
+  // pensado para diálogos cortos (ConfirmDialog y la mayoría de los modales).
   altoMaximo?: string
   footer?: ReactNode
   children?: ReactNode

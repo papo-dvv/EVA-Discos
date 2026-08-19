@@ -3,6 +3,7 @@ import type {
   AgregarFilaFicha,
   CambiosFicha,
   EditarFilaFicha,
+  EventoHistorialApi,
   FichaMedicion,
   MotivoFicha,
   PreviewFichaResult,
@@ -132,5 +133,12 @@ export async function cancelarFicha(
 
 export async function reiniciarFicha(fichaId: string): Promise<ResumenReset> {
   const { data } = await apiClient.post<ResumenReset>(`/new-measurement/${fichaId}/reset`)
+  return data
+}
+
+export async function obtenerHistorialMediciones(limit = 50): Promise<EventoHistorialApi[]> {
+  const { data } = await apiClient.get<EventoHistorialApi[]>('/new-measurement/historial', {
+    params: { limit },
+  })
   return data
 }

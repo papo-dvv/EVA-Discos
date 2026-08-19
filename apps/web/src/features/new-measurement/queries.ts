@@ -7,6 +7,7 @@ import {
   editarFicha,
   editarFilaFicha,
   eliminarFilaFicha,
+  obtenerHistorialMediciones,
   obtenerPreviewFicha,
   obtenerReferenciaFicha,
   reiniciarFicha,
@@ -28,6 +29,23 @@ import type {
 const claveRaiz = (fichaId: string) => ['new-measurement', fichaId] as const
 const clavePreview = (fichaId: string, params: PreviewParams) =>
   ['new-measurement', fichaId, 'preview', params] as const
+const claveHistorial = ['new-measurement', 'historial'] as const
+
+// Feed global (todos los trenes) de la card de historial — ver
+// PanelHistorialMediciones. Se invalida desde las mutaciones que generan un
+// evento (reiniciar/cancelar/bloquear/confirmar acá, subir CSV/crear manual
+// en CargaInicialFicha.tsx) en vez de depender de polling.
+export function useHistorialMediciones(limit?: number) {
+  return useQuery({
+    queryKey: [...claveHistorial, limit] as const,
+    queryFn: () => obtenerHistorialMediciones(limit),
+  })
+}
+
+export function useInvalidarHistorialMediciones() {
+  const queryClient = useQueryClient()
+  return () => queryClient.invalidateQueries({ queryKey: claveHistorial })
+}
 
 export function useFichaPreview(fichaId: string, params: PreviewParams) {
   return useQuery({
@@ -77,9 +95,13 @@ export function useEliminarFilaFicha(fichaId: string) {
 
 export function useConfirmarFicha(fichaId: string) {
   const invalidar = useInvalidarFicha(fichaId)
+  const invalidarHistorial = useInvalidarHistorialMediciones()
   return useMutation({
     mutationFn: () => confirmarFicha(fichaId),
-    onSuccess: invalidar,
+    onSuccess: () => {
+      invalidar()
+      invalidarHistorial()
+    },
   })
 }
 
@@ -98,9 +120,13 @@ export function useVerificarFicha(fichaId: string) {
 // header/tabla pasen a solo-lectura y el footer se habilite.
 export function useBloquearFicha(fichaId: string) {
   const invalidar = useInvalidarFicha(fichaId)
+  const invalidarHistorial = useInvalidarHistorialMediciones()
   return useMutation({
     mutationFn: () => bloquearFicha(fichaId),
-    onSuccess: invalidar,
+    onSuccess: () => {
+      invalidar()
+      invalidarHistorial()
+    },
   })
 }
 
@@ -117,11 +143,14 @@ export function useReferenciaFicha(trenNumero: number | undefined, tipo: TipoRef
   })
 }
 
-// No invalida: la ficha deja de existir y el componente navega fuera al
-// confirmar éxito — mismo criterio que useCancelarMigracion.
+// No invalida la ficha en sí: deja de existir y el componente navega fuera al
+// confirmar éxito — mismo criterio que useCancelarMigracion. Sí invalida el
+// historial (el evento ficha_cancelada sobrevive al borrado de la ficha).
 export function useCancelarFicha(fichaId: string) {
+  const invalidarHistorial = useInvalidarHistorialMediciones()
   return useMutation({
     mutationFn: () => cancelarFicha(fichaId),
+    onSuccess: invalidarHistorial,
   })
 }
 
@@ -131,8 +160,12 @@ export function useCancelarFicha(fichaId: string) {
 // reiniciado: 0 filas, verificado=false, tablaBloqueada=false.
 export function useReiniciarFicha(fichaId: string) {
   const invalidar = useInvalidarFicha(fichaId)
+  const invalidarHistorial = useInvalidarHistorialMediciones()
   return useMutation({
     mutationFn: () => reiniciarFicha(fichaId),
-    onSuccess: invalidar,
+    onSuccess: () => {
+      invalidar()
+      invalidarHistorial()
+    },
   })
 }

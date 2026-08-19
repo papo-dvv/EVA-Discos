@@ -127,6 +127,30 @@ export interface ResultadoDuplicadoDetectado {
   fecha: string
   kilometraje: number
   tren: number
+  // 'confirmada': coincide con la última ficha CONFIRMADA de este tren.
+  // 'reinicio': coincide con lo que tenía la ficha justo antes de un
+  // "Resubir CSV"/"Reiniciar ficha" reciente sobre este mismo tren.
+  origen: 'confirmada' | 'reinicio'
+}
+
+export type TipoEventoHistorialMedicion =
+  | 'csv_subido'
+  | 'csv_duplicado_bloqueado'
+  | 'ficha_creada_manual'
+  | 'ficha_reiniciada'
+  | 'ficha_cancelada'
+  | 'ficha_bloqueada'
+  | 'ficha_confirmada'
+
+export interface EventoHistorialApi {
+  id: string
+  tipo: TipoEventoHistorialMedicion
+  trenNumero: number
+  fichaId: string | null
+  nombreArchivo: string | null
+  usuarioNombre: string
+  detalle: string | null
+  createdAt: string
 }
 
 export interface ResumenFichaManual {

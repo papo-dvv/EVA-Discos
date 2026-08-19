@@ -22,11 +22,13 @@ import type { AuthenticatedUser } from '../auth/interfaces/jwt-payload.interface
 import { PreviewQueryDto } from '../migration/dto/preview-query.dto';
 import { AgregarFilaDto } from './dto/agregar-fila.dto';
 import { CrearManualDto } from './dto/crear-manual.dto';
+import { HistorialQueryDto } from './dto/historial-query.dto';
 import { ReferenceQueryDto } from './dto/reference-query.dto';
 import { UpdateFichaDto } from './dto/update-ficha.dto';
 import { UpdateFilaDto } from './dto/update-fila.dto';
 import { UploadCsvDto } from './dto/upload-csv.dto';
 import { NewMeasurementCommitService } from './new-measurement-commit.service';
+import { NewMeasurementHistoryService } from './new-measurement-history.service';
 import { NewMeasurementPreviewService } from './new-measurement-preview.service';
 import { NewMeasurementReferenceService } from './new-measurement-reference.service';
 import { NewMeasurementValidationService } from './new-measurement-validation.service';
@@ -48,15 +50,23 @@ export class NewMeasurementController {
     private readonly commitService: NewMeasurementCommitService,
     private readonly validationService: NewMeasurementValidationService,
     private readonly referenceService: NewMeasurementReferenceService,
+    private readonly historyService: NewMeasurementHistoryService,
   ) {}
 
   // Registrado ANTES de ':fichaId' a propósito: si quedara después, Nest
   // matchearía GET /new-measurement/reference contra ':fichaId' primero (el
   // segmento "reference" fallaría ParseUUIDPipe con un 400 en vez de resolver
-  // esta ruta).
+  // esta ruta). Mismo motivo para 'historial'.
   @Get('reference')
   referencia(@Query() query: ReferenceQueryDto) {
     return this.referenceService.obtener(query.tren, query.tipo);
+  }
+
+  // Card de historial global (todos los trenes) de Nuevas Mediciones — ver
+  // NewMeasurementHistoryService.
+  @Get('historial')
+  historial(@Query() query: HistorialQueryDto) {
+    return this.historyService.listar(query.limit);
   }
 
   @Post('upload')
@@ -149,8 +159,11 @@ export class NewMeasurementController {
   }
 
   @Post(':fichaId/lock')
-  bloquear(@Param('fichaId', ParseUUIDPipe) fichaId: string) {
-    return this.validationService.bloquear(fichaId);
+  bloquear(
+    @Param('fichaId', ParseUUIDPipe) fichaId: string,
+    @CurrentUser() usuario: AuthenticatedUser,
+  ) {
+    return this.validationService.bloquear(fichaId, usuario.userId);
   }
 
   @Post(':fichaId/commit')
@@ -162,8 +175,11 @@ export class NewMeasurementController {
   }
 
   @Delete(':fichaId')
-  cancelar(@Param('fichaId', ParseUUIDPipe) fichaId: string) {
-    return this.commitService.cancelar(fichaId);
+  cancelar(
+    @Param('fichaId', ParseUUIDPipe) fichaId: string,
+    @CurrentUser() usuario: AuthenticatedUser,
+  ) {
+    return this.commitService.cancelar(fichaId, usuario.userId);
   }
 
   // "Resubir CSV" / "Reiniciar ficha": vacía la tabla de mediciones actual

@@ -13,6 +13,7 @@ import type {
 import { PrismaService } from '../prisma/prisma.service';
 import { WearRateService } from '../wear-rate/wear-rate.service';
 import { resolverIdentidadPorEje } from './new-measurement-csv.parser';
+import { NewMeasurementHistoryService } from './new-measurement-history.service';
 
 function validarInstrumentos(
   instrumentos: MeasurementSheetInstrumento[],
@@ -46,8 +47,7 @@ function validarInstrumentos(
       );
     }
     if (
-      instrumento.fechaVencimientoCalibracion! <
-      instrumento.fechaCalibracion!
+      instrumento.fechaVencimientoCalibracion! < instrumento.fechaCalibracion!
     ) {
       throw new UnprocessableEntityException(
         `La fecha de vencimiento del instrumento ${instrumento.posicion} no puede ser anterior a la fecha de calibración.`,
@@ -82,6 +82,7 @@ export class NewMeasurementCommitService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly wearRate: WearRateService,
+    private readonly history: NewMeasurementHistoryService,
   ) {}
 
   // Commit de una ficha de medición individual. A diferencia de la migración
@@ -203,6 +204,18 @@ export class NewMeasurementCommitService {
           usuarioId,
         },
       });
+      await this.history.registrar(
+        {
+          tipo: 'ficha_confirmada',
+          trenNumero: ficha.trenNumero,
+          fichaId,
+          nombreArchivo: file.filename,
+          fechaFicha: ficha.fechaFicha,
+          kilometraje: Number(ficha.kilometraje),
+          usuarioId,
+        },
+        tx,
+      );
     });
 
     // Alimenta Tasa de Desgaste (precomputada) — Trazabilidad y Proyección
@@ -219,13 +232,17 @@ export class NewMeasurementCommitService {
     };
   }
 
-  async cancelar(fichaId: string): Promise<ResumenCancelacionMedicion> {
+  async cancelar(
+    fichaId: string,
+    usuarioId: string,
+  ): Promise<ResumenCancelacionMedicion> {
     const ficha = await this.prisma.measurementSheet.findUnique({
       where: { id: fichaId },
     });
     if (!ficha) {
       throw new NotFoundException('Ficha de medición no encontrada.');
     }
+    let nombreArchivo: string | null = null;
     if (ficha.uploadedFileId) {
       const file = await this.prisma.uploadedFile.findUnique({
         where: { id: ficha.uploadedFileId },
@@ -235,14 +252,30 @@ export class NewMeasurementCommitService {
           'Esta ficha ya fue confirmada y no puede cancelarse.',
         );
       }
+      nombreArchivo = file?.filename ?? null;
     }
 
     // measurement_sheet_tecnico/instrumento se eliminan en cascada (ver
     // schema); measurement_sheet.uploadedFileId NO es onDelete:Cascade desde
     // uploaded_files (es al revés: la ficha referencia al archivo), así que
     // hay que borrar la ficha y el archivo técnico por separado — el archivo
-    // se lleva sus scan_records/scan_edit_log en cascada.
+    // se lleva sus scan_records/scan_edit_log en cascada. El evento de
+    // historial se registra ANTES del delete (fichaId con onDelete:SetNull,
+    // ver schema) para no depender de que la ficha siga existiendo — trenNumero/
+    // nombreArchivo ya van denormalizados en el propio evento.
     await this.prisma.$transaction(async (tx) => {
+      await this.history.registrar(
+        {
+          tipo: 'ficha_cancelada',
+          trenNumero: ficha.trenNumero,
+          fichaId,
+          nombreArchivo,
+          fechaFicha: ficha.fechaFicha,
+          kilometraje: Number(ficha.kilometraje),
+          usuarioId,
+        },
+        tx,
+      );
       await tx.measurementSheet.delete({ where: { id: fichaId } });
       if (ficha.uploadedFileId) {
         await tx.uploadedFile.delete({ where: { id: ficha.uploadedFileId } });
@@ -269,6 +302,7 @@ export class NewMeasurementCommitService {
     }
 
     const fileIdAnterior = ficha.uploadedFileId;
+    let nombreArchivoAnterior: string | null = null;
     if (fileIdAnterior) {
       const file = await this.prisma.uploadedFile.findUnique({
         where: { id: fileIdAnterior },
@@ -278,13 +312,25 @@ export class NewMeasurementCommitService {
           'Esta ficha ya fue confirmada y no puede reiniciarse.',
         );
       }
+      nombreArchivoAnterior = file?.filename ?? null;
     }
 
-    const registrosEliminados = fileIdAnterior
-      ? await this.prisma.scanRecord.count({
+    // Foto de las filas actuales ANTES de borrarlas (ver deleteMany más
+    // abajo): es lo único que le permite a NewMeasurementService.subirCsv
+    // detectar una re-subida idéntica del mismo CSV inmediatamente después de
+    // este reinicio — ver MeasurementHistoryEvent.snapshotFilas.
+    const filasAnteriores = fileIdAnterior
+      ? await this.prisma.scanRecord.findMany({
           where: { fileId: fileIdAnterior },
         })
-      : 0;
+      : [];
+    const registrosEliminados = filasAnteriores.length;
+    const snapshotFilas = filasAnteriores.map((f) => ({
+      eje: f.ejeExcel,
+      lado: f.ubicacionExcel,
+      t: Number(f.tValue),
+      h: Number(f.hValue),
+    }));
 
     const fileId = await this.prisma.$transaction(async (tx) => {
       if (fileIdAnterior) {
@@ -339,6 +385,19 @@ export class NewMeasurementCommitService {
           usuarioId,
         },
       });
+      await this.history.registrar(
+        {
+          tipo: 'ficha_reiniciada',
+          trenNumero: ficha.trenNumero,
+          fichaId,
+          nombreArchivo: nombreArchivoAnterior,
+          fechaFicha: ficha.fechaFicha,
+          kilometraje: Number(ficha.kilometraje),
+          snapshotFilas,
+          usuarioId,
+        },
+        tx,
+      );
 
       return nuevoArchivo.id;
     });

@@ -23,6 +23,10 @@ import {
   type FilaNuevaMedicion,
   type MotivoFicha,
 } from './new-measurement-csv.parser';
+import {
+  NewMeasurementHistoryService,
+  type FilaSnapshotHistorial,
+} from './new-measurement-history.service';
 import { NewMeasurementValidationService } from './new-measurement-validation.service';
 
 export interface ResumenCargaMedicion {
@@ -44,10 +48,19 @@ export interface ResumenCargaMedicion {
 // archivo distinto.
 export interface ResultadoDuplicadoDetectado {
   duplicadoDetectado: true;
+  // fichaConfirmadaId: mantiene el nombre histórico, pero con origen
+  // 'reinicio' en realidad identifica la ficha que se está reiniciando (ver
+  // buscarDuplicadoTrasReinicio), no una ficha confirmada.
   fichaConfirmadaId: string;
   fecha: string;
   kilometraje: number;
   tren: number;
+  // 'confirmada': coincide con la última ficha CONFIRMADA de este tren (ver
+  // buscarDuplicadoExacto). 'reinicio': coincide con lo que tenía la ficha
+  // justo antes de un "Resubir CSV"/"Reiniciar ficha" reciente sobre este
+  // mismo tren (ver buscarDuplicadoTrasReinicio) — el frontend ajusta el
+  // mensaje del modal según esto.
+  origen: 'confirmada' | 'reinicio';
 }
 
 // Tolerancia para comparar H/T contra el histórico confirmado — mismo
@@ -56,6 +69,32 @@ export interface ResultadoDuplicadoDetectado {
 const EPSILON_COMPARACION_DUPLICADO = 1e-6;
 function valoresIguales(a: number, b: number): boolean {
   return Math.abs(a - b) < EPSILON_COMPARACION_DUPLICADO;
+}
+
+// Compara cada fila recién parseada contra un set de referencia (confirmado o
+// snapshot de historial, según el llamador) por identidad eje+lado — mismo
+// criterio en ambos casos: duplicado exacto exige que TODAS las filas nuevas
+// tengan un equivalente con igual T/H: filas de referencia "de más" no
+// importan.
+function filasCoincidenExacto(
+  filasNuevas: FilaNuevaMedicion[],
+  referencia: {
+    ejeExcel: number | null;
+    ubicacionExcel: string | null;
+    tValue: number;
+    hValue: number;
+  }[],
+): boolean {
+  return filasNuevas.every((fila) => {
+    const ref = referencia.find(
+      (r) => r.ejeExcel === fila.ejeNumero && r.ubicacionExcel === fila.lado,
+    );
+    return (
+      ref !== undefined &&
+      valoresIguales(ref.tValue, fila.tValue) &&
+      valoresIguales(ref.hValue, fila.hValue)
+    );
+  });
 }
 
 export interface ResumenFichaManual {
@@ -86,6 +125,7 @@ export class NewMeasurementService {
     private readonly prisma: PrismaService,
     private readonly brakeDiscRules: BrakeDiscRulesService,
     private readonly validationService: NewMeasurementValidationService,
+    private readonly history: NewMeasurementHistoryService,
   ) {}
 
   async subirCsv(
@@ -134,19 +174,41 @@ export class NewMeasurementService {
     // ficha borrador nunca se crea para este archivo. No existe ningún
     // endpoint/parámetro para forzar esta carga puntual; la única forma de
     // continuar es subir un archivo distinto.
-    const duplicado = await this.buscarDuplicadoExacto(
+    const duplicadoConfirmado = await this.buscarDuplicadoExacto(
       tren.numero,
       fechaFicha,
       resultado.metadata.kilometraje,
       resultado.filas,
     );
+    // Alcance angosto (punto 3 de la ampliación): solo protege la re-subida
+    // INMEDIATA tras un "Resubir CSV"/"Reiniciar ficha" — ver
+    // buscarDuplicadoTrasReinicio. No se amplía la detección de arriba a
+    // cualquier repetición histórica del tren.
+    const duplicadoTrasReinicio = duplicadoConfirmado
+      ? null
+      : await this.buscarDuplicadoTrasReinicio(
+          tren.numero,
+          fechaFicha,
+          resultado.metadata.kilometraje,
+          resultado.filas,
+        );
+    const duplicado = duplicadoConfirmado ?? duplicadoTrasReinicio;
     if (duplicado) {
+      await this.history.registrar({
+        tipo: 'csv_duplicado_bloqueado',
+        trenNumero: tren.numero,
+        nombreArchivo: archivo.originalname,
+        fechaFicha,
+        kilometraje: resultado.metadata.kilometraje,
+        usuarioId,
+      });
       return {
         duplicadoDetectado: true,
         fichaConfirmadaId: duplicado.id,
         fecha: fechaFicha.toISOString().slice(0, 10),
         kilometraje: resultado.metadata.kilometraje,
         tren: tren.numero,
+        origen: duplicadoConfirmado ? 'confirmada' : 'reinicio',
       };
     }
 
@@ -199,6 +261,16 @@ export class NewMeasurementService {
     // de Tasa de Desgaste en NewMeasurementCommitService — no es necesario
     // que la creación de la ficha espere/aborte por esto.
     await this.validationService.recalcularFlags(fichaId);
+
+    await this.history.registrar({
+      tipo: 'csv_subido',
+      trenNumero: tren.numero,
+      fichaId,
+      nombreArchivo: archivo.originalname,
+      fechaFicha,
+      kilometraje: resultado.metadata.kilometraje,
+      usuarioId,
+    });
 
     return {
       fichaId,
@@ -257,6 +329,15 @@ export class NewMeasurementService {
       return ficha.id;
     });
 
+    await this.history.registrar({
+      tipo: 'ficha_creada_manual',
+      trenNumero: tren.numero,
+      fichaId,
+      fechaFicha,
+      kilometraje: dto.kilometraje,
+      usuarioId,
+    });
+
     return {
       fichaId,
       trenNumero: tren.numero,
@@ -294,19 +375,58 @@ export class NewMeasurementService {
     const confirmados = await this.prisma.scanRecord.findMany({
       where: { fileId: ultimaConfirmada.uploadedFileId },
     });
+    const referencia = confirmados.map((r) => ({
+      ejeExcel: r.ejeExcel,
+      ubicacionExcel: r.ubicacionExcel,
+      tValue: Number(r.tValue),
+      hValue: Number(r.hValue),
+    }));
 
-    const todosCoinciden = filas.every((fila) => {
-      const referencia = confirmados.find(
-        (r) => r.ejeExcel === fila.ejeNumero && r.ubicacionExcel === fila.lado,
-      );
-      return (
-        referencia !== undefined &&
-        valoresIguales(Number(referencia.tValue), fila.tValue) &&
-        valoresIguales(Number(referencia.hValue), fila.hValue)
-      );
-    });
+    return filasCoincidenExacto(filas, referencia)
+      ? { id: ultimaConfirmada.id }
+      : null;
+  }
 
-    return todosCoinciden ? { id: ultimaConfirmada.id } : null;
+  // Alcance angosto (punto 3 de la ampliación, acordado con el usuario): NO
+  // compara contra cualquier intento previo del tren, solo contra el evento
+  // MÁS RECIENTE si es justo un ficha_reiniciada — es decir, protege
+  // específicamente la re-subida inmediata tras "Resubir CSV"/"Reiniciar
+  // ficha". Si el evento más reciente del tren es de otro tipo (ya se subió/
+  // confirmó otra cosa desde entonces), no bloquea nada acá — buscarDuplicadoExacto
+  // (contra la última confirmada) sigue siendo el único chequeo que aplica.
+  // Necesario porque reiniciar() borra los ScanRecord antes de que el usuario
+  // elija el nuevo archivo (ver NewMeasurementCommitService.reiniciar) — la
+  // única foto de esos datos que sobrevive es snapshotFilas del evento.
+  private async buscarDuplicadoTrasReinicio(
+    trenNumero: number,
+    fechaFicha: Date,
+    kilometraje: number,
+    filas: FilaNuevaMedicion[],
+  ): Promise<{ id: string } | null> {
+    const ultimoEvento =
+      await this.history.buscarUltimoEventoDeTren(trenNumero);
+    if (ultimoEvento?.tipo !== 'ficha_reiniciada') return null;
+    if (!ultimoEvento.fechaFicha || ultimoEvento.kilometraje === null)
+      return null;
+    if (ultimoEvento.fechaFicha.getTime() !== fechaFicha.getTime()) return null;
+    if (!valoresIguales(Number(ultimoEvento.kilometraje), kilometraje))
+      return null;
+
+    const snapshot = Array.isArray(ultimoEvento.snapshotFilas)
+      ? (ultimoEvento.snapshotFilas as unknown as FilaSnapshotHistorial[])
+      : null;
+    if (!snapshot || snapshot.length === 0) return null;
+
+    const referencia = snapshot.map((f) => ({
+      ejeExcel: f.eje,
+      ubicacionExcel: f.lado,
+      tValue: f.t,
+      hValue: f.h,
+    }));
+
+    return filasCoincidenExacto(filas, referencia) && ultimoEvento.fichaId
+      ? { id: ultimoEvento.fichaId }
+      : null;
   }
 
   private async crearPlaceholdersFicha(

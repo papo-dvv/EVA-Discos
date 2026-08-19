@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { BrakeDiscRulesModule } from '../brake-disc-rules/brake-disc-rules.module';
 import { WearRateModule } from '../wear-rate/wear-rate.module';
 import { NewMeasurementCommitService } from './new-measurement-commit.service';
+import { NewMeasurementHistoryService } from './new-measurement-history.service';
 import { NewMeasurementPreviewService } from './new-measurement-preview.service';
 import { NewMeasurementReferenceService } from './new-measurement-reference.service';
 import { NewMeasurementValidationService } from './new-measurement-validation.service';
@@ -20,6 +21,7 @@ import { NewMeasurementService } from './new-measurement.service';
     NewMeasurementCommitService,
     NewMeasurementValidationService,
     NewMeasurementReferenceService,
+    NewMeasurementHistoryService,
   ],
 })
 export class NewMeasurementModule {}

@@ -137,10 +137,20 @@ function crearServicio(
     recalcularFlags:
       overrides.recalcularFlags ?? jest.fn().mockResolvedValue([]),
   };
+  // Ningún test de este archivo verifica el contenido de los eventos de
+  // historial ni ejercita el camino de "duplicado tras reinicio" (ver
+  // buscarUltimoEventoDeTren, siempre undefined acá) — solo que el servicio
+  // no explote al intentar registrarlos/consultarlos.
+  const history = {
+    registrar: jest.fn(),
+    listar: jest.fn(),
+    buscarUltimoEventoDeTren: jest.fn(),
+  };
   return new NewMeasurementService(
     prisma as never,
     brakeDiscRules as never,
     validationService as never,
+    history as never,
   );
 }
 
@@ -187,6 +197,7 @@ describe('NewMeasurementService.subirCsv — detección de duplicado exacto', ()
       fecha: '2026-01-15',
       kilometraje: 125000,
       tren: 32,
+      origen: 'confirmada',
     });
     expect(fichasCreadas).toHaveLength(0);
     expect(prisma.$transaction).not.toHaveBeenCalled();
@@ -266,6 +277,7 @@ describe('NewMeasurementService.subirCsv — detección de duplicado exacto', ()
       fecha: '2026-01-15',
       kilometraje: 125000,
       tren: 32,
+      origen: 'confirmada',
     });
     expect(segundoIntento).toEqual(primerIntento);
     expect(fichasCreadas).toHaveLength(0);

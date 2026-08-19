@@ -59,7 +59,8 @@ export function TablaFichaEspejo({
   return (
     <GlassSurface fuerte className="mt-4 overflow-hidden rounded-glass">
       <div>
-        <table className="w-full table-fixed border-collapse text-left font-body text-[0.75rem]">
+        {/* +2pt sobre los 12px (9pt) originales — pedido explícito para mejorar la lectura de mediciones/estado */}
+        <table className="w-full table-fixed border-collapse text-left font-body text-[0.9167rem]">
           <thead>
             <tr className="border-b border-concreto/20">
               {mostrarColumnaMotivo && (
@@ -318,7 +319,8 @@ function CeldaEstado({ estado }: { estado: EstadoDisco | null }) {
       {estado ? (
         <span className={`tabla-chip ${CLASE_CHIP_ESTADO[estado]}`}>{estado}</span>
       ) : (
-        <span className="font-body text-xs text-concreto">—</span>
+        // +2pt (mismo criterio que .tabla-chip) para que el "sin dato" combine con el chip de estado
+        <span className="font-body text-[0.9167rem] text-concreto">—</span>
       )}
     </td>
   )
@@ -353,7 +355,8 @@ function CampoNumero({
             if (borrador.trim() !== '' && Number.isFinite(n) && n !== valor) onGuardar(n)
           }}
           placeholder="—"
-          className={`w-full min-w-0 border px-1 py-1 text-right font-data text-xs text-concreto-oscuro transition-colors hover:border-concreto/25 focus:border-verde-institucional focus:bg-white/70 focus:outline-none disabled:opacity-50 ${
+          // +2pt sobre los 12px (9pt) originales — mismo ajuste que el resto de la tabla de datos
+          className={`w-full min-w-0 border px-1 py-1 text-right font-data text-[0.9167rem] text-concreto-oscuro transition-colors hover:border-concreto/25 focus:border-verde-institucional focus:bg-white/70 focus:outline-none disabled:opacity-50 ${
             resaltado ? CLASE_RESALTADO : 'rounded-lg border-transparent bg-transparent'
           }`.trim()}
         />

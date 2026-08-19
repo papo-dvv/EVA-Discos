@@ -223,6 +223,15 @@ function crearEntorno(
   };
 }
 
+// Mock compartido de NewMeasurementHistoryService — ningún test de este
+// archivo verifica el contenido de los eventos de historial, solo que el
+// servicio no explote al intentar registrarlos (ver NewMeasurementHistoryService.registrar).
+const historyMock = {
+  registrar: jest.fn(),
+  listar: jest.fn(),
+  buscarUltimoEventoDeTren: jest.fn(),
+};
+
 describe('NewMeasurementCommitService.confirmar', () => {
   it('rechaza el commit si falta responsable_mantenimiento_nombre', async () => {
     const { prisma } = crearEntorno({
@@ -232,6 +241,7 @@ describe('NewMeasurementCommitService.confirmar', () => {
     const service = new NewMeasurementCommitService(
       prisma as never,
       wearRate as never,
+      historyMock as never,
     );
 
     await expect(service.confirmar('ficha-1', 'user-1')).rejects.toThrow(
@@ -250,6 +260,7 @@ describe('NewMeasurementCommitService.confirmar', () => {
     const service = new NewMeasurementCommitService(
       prisma as never,
       wearRate as never,
+      historyMock as never,
     );
 
     await expect(service.confirmar('ficha-1', 'user-1')).rejects.toThrow(
@@ -265,6 +276,7 @@ describe('NewMeasurementCommitService.confirmar', () => {
     const service = new NewMeasurementCommitService(
       prisma as never,
       wearRate as never,
+      historyMock as never,
     );
 
     await expect(service.confirmar('ficha-1', 'user-1')).rejects.toThrow(
@@ -281,6 +293,7 @@ describe('NewMeasurementCommitService.confirmar', () => {
     const service = new NewMeasurementCommitService(
       prisma as never,
       wearRate as never,
+      historyMock as never,
     );
 
     await expect(service.confirmar('ficha-1', 'user-1')).rejects.toThrow(
@@ -297,6 +310,7 @@ describe('NewMeasurementCommitService.confirmar', () => {
     const service = new NewMeasurementCommitService(
       prisma as never,
       wearRate as never,
+      historyMock as never,
     );
 
     await expect(service.confirmar('ficha-1', 'user-1')).rejects.toThrow(
@@ -335,6 +349,7 @@ describe('NewMeasurementCommitService.confirmar', () => {
     const service = new NewMeasurementCommitService(
       prisma as never,
       wearRate as never,
+      historyMock as never,
     );
 
     const resumen = await service.confirmar('ficha-1', 'user-1');
@@ -360,6 +375,7 @@ describe('NewMeasurementCommitService.confirmar', () => {
     const service = new NewMeasurementCommitService(
       prisma as never,
       wearRate as never,
+      historyMock as never,
     );
 
     const resumen = await service.confirmar('ficha-1', 'user-1');
@@ -383,6 +399,7 @@ describe('NewMeasurementCommitService.confirmar', () => {
     const service = new NewMeasurementCommitService(
       prisma as never,
       wearRate as never,
+      historyMock as never,
     );
 
     await expect(service.confirmar('ficha-1', 'user-1')).rejects.toThrow(
@@ -396,6 +413,7 @@ describe('NewMeasurementCommitService.confirmar', () => {
     const service = new NewMeasurementCommitService(
       prisma as never,
       wearRate as never,
+      historyMock as never,
     );
 
     await expect(service.confirmar('ficha-1', 'user-1')).rejects.toThrow(
@@ -434,6 +452,7 @@ describe('NewMeasurementCommitService.reiniciar', () => {
     const service = new NewMeasurementCommitService(
       prisma as never,
       wearRate as never,
+      historyMock as never,
     );
 
     const resumen = await service.reiniciar('ficha-1', 'user-1');
@@ -456,6 +475,7 @@ describe('NewMeasurementCommitService.reiniciar', () => {
     const service = new NewMeasurementCommitService(
       prisma as never,
       wearRate as never,
+      historyMock as never,
     );
 
     const resumen = await service.reiniciar('ficha-1', 'user-1');
@@ -471,6 +491,7 @@ describe('NewMeasurementCommitService.reiniciar', () => {
     const service = new NewMeasurementCommitService(
       prisma as never,
       wearRate as never,
+      historyMock as never,
     );
 
     await expect(service.reiniciar('ficha-1', 'user-1')).rejects.toThrow(
@@ -484,6 +505,7 @@ describe('NewMeasurementCommitService.reiniciar', () => {
     const service = new NewMeasurementCommitService(
       prisma as never,
       wearRate as never,
+      historyMock as never,
     );
 
     await expect(

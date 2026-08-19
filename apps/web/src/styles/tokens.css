@@ -348,7 +348,7 @@ body {
   border-radius: 999px;
   font-family: var(--font-body);
   font-weight: 600;
-  font-size: 12px;
+  font-size: 14.67px; /* +2pt sobre los 12px (9pt) originales — pedido explícito para la tabla de mediciones/estado */
 }
 .tabla-chip--ok { background: var(--tabla-estado-ok-bg); color: var(--tabla-estado-ok-text); }
 .tabla-chip--seguimiento { background: var(--tabla-estado-seguimiento-bg); color: var(--tabla-estado-seguimiento-text); }

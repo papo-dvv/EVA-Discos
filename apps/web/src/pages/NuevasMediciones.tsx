@@ -14,6 +14,7 @@ import { FooterFicha } from '../features/new-measurement/components/FooterFicha'
 import { HeaderFicha } from '../features/new-measurement/components/HeaderFicha'
 import { ModalFilasConProblemas } from '../features/new-measurement/components/ModalFilasConProblemas'
 import { ModalMedicionAnterior } from '../features/new-measurement/components/ModalMedicionAnterior'
+import { PanelHistorialMediciones } from '../features/new-measurement/components/PanelHistorialMediciones'
 import { TablaFichaEspejo } from '../features/new-measurement/components/TablaFichaEspejo'
 import {
   useBloquearFicha,
@@ -56,6 +57,17 @@ function mensajeConfirmarBloqueado(tablaBloqueada: boolean, responsableVacio: bo
   if (ptVacio) faltantes.push('completar el P.T. (Puesto de Trabajo)')
   if (problemaInstrumentos) faltantes.push(problemaInstrumentos)
   return `Falta ${juntarConY(faltantes)} para poder confirmar la ficha.`
+}
+
+// Motivo del modal "Todos los datos están OK" cuando falta P.T. y/o "Todas
+// las medidas conformes" — se usa junto con accionAlternativa ("Llenar
+// ahora") en vez de solo deshabilitar el botón de bloqueo.
+function mensajeBloquearIncompleto(ptVacio: boolean, todasConformesVacio: boolean): string | null {
+  const faltantes: string[] = []
+  if (ptVacio) faltantes.push('el P.T. (Puesto de Trabajo)')
+  if (todasConformesVacio) faltantes.push('marcar "¿Todas las medidas conformes?"')
+  if (faltantes.length === 0) return null
+  return `Falta completar ${juntarConY(faltantes)} antes de poder bloquear la tabla de mediciones.`
 }
 
 function problemaInstrumentos(instrumentos: FichaInstrumento[], fechaVerificacion: string): string | null {
@@ -139,6 +151,11 @@ export function NuevasMediciones() {
   // Visibilidad del modal de resultado, independiente de resultadoVerificacion
   // (ver comentario arriba).
   const [modalAbierto, setModalAbierto] = useState(false)
+  // Resaltado temporal (ver manejarLlenarAhora) de P.T./"Todas conformes"
+  // tras clickear "Llenar ahora" en el modal de bloqueo — se apagan solos a
+  // los pocos segundos, no dependen de que el usuario complete el campo.
+  const [resaltarPt, setResaltarPt] = useState(false)
+  const [resaltarConformidad, setResaltarConformidad] = useState(false)
   // fichaId pendiente de auto-verificar apenas termine de cargar (ver
   // manejarFichaCreada/efecto más abajo) — SOLO se setea desde el flujo de
   // carga por CSV (CargaInicialFicha.onCreada con autoVerificar=true), nunca
@@ -234,9 +251,26 @@ export function NuevasMediciones() {
 
   const responsableVacio = !ficha?.responsableMantenimientoNombre?.trim()
   const ptVacio = !ficha?.ptCodigo?.trim()
+  const todasConformesVacio = ficha?.todasConformes == null
   const problemaInstrumentosFicha = ficha ? problemaInstrumentos(ficha.instrumentos, ficha.fechaFicha) : null
   const tablaBloqueada = ficha?.tablaBloqueada ?? false
   const puedeConfirmar = tablaBloqueada && !responsableVacio && !ptVacio && !problemaInstrumentosFicha
+
+  // "Llenar ahora" del modal "Todos los datos están OK" (ver ConfirmDialog más
+  // abajo): cierra el modal y hace scroll al primer campo faltante (P.T., más
+  // arriba en la página, antes que "Todas las medidas conformes"), resaltando
+  // en amarillo TODOS los que falten — no solo el que recibió el scroll.
+  function manejarLlenarAhora() {
+    setModalAbierto(false)
+    const idObjetivo = ptVacio ? 'campo-pt' : 'campo-todas-conformes'
+    document.getElementById(idObjetivo)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    if (ptVacio) setResaltarPt(true)
+    if (todasConformesVacio) setResaltarConformidad(true)
+    setTimeout(() => {
+      setResaltarPt(false)
+      setResaltarConformidad(false)
+    }, 2200)
+  }
 
   async function descargarPdf() {
     if (!ficha) return
@@ -261,7 +295,17 @@ export function NuevasMediciones() {
 
   return (
     <PantallaFondo className={fichaId ? 'px-2 py-4 sm:px-3' : 'px-3 py-6 sm:px-5'}>
-      <div className={contenedorAncho}>
+      {/* Historial global (todos los trenes, no depende de fichaId) — mismo
+          patrón de aside sticky + fallback apilado en pantallas angostas que
+          usa Trazabilidad.tsx, pero a la izquierda. */}
+      <div className="grid gap-4 xl:grid-cols-[20rem_1fr]">
+        <aside className="hidden xl:block">
+          <div className="sticky top-6">
+            <PanelHistorialMediciones />
+          </div>
+        </aside>
+
+        <div className={`min-w-0 ${contenedorAncho}`}>
         <GlassSurface className="flex flex-wrap items-center justify-between gap-4 rounded-glass px-6 py-4">
           <div>
             <h1 className="font-display text-2xl font-semibold tracking-tight text-concreto-oscuro">
@@ -371,6 +415,7 @@ export function NuevasMediciones() {
                         kmInvalido={kmInvalido}
                         fechaInvalido={fechaInvalido}
                         referencia={referenciaDisponible}
+                        resaltarPt={resaltarPt}
                       />
                     </GlassSurface>
 
@@ -382,7 +427,12 @@ export function NuevasMediciones() {
                       resaltarInvalidos={resultadoVerificacion !== null}
                     />
 
-                    <GlassSurface fuerte className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-glass p-4">
+                    {/* id usado por manejarLlenarAhora para el scroll del modal de bloqueo */}
+                    <GlassSurface
+                      id="campo-todas-conformes"
+                      fuerte
+                      className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-glass p-4"
+                    >
                       <p className="font-body text-sm font-semibold text-concreto-oscuro">
                         ¿Todas las medidas conformes?
                       </p>
@@ -394,6 +444,11 @@ export function NuevasMediciones() {
                         ]}
                         valor={valorConformidad(ficha.todasConformes)}
                         onCambiar={(v) => editarFicha.mutate({ todasConformes: v === 'si' })}
+                        className={
+                          resaltarConformidad
+                            ? 'rounded-full ring-2 ring-[color:var(--color-estado-seguimiento)] transition-shadow'
+                            : ''
+                        }
                       />
                     </GlassSurface>
 
@@ -443,6 +498,12 @@ export function NuevasMediciones() {
             ) : null}
           </>
         )}
+
+        {/* Fallback apilado debajo del contenido principal en pantallas sin columna izquierda */}
+        <div className="mt-4 xl:hidden">
+          <PanelHistorialMediciones />
+        </div>
+        </div>
       </div>
 
       {cancelando && (
@@ -479,10 +540,9 @@ export function NuevasMediciones() {
           mensaje="¿Bloquear la tabla de mediciones? La tabla y el header (Fecha/Tren/Kilometraje/P.T.) pasan a solo lectura y se habilita el footer."
           textoConfirmar="Bloquear Mediciones"
           textoCancelar="Cancelar"
-          motivoConfirmarDeshabilitado={
-            ptVacio
-              ? 'Completa el P.T. (Puesto de Trabajo) en el header para poder bloquear la tabla de mediciones.'
-              : null
+          motivoConfirmarDeshabilitado={mensajeBloquearIncompleto(ptVacio, todasConformesVacio)}
+          accionAlternativa={
+            ptVacio || todasConformesVacio ? { texto: 'Llenar ahora', onClick: manejarLlenarAhora } : null
           }
           onConfirm={async () => {
             await bloquearFicha.mutateAsync()
