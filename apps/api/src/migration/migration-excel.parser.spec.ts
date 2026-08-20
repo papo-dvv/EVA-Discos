@@ -175,6 +175,36 @@ describe('procesarWorkbook — casos aislados', () => {
     'Comentario',
   ];
 
+  it('procesa una tabla genérica como CSV usando la columna Tren', () => {
+    const wb = workbookDeUnaHoja('Sheet1', [
+      ENCABEZADOS_BASE,
+      [
+        'Responsable CSV',
+        12,
+        250000,
+        '2026-08-17',
+        'Medición',
+        'MA1',
+        129,
+        'PB2',
+        1,
+        'izquierdo',
+        1,
+        3.8,
+        12.4,
+        8.6,
+        'OK',
+      ],
+    ]);
+
+    const res = procesarWorkbook(wb, evaluador);
+    expect(res.hojasProcesadas).toEqual(['Sheet1']);
+    expect(res.hojasFaltantes).toEqual([]);
+    expect(res.filas).toHaveLength(1);
+    expect(res.filas[0].trenNumero).toBe(12);
+    expect(res.filas[0].corregidoPorHoja).toBe(false);
+  });
+
   it('reporta las 38 hojas faltantes cuando solo está T06', () => {
     const wb = workbookDeUnaHoja('T06', [
       ['Panel Principal'],

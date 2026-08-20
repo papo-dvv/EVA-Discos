@@ -101,7 +101,10 @@ export class NewMeasurementPreviewService {
     ]);
     return {
       ficha: detalle,
-      esqueleto: generarEsqueleto48(numerosCoche),
+      esqueleto: generarEsqueleto48({
+        ...numerosCoche,
+        ...((ficha.codigosCoche as Record<string, number> | null) ?? {}),
+      }),
       ...flagsRaiz,
       ...preview,
     };
@@ -121,7 +124,9 @@ export class NewMeasurementPreviewService {
     const tocaHeaderBloqueado =
       dto.trenNumero !== undefined ||
       dto.kilometraje !== undefined ||
-      dto.fechaFicha !== undefined;
+      dto.fechaFicha !== undefined ||
+      dto.codigosCoche !== undefined ||
+      dto.codigosBogie !== undefined;
     if (tocaHeaderBloqueado && ficha.tablaBloqueada) {
       throw new HttpException(
         'La tabla de mediciones está bloqueada: Tren/Fecha/Kilometraje ya no se pueden editar.',
@@ -130,6 +135,14 @@ export class NewMeasurementPreviewService {
     }
 
     const cambios: Prisma.MeasurementSheetUpdateInput = {};
+    if (dto.codigosCoche !== undefined)
+      cambios.codigosCoche = dto.codigosCoche as Prisma.InputJsonValue;
+    if (dto.codigosBogie !== undefined)
+      cambios.codigosBogie = Object.fromEntries(
+        Object.entries(dto.codigosBogie)
+          .map(([posicion, codigo]) => [posicion, codigo.trim().toUpperCase()])
+          .filter(([, codigo]) => codigo !== ''),
+      ) as Prisma.InputJsonValue;
     if (dto.trenNumero !== undefined) {
       await validarTrenAlstom(this.prisma, dto.trenNumero);
       cambios.trenNumero = dto.trenNumero;
@@ -157,6 +170,12 @@ export class NewMeasurementPreviewService {
       cambios.responsableMantenimientoNombre =
         dto.responsableMantenimientoNombre;
     if (dto.ptCodigo !== undefined) cambios.ptCodigo = dto.ptCodigo;
+    if (dto.puestoTrabajo !== undefined)
+      cambios.puestoTrabajo = dto.puestoTrabajo;
+    if (dto.fechaHoraInicio !== undefined)
+      cambios.fechaHoraInicio = new Date(dto.fechaHoraInicio);
+    if (dto.fechaHoraFin !== undefined)
+      cambios.fechaHoraFin = new Date(dto.fechaHoraFin);
     if (dto.responsableMantenimientoFirma !== undefined)
       cambios.responsableMantenimientoFirma = dto.responsableMantenimientoFirma;
     if (dto.responsableMantenimientoFecha !== undefined)
@@ -230,6 +249,20 @@ export class NewMeasurementPreviewService {
           },
         });
       }
+      if (dto.codigosCoche !== undefined) {
+        for (const [tipoCoche, numeroCoche] of Object.entries(
+          dto.codigosCoche,
+        )) {
+          if (numeroCoche === undefined) continue;
+          await tx.scanRecord.updateMany({
+            where: {
+              fileId: this.fileIdDe(ficha),
+              cocheExcel: tipoCoche,
+            },
+            data: { numeroCocheExcel: numeroCoche },
+          });
+        }
+      }
 
       // Una sola entrada de auditoría resumen (no es un ScanRecord, así que
       // scanRecordId queda null — mismo criterio que las correcciones a nivel
@@ -282,6 +315,17 @@ export class NewMeasurementPreviewService {
     const cambios: Prisma.ScanRecordUpdateInput = {};
     if (dto.fecha !== undefined) cambios.fecha = new Date(dto.fecha);
     if (dto.observacion !== undefined) cambios.observacion = dto.observacion;
+    if (ficha.motivo === 'Reperfilado') {
+      // En la ficha UT-UF-MTO-FR-414 la rugosidad final operativa es fija.
+      // También corrige filas antiguas sin R.A. al editar una medición.
+      cambios.rugosidadRa = 2.5;
+    } else if (dto.rugosidadRa !== undefined) {
+      cambios.rugosidadRa = dto.rugosidadRa;
+    }
+    if (dto.reperfiladoTAntes !== undefined)
+      cambios.reperfiladoTAntes = dto.reperfiladoTAntes;
+    if (dto.reperfiladoHAntes !== undefined)
+      cambios.reperfiladoHAntes = dto.reperfiladoHAntes;
 
     if (dto.ejeNumero !== undefined || dto.lado !== undefined) {
       const ejeFinal = dto.ejeNumero ?? original.ejeExcel!;
@@ -428,6 +472,10 @@ export class NewMeasurementPreviewService {
           ubicacionExcel: dto.lado,
           ruedaExcel: ruedaNumero,
           observacion: dto.observacion ?? null,
+          rugosidadRa:
+            ficha.motivo === 'Reperfilado' ? 2.5 : (dto.rugosidadRa ?? null),
+          reperfiladoTAntes: dto.reperfiladoTAntes ?? null,
+          reperfiladoHAntes: dto.reperfiladoHAntes ?? null,
           ordenFisico: calcularOrdenFisico({
             tipoCoche: identidad.tipoCoche,
             bogieCodigo: identidad.bogieCodigo,
@@ -588,7 +636,12 @@ export class NewMeasurementPreviewService {
     const tren = await this.prisma.train.findUnique({
       where: { numero: ficha.trenNumero },
     });
-    if (!tren) return {};
-    return resolverNumerosCochePorTren(this.prisma, tren.id);
+    const numerosCatalogo = tren
+      ? await resolverNumerosCochePorTren(this.prisma, tren.id)
+      : {};
+    return {
+      ...numerosCatalogo,
+      ...((ficha.codigosCoche as Record<string, number> | null) ?? {}),
+    };
   }
 }

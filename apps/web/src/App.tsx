@@ -12,6 +12,7 @@ import { MigracionPreview } from './pages/MigracionPreview'
 import { MigracionUpload } from './pages/MigracionUpload'
 import { NuevasMediciones } from './pages/NuevasMediciones'
 import { Proyeccion } from './pages/Proyeccion'
+import { Reperfilado } from './pages/Reperfilado'
 import { TasaDesgaste } from './pages/TasaDesgaste'
 import { Trazabilidad } from './pages/Trazabilidad'
 
@@ -79,6 +80,8 @@ function App() {
         <Route path="/migracion/:fileId" element={<MigracionPreview />} />
         <Route path="/nuevas-mediciones" element={<NuevasMediciones />} />
         <Route path="/nuevas-mediciones/:fichaId" element={<NuevasMediciones />} />
+        <Route path="/reperfilado" element={<Reperfilado />} />
+        <Route path="/reperfilado/:fichaId" element={<Reperfilado />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

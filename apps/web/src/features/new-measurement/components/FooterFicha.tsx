@@ -11,10 +11,11 @@ import { FirmaDigital } from './FirmaDigital'
 type Props = {
   ficha: FichaMedicion
   onGuardar: (cambios: CambiosFicha) => void
+  limiteTecnicos?: number
 }
 
 const CLASE_INPUT =
-  'glass-field px-2.5 py-1.5 text-xs'
+  'glass-field w-full min-w-0 px-2.5 py-1.5 text-xs'
 const MAX_CARACTERES_COMENTARIOS_ACTIVIDAD = 612
 
 // Footer completo de la ficha (punto 3 del enunciado): instrumentos (3 filas
@@ -24,7 +25,7 @@ const MAX_CARACTERES_COMENTARIOS_ACTIVIDAD = 612
 // Ya no se renderiza deshabilitado-pero-visible: NuevasMediciones.tsx directamente
 // no monta este componente hasta que tabla_bloqueada=true, así que acá adentro
 // todo está siempre habilitado — no hace falta ningún estado "bloqueada".
-export function FooterFicha({ ficha, onGuardar }: Props) {
+export function FooterFicha({ ficha, onGuardar, limiteTecnicos }: Props) {
   return (
     <div className="mt-6 space-y-5">
       <GlassSurface fuerte className="rounded-glass p-5">
@@ -42,7 +43,7 @@ export function FooterFicha({ ficha, onGuardar }: Props) {
       <GlassSurface fuerte className="rounded-glass p-5">
         <h2 className="mb-3 font-display text-base font-semibold text-concreto-oscuro">Realizado por</h2>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {ficha.tecnicos.map((t) => (
+          {ficha.tecnicos.slice(0, limiteTecnicos).map((t) => (
             <FilaTecnico key={t.posicion} tecnico={t} onGuardar={onGuardar} />
           ))}
         </div>
@@ -93,8 +94,8 @@ function TablaInstrumentos({
   onGuardar: (cambios: CambiosFicha) => void
 }) {
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[52rem] border-collapse text-left font-body text-xs">
+    <div className="w-full">
+      <table className="w-full table-fixed border-collapse text-left font-body text-xs">
         <thead>
           <tr className="border-b border-concreto/20 text-[0.6875rem] font-semibold uppercase tracking-wide text-concreto">
             <th className="px-2 py-2">Código</th>

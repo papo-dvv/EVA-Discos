@@ -16,6 +16,9 @@ export type {
 // Espejo de MOTIVOS_RECONOCIDOS (apps/api/src/new-measurement/new-measurement-csv.parser.ts).
 export const MOTIVOS_FICHA = ['Medición', 'Reperfilado', 'Cambio'] as const
 export type MotivoFicha = (typeof MOTIVOS_FICHA)[number]
+export type TipoCoche = 'MA1' | 'MB1' | 'MB3' | 'REM' | 'MB2' | 'MA2'
+export type CodigosCoche = Partial<Record<TipoCoche, number>>
+export type CodigosBogie = Partial<Record<string, string>>
 
 // Espejo de PosicionEsqueleto (apps/api/src/new-measurement/new-measurement-esqueleto.ts).
 export interface PosicionEsqueleto {
@@ -52,6 +55,12 @@ export interface FichaMedicion {
   kilometraje: number
   fechaFicha: string
   actividad: string
+  motivo: MotivoFicha
+  codigosCoche: CodigosCoche | null
+  codigosBogie: CodigosBogie | null
+  puestoTrabajo: string | null
+  fechaHoraInicio: string | null
+  fechaHoraFin: string | null
   trenOriginalCsv: number | null
   corregidoTren: boolean
   kilometrajeOriginalCsv: number | null
@@ -194,6 +203,7 @@ export interface ResumenVerificacion {
   // kmInvalido/fechaInvalido aplican a nivel FICHA (no a una fila puntual).
   kmInvalido: { motivo: string } | null
   fechaInvalido: { motivo: string } | null
+  alertasReperfilado: string[]
 }
 
 // Respuesta de POST /new-measurement/:fichaId/lock.
@@ -258,9 +268,14 @@ export type ResultadoReferencia =
 // Payload de edición de cabecera — todos opcionales, se envía solo lo que
 // cambia (espejo de UpdateFichaDto).
 export interface CambiosFicha {
+  codigosCoche?: CodigosCoche
+  codigosBogie?: CodigosBogie
   trenNumero?: number
   kilometraje?: number
   fechaFicha?: string
+  puestoTrabajo?: string
+  fechaHoraInicio?: string
+  fechaHoraFin?: string
   todasConformes?: boolean
   comentariosActividad?: string
   responsableMantenimientoNombre?: string
@@ -270,7 +285,12 @@ export interface CambiosFicha {
   ingMrFirma?: string
   ingMrFecha?: string
   ptCodigo?: string
-  tecnicos?: { posicion: number; nombre?: string; firma?: string; fecha?: string }[]
+  tecnicos?: {
+    posicion: number
+    nombre?: string
+    firma?: string
+    fecha?: string
+  }[]
   instrumentos?: {
     posicion: number
     codigo?: string
@@ -289,6 +309,9 @@ export interface AgregarFilaFicha {
   lado: 'izquierdo' | 'derecho'
   hValue: number
   tValue: number
+  rugosidadRa?: number | null
+  reperfiladoTAntes?: number
+  reperfiladoHAntes?: number
   fecha?: string
   observacion?: string
 }
@@ -298,6 +321,9 @@ export interface EditarFilaFicha {
   fecha?: string
   hValue?: number
   tValue?: number
+  rugosidadRa?: number
+  reperfiladoTAntes?: number
+  reperfiladoHAntes?: number
   ejeNumero?: number
   lado?: 'izquierdo' | 'derecho'
   observacion?: string

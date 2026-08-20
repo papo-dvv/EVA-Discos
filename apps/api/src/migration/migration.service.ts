@@ -55,7 +55,7 @@ export class MigrationService {
 
     if (resultado.hojasProcesadas.length === 0) {
       throw new BadRequestException(
-        'El archivo no contiene ninguna de las hojas esperadas (T06 a T44).',
+        'No se encontró ninguna tabla legible con las columnas requeridas.',
       );
     }
 
@@ -161,7 +161,7 @@ export class MigrationService {
       });
     } catch {
       throw new BadRequestException(
-        'No se pudo leer el archivo como un Excel válido.',
+        'No se pudo leer el archivo como una tabla válida.',
       );
     }
   }

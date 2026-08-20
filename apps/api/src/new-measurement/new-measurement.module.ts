@@ -8,6 +8,8 @@ import { NewMeasurementReferenceService } from './new-measurement-reference.serv
 import { NewMeasurementValidationService } from './new-measurement-validation.service';
 import { NewMeasurementController } from './new-measurement.controller';
 import { NewMeasurementService } from './new-measurement.service';
+import { ReprofilingGeminiService } from './reprofiling-gemini.service';
+import { ReprofilingPdfService } from './reprofiling-pdf.service';
 
 // WearRateModule: NewMeasurementCommitService lo usa para el recálculo
 // incremental de Tasa de Desgaste tras confirmar (mismo enganche que
@@ -22,6 +24,8 @@ import { NewMeasurementService } from './new-measurement.service';
     NewMeasurementValidationService,
     NewMeasurementReferenceService,
     NewMeasurementHistoryService,
+    ReprofilingGeminiService,
+    ReprofilingPdfService,
   ],
 })
 export class NewMeasurementModule {}

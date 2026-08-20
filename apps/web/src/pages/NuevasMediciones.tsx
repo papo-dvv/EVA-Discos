@@ -36,7 +36,7 @@ const MOTIVO_OPCIONES: {
   tooltipPosicion?: 'arriba' | 'abajo'
 }[] = [
   { valor: 'Medición', etiqueta: 'Medición', icono: <Ruler size={15} aria-hidden /> },
-  { valor: 'Reperfilado', etiqueta: 'Reperfilado', icono: <RefreshCcw size={15} aria-hidden />, deshabilitada: true, tooltip: 'Próximamente', tooltipPosicion: 'abajo' },
+  { valor: 'Reperfilado', etiqueta: 'Reperfilado', icono: <RefreshCcw size={15} aria-hidden /> },
   { valor: 'Cambio', etiqueta: 'Cambio', icono: <ClipboardPenLine size={15} aria-hidden />, deshabilitada: true, tooltip: 'Próximamente', tooltipPosicion: 'abajo' },
 ]
 
@@ -325,7 +325,13 @@ export function NuevasMediciones() {
             ariaLabel="Motivo de la ficha"
             opciones={MOTIVO_OPCIONES}
             valor={motivo}
-            onCambiar={setMotivo}
+            onCambiar={(valor) => {
+              if (valor === 'Reperfilado') {
+                navigate('/reperfilado')
+                return
+              }
+              setMotivo(valor)
+            }}
           />
         </div>
 

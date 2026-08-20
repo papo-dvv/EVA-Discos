@@ -159,7 +159,9 @@ export async function descargarCartillaPdf(ficha: FichaMedicion, esqueleto: Posi
   const comentario = texto(ficha.comentariosActividad)
   if (comentario) {
     const tamanoObs = 6
-    const anchoMaximoObs = 488 // 558 (borde derecho usable) - 70 (x de la primera línea)
+    const xObservaciones = 118
+    const yObservaciones = 129
+    const anchoMaximoObs = 440 // 558 (borde derecho usable) - 118 (x de texto)
     const maximoLineas = 3
     const lineas = dividirEnLineas(fuente, comentario, tamanoObs, anchoMaximoObs)
     const lineasVisibles = lineas.slice(0, maximoLineas)
@@ -168,7 +170,7 @@ export async function descargarCartillaPdf(ficha: FichaMedicion, esqueleto: Posi
       lineasVisibles[ultimoIndice] = truncarConElipsis(fuente, lineasVisibles[ultimoIndice], tamanoObs, anchoMaximoObs)
     }
     lineasVisibles.forEach((linea, indice) => {
-      escribir(page, linea, indice === 0 ? 70 : 60, 139 - indice * 7.5, tamanoObs) // antes 135
+      escribir(page, linea, xObservaciones, yObservaciones - indice * 8, tamanoObs)
     })
   }
 

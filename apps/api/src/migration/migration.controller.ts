@@ -29,7 +29,18 @@ import { MigrationService, type ResumenMigracion } from './migration.service';
 
 const MAX_TAMANO_BYTES = 50 * 1024 * 1024; // ~50 MB
 
-// Migración masiva del historial en Excel — exclusiva del Administrador.
+const EXTENSIONES_TABULARES = [
+  '.csv',
+  '.tsv',
+  '.txt',
+  '.xls',
+  '.xlsb',
+  '.xlsx',
+  '.xlsm',
+  '.ods',
+];
+
+// Migración masiva del historial tabular — exclusiva del Administrador.
 @Controller('migration')
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles('administrador')
@@ -46,14 +57,14 @@ export class MigrationController {
       limits: { fileSize: MAX_TAMANO_BYTES },
       fileFilter: (_req, file, cb) => {
         // Se valida por extensión (no por MIME): el mimetype del multipart es
-        // poco fiable para .xlsm (suele llegar como application/vnd.ms-excel o
-        // application/octet-stream). Se aceptan .xlsx y .xlsm — internamente son
-        // el mismo contenedor OOXML; el .xlsm solo suma el proyecto de macros.
+        // poco fiable para hojas de cálculo y archivos de texto tabular.
         const nombre = file.originalname.toLowerCase();
-        if (!nombre.endsWith('.xlsx') && !nombre.endsWith('.xlsm')) {
+        if (
+          !EXTENSIONES_TABULARES.some((extension) => nombre.endsWith(extension))
+        ) {
           cb(
             new BadRequestException(
-              'Solo se aceptan archivos Excel .xlsx o .xlsm.',
+              `Formato no compatible. Usa: ${EXTENSIONES_TABULARES.join(', ')}.`,
             ),
             false,
           );

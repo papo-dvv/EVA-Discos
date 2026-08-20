@@ -82,9 +82,9 @@ export class NewMeasurementValidationService {
           : null;
         const tInvalido =
           referenciaDisco !== null &&
-          Number(fila.tValue) > Number(referenciaDisco.tValue);
+          Number(fila.tValue) >= Number(referenciaDisco.tValue);
         const rdInvalido =
-          referenciaDisco !== null && fila.rdValue > referenciaDisco.rdValue;
+          referenciaDisco !== null && fila.rdValue >= referenciaDisco.rdValue;
 
         return {
           id: fila.id,
@@ -134,6 +134,10 @@ export class NewMeasurementValidationService {
     }
 
     const filas = await this.recalcularFlags(fichaId);
+    const alertasReperfilado =
+      ficha.motivo === 'Reperfilado'
+        ? await this.validarReperfilado(ficha.uploadedFileId)
+        : [];
 
     // filas ya viene ordenado por ORDEN_FISICO_DEFECTO (ver recalcularFlags):
     // .filter() preserva ese orden, así que filasExcluidas sale pre-ordenado
@@ -157,7 +161,10 @@ export class NewMeasurementValidationService {
     const kmInvalido = primeraFila?.kmInvalido ?? false;
     const fechaInvalido = primeraFila?.fechaInvalido ?? false;
     const todoValido =
-      filasExcluidas.length === 0 && !kmInvalido && !fechaInvalido;
+      filasExcluidas.length === 0 &&
+      !kmInvalido &&
+      !fechaInvalido &&
+      alertasReperfilado.length === 0;
 
     await this.prisma.measurementSheet.update({
       where: { id: fichaId },
@@ -174,7 +181,40 @@ export class NewMeasurementValidationService {
       fechaInvalido: fechaInvalido
         ? { motivo: TEXTO_MOTIVO_INVALIDO.fecha }
         : null,
+      alertasReperfilado,
     };
+  }
+
+  private async validarReperfilado(
+    fileId: string | null,
+  ): Promise<string[]> {
+    if (!fileId) return ['La ficha no tiene una carga de mediciones asociada.'];
+    const filas = await this.prisma.scanRecord.findMany({ where: { fileId } });
+    if (filas.length === 0)
+      return ['Ingresa al menos una posición medida antes de validar.'];
+
+    const espesorNoReduce = filas.filter(
+      (fila) =>
+        fila.reperfiladoTAntes !== null &&
+        Number(fila.tValue) >= Number(fila.reperfiladoTAntes),
+    ).length;
+    const concavoNoReduce = filas.filter(
+      (fila) =>
+        fila.reperfiladoHAntes !== null &&
+        Number(fila.hValue) >= Number(fila.reperfiladoHAntes),
+    ).length;
+    const rugosidadInvalida = filas.filter(
+      (fila) => fila.rugosidadRa === null || Number(fila.rugosidadRa) !== 2.5,
+    ).length;
+
+    const alertas: string[] = [];
+    if (espesorNoReduce)
+      alertas.push(`${espesorNoReduce} posición(es): el espesor posterior debe ser menor que el anterior.`);
+    if (concavoNoReduce)
+      alertas.push(`${concavoNoReduce} posición(es): el cóncavo posterior debe ser menor que el anterior.`);
+    if (rugosidadInvalida)
+      alertas.push(`${rugosidadInvalida} posición(es): la rugosidad final R.A. debe ser exactamente 2,5 µm.`);
+    return alertas;
   }
 
   // Lee (sin recalcular) los flags kmInvalido/fechaInvalido YA PERSISTIDOS de
@@ -223,9 +263,14 @@ export class NewMeasurementValidationService {
         'Debes verificar la ficha (POST .../validate) sin ediciones posteriores antes de poder bloquear la tabla de mediciones.',
       );
     }
-    if (!ficha.ptCodigo?.trim()) {
+    const puestoIncompleto =
+      ficha.motivo === 'Reperfilado'
+        ? !ficha.puestoTrabajo?.trim() ||
+          !ficha.fechaHoraInicio
+        : !ficha.ptCodigo?.trim();
+    if (puestoIncompleto) {
       throw new UnprocessableEntityException(
-        'Falta el P.T. (Puesto de Trabajo) — es obligatorio para poder bloquear la tabla de mediciones.',
+        'Faltan datos obligatorios del P.T. para poder bloquear la tabla.',
       );
     }
 
@@ -328,6 +373,7 @@ export interface ResumenVerificacion extends FlagsFichaNivelRaiz {
   // fila (ver motivosInvalidosDeFila).
   filasExcluidas: FilaExcluida[];
   filasIncluidas: number;
+  alertasReperfilado: string[];
 }
 
 export interface ResumenBloqueo {

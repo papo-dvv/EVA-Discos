@@ -52,6 +52,9 @@ export interface PreviewRow {
   hValue: number
   tValue: number
   rdValue: number
+  rugosidadRa: number | null
+  reperfiladoTAntes: number | null
+  reperfiladoHAntes: number | null
   estadoCalculado: EstadoDisco | null
   estadoSugeridoExcel: string | null
   corregidoPorHoja: boolean

@@ -63,8 +63,8 @@ export interface MotivoInvalido {
 export const TEXTO_MOTIVO_INVALIDO: Record<CampoInvalido, string> = {
   kilometraje: 'Kilometraje menor al último registrado para este tren',
   fecha: 'Fecha anterior a la última medición registrada para este tren',
-  t: 'Espesor medido (T) mayor al último valor registrado para este disco',
-  rd: 'Vida útil (Rd) mayor al último valor registrado para este disco',
+  t: 'Espesor medido (T) debe ser menor al último valor registrado para este disco',
+  rd: 'Vida útil (Rd) debe ser menor al último valor registrado para este disco',
 };
 
 // Traduce los 2 flags booleanos POR FILA (tInvalido/rdInvalido, ver
@@ -109,6 +109,9 @@ export interface PreviewRow {
   hValue: number;
   tValue: number;
   rdValue: number;
+  rugosidadRa: number | null;
+  reperfiladoTAntes: number | null;
+  reperfiladoHAntes: number | null;
   estadoCalculado: string | null;
   estadoSugeridoExcel: string | null;
   corregidoPorHoja: boolean;
@@ -613,6 +616,11 @@ export function aPreviewRow(r: ScanRecord): PreviewRow {
     hValue: Number(r.hValue),
     tValue: Number(r.tValue),
     rdValue: r.rdValue,
+    rugosidadRa: r.rugosidadRa === null ? null : Number(r.rugosidadRa),
+    reperfiladoTAntes:
+      r.reperfiladoTAntes === null ? null : Number(r.reperfiladoTAntes),
+    reperfiladoHAntes:
+      r.reperfiladoHAntes === null ? null : Number(r.reperfiladoHAntes),
     estadoCalculado: r.estadoCalculado,
     estadoSugeridoExcel: r.estadoSugeridoExcel,
     corregidoPorHoja: r.corregidoPorHoja,

@@ -9,6 +9,7 @@ import type { PreviewRow } from '../scan-records/types'
 // tabla (punto 1 del enunciado) en vez de un mensaje genérico.
 export interface ValorPrevioDisco {
   tValue: number
+  hValue: number
   rdValue: number
 }
 
@@ -20,6 +21,7 @@ export function construirMapaReferenciaPorEjeLado(
     if (fila.ejeExcel === null || !fila.ubicacionExcel) continue
     mapa.set(`${fila.ejeExcel}|${fila.ubicacionExcel}`, {
       tValue: fila.tValue,
+      hValue: fila.hValue,
       rdValue: fila.rdValue,
     })
   }
