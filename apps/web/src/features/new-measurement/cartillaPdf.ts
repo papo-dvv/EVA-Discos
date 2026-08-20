@@ -30,8 +30,8 @@ async function dibujarFirma(
   firma: string | null | undefined,
   x: number,
   y: number,
-  maximoAncho = 42,
-  maximoAlto = 8,
+  maximoAncho = 46,
+  maximoAlto = 14,
 ) {
   if (!firma?.startsWith('data:image/')) return
   const pdf = page.doc
@@ -64,11 +64,18 @@ export async function descargarCartillaPdf(ficha: FichaMedicion, esqueleto: Posi
       fila,
     ]),
   )
+  // maximoAltoFirma calibrado contra la plantilla real (ver public/*.pdf):
+  // Técnico 1/2 (y=79) solo tiene ~12pt libres antes de pisar el texto
+  // "REALIZADO POR:" de arriba (baseline y≈91); Técnico 3/4 (y=55) tiene
+  // 24pt libres hasta la fila de Técnico 1/2; Ing MR/Responsable (y=36)
+  // tiene 19pt libres hasta Técnico 3/4. maximoAncho (46) es común a todas
+  // — el ancho es la restricción real en la práctica (aspecto ~3:1 del
+  // canvas de FirmaDigital), y ya deja margen antes de la columna "nombre".
   const posiciones = [
-    { firma: [120, 79], nombre: [168, 80], fecha: [242, 80] }, // Técnico 1
-    { firma: [345, 79], nombre: [393, 80], fecha: [535, 80] }, // Técnico 2
-    { firma: [120, 55], nombre: [168, 56], fecha: [242, 56] }, // Técnico 3
-    { firma: [345, 55], nombre: [393, 56], fecha: [535, 56] }, // Técnico 4
+    { firma: [120, 79], nombre: [168, 80], fecha: [242, 80], maximoAltoFirma: 11 }, // Técnico 1
+    { firma: [345, 79], nombre: [393, 80], fecha: [535, 80], maximoAltoFirma: 11 }, // Técnico 2
+    { firma: [120, 55], nombre: [168, 56], fecha: [242, 56], maximoAltoFirma: 20 }, // Técnico 3
+    { firma: [345, 55], nombre: [393, 56], fecha: [535, 56], maximoAltoFirma: 20 }, // Técnico 4
   ] as const
 
   escribirCentrado(page, fecha(ficha.fechaFicha), 435, 763)
@@ -106,19 +113,23 @@ export async function descargarCartillaPdf(ficha: FichaMedicion, esqueleto: Posi
     escribir(page, fecha(instrumento.fechaVencimientoCalibracion ?? ''), 405, y)
     escribir(page, texto(instrumento.observaciones), 467, y)
   })
-  escribir(page, texto(ficha.comentariosActividad), 62, 130, 6)
+  // x=70/y=136 calibrado contra la plantilla: la línea en blanco de
+  // "Observaciones:" (mismo renglón, a la derecha de la etiqueta) queda a
+  // y≈134 — el texto va con la base apenas arriba, sobre la línea, no
+  // flotando en el hueco hacia la siguiente línea (ver comentario del PDF).
+  escribir(page, texto(ficha.comentariosActividad), 70, 136, 6)
 
   for (const tecnico of ficha.tecnicos) {
     const posicion = posiciones[tecnico.posicion - 1]
     if (!posicion) continue
-    await dibujarFirma(page, tecnico.firma, posicion.firma[0], posicion.firma[1])
+    await dibujarFirma(page, tecnico.firma, posicion.firma[0], posicion.firma[1], undefined, posicion.maximoAltoFirma)
     escribir(page, texto(tecnico.nombre), posicion.nombre[0], posicion.nombre[1], 4.5)
     escribir(page, fecha(tecnico.fecha ?? ''), posicion.fecha[0], posicion.fecha[1], 4.5)
   }
-  await dibujarFirma(page, ficha.ingMrFirma, 120, 36)
+  await dibujarFirma(page, ficha.ingMrFirma, 120, 36, undefined, 15)
   escribir(page, texto(ficha.ingMrNombre), 168, 37, 4.5)
   escribir(page, fecha(ficha.ingMrFecha ?? ''), 242, 37, 4.5)
-  await dibujarFirma(page, ficha.responsableMantenimientoFirma, 345, 36)
+  await dibujarFirma(page, ficha.responsableMantenimientoFirma, 345, 36, undefined, 15)
   escribir(page, texto(ficha.responsableMantenimientoNombre), 393, 37, 4.5)
   escribir(page, fecha(ficha.responsableMantenimientoFecha ?? ''), 535, 37, 4.5)
 

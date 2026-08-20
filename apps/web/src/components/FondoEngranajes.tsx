@@ -32,8 +32,9 @@ const CATEGORIAS_TAMANO = [
   { min: 1.2, max: 1.4 }, // grande
 ]
 
-// styles.md §7.1 — fondo animado exclusivo de pantallas de solo aviso.
-// Lluvia de meteoritos: cada tuerca cae por la MISMA diagonal de siempre
+// styles.md §7.1 — fondo animado general de la app (todas las pantallas de
+// todos los módulos, vía PantallaFondo.tsx). Lluvia de meteoritos: cada
+// tuerca cae por la MISMA diagonal de siempre
 // (esquina superior izquierda -> inferior derecha, ver @keyframes
 // eva-engranaje-caer en tokens.css) pero desplazada en el eje perpendicular
 // según su carril (--carril), así varias caen en paralelo en vez de una
@@ -81,7 +82,7 @@ export function FondoEngranajes({ cantidad = 30, className = '', children }: Fon
   const engranajes = useMemo(() => crearEngranajes(cantidad), [cantidad])
 
   return (
-    <div className={`bg-engranajes-cayendo rounded-glass ${className}`}>
+    <div className={`bg-engranajes-cayendo ${className}`}>
       {engranajes.map((g, i) => (
         <span
           key={i}

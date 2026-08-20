@@ -365,7 +365,7 @@ export function Galeria() {
             aria-label="Ver fondo de aviso a tamaño real"
             className={`block w-full text-left ${FOCO_VISIBLE}`}
           >
-            <FondoEngranajes cantidad={30} className="relative h-96">
+            <FondoEngranajes cantidad={30} className="relative h-96 rounded-glass">
               <div className="glass-surface glass-surface--strong glass-surface--vivo absolute inset-0 m-auto flex h-fit w-72 flex-col items-center gap-2 rounded-glass-lg p-[1.2rem] text-center">
                 <p className="font-display text-sm font-semibold text-concreto-oscuro">Sin novedades</p>
                 <p className="font-body text-xs text-concreto">No tienes avisos pendientes por ahora.</p>

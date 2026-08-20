@@ -16,7 +16,7 @@ El tren de la Línea 1 (verde institucional + franja blanca) es el hilo conducto
 - **Cuadrícula de manzanas:** patrón de líneas finas de fondo, evoca el trazado urbano ordenado del distrito.
 - **Textura de concreto:** puntillado sutil, aporta peso urbano sin ensuciar la superficie.
 - **Degradado tierra → verde:** de opacidad a brillo. Se usa en piezas grandes (portadas, separadores de sección, fondo del login), no en componentes pequeños.
-- **Engranajes cayendo:** animación de fondo exclusiva de pantallas de solo aviso (ver §7.1). Evoca el mecanismo siempre en marcha detrás de la app, incluso cuando la pantalla no tiene más que un mensaje para el usuario.
+- **Engranajes cayendo:** animación de fondo general de la app, en todas las pantallas de todos los módulos (ver §7.1). Evoca el mecanismo siempre en marcha detrás de la app.
 
 **Señal de identidad (elemento distintivo de la app):** las tarjetas de estado usan siempre un borde-glow sutil en el color semántico correspondiente en vez de un fondo sólido de color — así el verde/blanco del tren queda reservado para lo positivo y lo activo, y los demás estados se leen como "todavía no llegamos a la meta", no como alarmas agresivas.
 
@@ -449,7 +449,7 @@ Dos colores dominantes (verde y blanco), dos de apoyo (arena y gris). Los semán
 ```
 
 **Reglas de uso:**
-- El fondo general de la app siempre es `.bg-aura` (arena/verde en manchas suaves, ver §7) o el degradado tierra→verde en piezas grandes. Nunca fondo oscuro, negro, ni un bloque de color plano parejo.
+- El fondo general de la app siempre es `.bg-engranajes-cayendo` (ver §7.1) o el degradado tierra→verde en piezas grandes. Nunca fondo oscuro, negro, ni un bloque de color plano parejo.
 - El verde institucional se reserva para: acciones primarias, estado OK, marca/logo, elementos activos de navegación.
 - Blanco puro se usa casi exclusivamente en superficies glass y franjas — no como fondo plano de página (perdería la identidad "arena").
 - Seguimiento/Cambio/Crítico usan tonos tierra desaturados, no colores de semáforo genéricos — deben sentirse parte de la misma familia cromática, no alarmas ajenas al sistema.
@@ -545,7 +545,7 @@ La tabla de mediciones es la superficie de trabajo diaria de técnicos y supervi
 }
 ```
 
-**Aura de fondo** (base recomendada para el fondo de app completo, en vez de arena plana). Las 2 manchas verdes "respiran" — crecen/encogen y aclaran/oscurecen en bucle, cada una en su propio pseudo-elemento para poder desfasarlas entre sí (si no, "respirar" las dos exactamente igual se ve mecánico, no orgánico); la mancha de arena y el color base quedan estáticos:
+**Aura de fondo** (textura estática de manchas suaves, arena/verde — alternativa a la arena plana para piezas puntuales; el fondo real de toda la app es el animado de §7.1). Las 2 manchas verdes "respiran" — crecen/encogen y aclaran/oscurecen en bucle, cada una en su propio pseudo-elemento para poder desfasarlas entre sí (si no, "respirar" las dos exactamente igual se ve mecánico, no orgánico); la mancha de arena y el color base quedan estáticos:
 
 ```css
 .bg-aura {
@@ -602,16 +602,15 @@ La tabla de mediciones es la superficie de trabajo diaria de técnicos y supervi
 
 > **Importante:** `mask-image` difumina *todo* lo que esté dentro del elemento, incluido el texto. Aplicar `.bg-difuminado-inferior` siempre a una capa de fondo dedicada, nunca al contenedor que también tiene el texto encima.
 
-Combinación recomendada para pantallas de portada y para el fondo general de la app: `.bg-aura` + `.bg-cuadricula` como base; encima, la pieza de portada usa `.bg-degradado-transformacion` + `.bg-difuminado-inferior` (en su propia capa de fondo), con una `.glass-surface` (o `.glass-surface--vivo` si es la pieza hero de la pantalla) flotando encima con el formulario.
+El fondo general de la app es `.bg-engranajes-cayendo` (§7.1), no esta combinación estática — `.bg-aura` + `.bg-cuadricula` queda disponible como base para piezas puntuales fuera del fondo de pantalla completo. En pantallas de portada (login, onboarding), la pieza de portada usa `.bg-degradado-transformacion` + `.bg-difuminado-inferior` (en su propia capa de fondo) sobre el fondo de engranajes, con una `.glass-surface` (o `.glass-surface--vivo` si es la pieza hero de la pantalla) flotando encima con el formulario.
 
 **Dónde NO suavizar con degradado:** superficies con datos tabulares o texto denso (tablas, listas de detalle) se mantienen en `--color-arena-suave` plana.
 
-### 7.1 Fondo animado — pantallas de solo aviso
+### 7.1 Fondo animado — todas las pantallas
 
-Cuando una pantalla completa **no tiene más contenido que un aviso** (mensaje del sistema, estado vacío, pantalla de mantenimiento, error, "no tienes accesos", confirmación a pantalla completa, etc.), el fondo estático se reemplaza por un **fondo animado de engranajes cayendo en lluvia** — varios carriles diagonales en paralelo (superior izquierda → inferior derecha), no uno solo.
+El fondo de **toda la app** (todos los módulos, con o sin datos) es un **fondo animado de engranajes cayendo en lluvia** — varios carriles diagonales en paralelo (superior izquierda → inferior derecha), no uno solo. Se aplica desde `PantallaFondo.tsx`, así que cualquier pantalla que use ese shell lo hereda automáticamente.
 
 **Reglas:**
-- Uso **exclusivo** de pantallas que solo muestran un aviso — nunca en dashboards, tablas o pantallas con datos.
 - Los engranajes van en `--color-gris-concreto`, nunca en verde institucional.
 - **Densidad alta:** 24–36 instancias, repartidas en **5-8 carriles paralelos** a lo ancho (misma diagonal de esquina a esquina, desplazada por carril en el eje perpendicular) — nunca todas por la misma línea.
 - A mayor densidad, opacidad más baja por instancia (0.08–0.16).
@@ -727,9 +726,9 @@ export default {
 
 | Componente | Tratamiento |
 |---|---|
-| Fondo de app | `.bg-aura` + `.bg-cuadricula` al 100% |
+| Fondo de app | `.bg-engranajes-cayendo` (ver §7.1), vía `PantallaFondo.tsx` — todas las pantallas de todos los módulos |
 | Nav flotante (persistente) | `.glass-surface` sticky, wordmark condensado (§1.1), sin `--vivo` (no es la pieza hero). En `/design-system` además se auto-oculta con `transform` al bajar y reaparece de inmediato al subir (ver nota abajo) |
-| Login / Onboarding | `.bg-degradado-transformacion` + `.bg-difuminado-inferior` sobre `.bg-aura` + `.glass-surface--strong` (`--vivo` opcional) para el formulario |
+| Login / Onboarding | `.bg-degradado-transformacion` + `.bg-difuminado-inferior` sobre `.bg-engranajes-cayendo` + `.glass-surface--strong` (`--vivo` opcional) para el formulario |
 | Dashboard / Inicio | Grilla bento de **widgets** (§4.1): `.glass-surface .eva-widget --s/m/l`; el hero puede sumar `.eva-tilt` (+ `--vivo`) |
 | Widgets KPI | `.glass-surface .eva-widget` + `.eva-elevar` + borde-glow semántico si aplica |
 | Botón primario | `.glass-button-primary` (verde), transiciones con `--ease-apple`/`--ease-apple-rebote` |
@@ -740,7 +739,7 @@ export default {
 | Drawer de detalle | `.glass-surface--strong` + `.eva-revelar--derecha` deslizando desde la derecha |
 | Gráfico de trazabilidad | Fondo `--color-arena-suave`, línea de serie en verde institucional, línea de umbral crítico punteada en `--color-estado-critico` |
 | Separadores de sección grandes | `.bg-degradado-transformacion` en franjas horizontales delgadas |
-| Pantalla de solo aviso | `.bg-engranajes-cayendo` (ver §7.1) + `.glass-surface--strong` centrada con el mensaje |
+| Pantalla de solo aviso | Mismo `.bg-engranajes-cayendo` de fondo (§7.1, ya heredado de `PantallaFondo.tsx`) + `.glass-surface--strong` centrada con el mensaje, sin ningún otro contenido |
 | Entrada de secciones largas | `.eva-revelar` en cada bloque, `--reveal-delay` escalonado entre título y contenido |
 | Lista larga (sidebar, filas de tabla, opciones de dropdown) | `<VirtualList>` + scrollbar propio (§4.2), nunca el scroll nativo del navegador |
 | Selector de fecha | `<GlassDatePicker>` (§4.2) — calendario glass propio, nunca `<input type="date">` nativo |
@@ -763,7 +762,6 @@ export default {
 - Colores semánticos que no pertenezcan a la familia tierra **en la UI general** — dentro de la tabla de mediciones aplica la excepción de §6.1.
 - Glass sobre fondo blanco liso.
 - Cuadrícula o textura de concreto con opacidad alta.
-- Fondo de engranajes cayendo fuera de pantallas de solo aviso.
 - Glass tan transparente que el texto pierda contraste.
 - `mask-image`/`.bg-difuminado-inferior` aplicado a un elemento que también contiene texto.
 - Degradados o auras dentro de tablas y superficies con datos densos.

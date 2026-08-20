@@ -289,23 +289,25 @@ export function NuevasMediciones() {
   // Punto 1 de la ampliación: la vista previa de la ficha (una vez creada)
   // usa un layout full-bleed, sin los márgenes/max-width habituales del
   // resto de la app — le da a la tabla el máximo espacio horizontal
-  // disponible. La pantalla de entrada (motivo + CargaInicialFicha, sin
-  // fichaId todavía) conserva el layout centrado de siempre.
-  const contenedorAncho = fichaId ? 'w-full' : 'mx-auto max-w-[75rem]'
+  // disponible, y NO lleva el panel de historial (solo vive en la pantalla
+  // de entrada, ver aside/fallback más abajo). La pantalla de entrada
+  // (motivo + CargaInicialFicha, sin fichaId todavía) conserva el layout
+  // centrado de siempre: el ancho máximo (75rem) se aplica al CONTENEDOR de
+  // la fila completa (contenido + historial), no a la columna de contenido,
+  // para que la card recupere su ancho/forma original en vez de quedar
+  // comprimida contra el aside.
+  const contenedorAncho = fichaId
+    ? 'w-full'
+    : 'mx-auto flex max-w-[75rem] flex-col gap-4 xl:max-w-[96rem] xl:flex-row xl:items-start'
 
   return (
     <PantallaFondo className={fichaId ? 'px-2 py-4 sm:px-3' : 'px-3 py-6 sm:px-5'}>
-      {/* Historial global (todos los trenes, no depende de fichaId) — mismo
-          patrón de aside sticky + fallback apilado en pantallas angostas que
-          usa Trazabilidad.tsx, pero a la izquierda. */}
-      <div className="grid gap-4 xl:grid-cols-[20rem_1fr]">
-        <aside className="hidden xl:block">
-          <div className="sticky top-6">
-            <PanelHistorialMediciones />
-          </div>
-        </aside>
-
-        <div className={`min-w-0 ${contenedorAncho}`}>
+      {/* Historial global (todos los trenes) — exclusivo de la pantalla de
+          entrada (!fichaId): aside sticky a la derecha desde xl, fallback
+          apilado debajo en pantallas angostas. La vista de la ficha ya
+          cargada (fichaId) no lo muestra. */}
+      <div className={contenedorAncho}>
+        <div className={fichaId ? 'min-w-0' : 'min-w-0 flex-1'}>
         <GlassSurface className="flex flex-wrap items-center justify-between gap-4 rounded-glass px-6 py-4">
           <div>
             <h1 className="font-display text-2xl font-semibold tracking-tight text-concreto-oscuro">
@@ -439,8 +441,8 @@ export function NuevasMediciones() {
                       <SegmentedControl
                         ariaLabel="Todas las medidas conformes"
                         opciones={[
-                          { valor: 'si', etiqueta: 'Sí' },
-                          { valor: 'no', etiqueta: 'No' },
+                          { valor: 'si', etiqueta: 'Sí', deshabilitada: tablaBloqueada },
+                          { valor: 'no', etiqueta: 'No', deshabilitada: tablaBloqueada },
                         ]}
                         valor={valorConformidad(ficha.todasConformes)}
                         onCambiar={(v) => editarFicha.mutate({ todasConformes: v === 'si' })}
@@ -499,11 +501,21 @@ export function NuevasMediciones() {
           </>
         )}
 
-        {/* Fallback apilado debajo del contenido principal en pantallas sin columna izquierda */}
-        <div className="mt-4 xl:hidden">
-          <PanelHistorialMediciones />
+        {/* Fallback apilado debajo del contenido principal en pantallas sin columna derecha */}
+        {!fichaId && (
+          <div className="mt-4 xl:hidden">
+            <PanelHistorialMediciones />
+          </div>
+        )}
         </div>
-        </div>
+
+        {!fichaId && (
+          <aside className="hidden xl:block xl:w-80 xl:shrink-0">
+            <div className="sticky top-6">
+              <PanelHistorialMediciones />
+            </div>
+          </aside>
+        )}
       </div>
 
       {cancelando && (
