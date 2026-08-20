@@ -11,6 +11,7 @@ type Props = {
   ficha: FichaMedicion
   onGuardar: (cambios: CambiosFicha) => void
   limiteTecnicos?: number
+  mostrarFechasFirmas?: boolean
 }
 
 const CLASE_INPUT =
@@ -24,7 +25,7 @@ const MAX_CARACTERES_COMENTARIOS_ACTIVIDAD = 612
 // Ya no se renderiza deshabilitado-pero-visible: NuevasMediciones.tsx directamente
 // no monta este componente hasta que tabla_bloqueada=true, así que acá adentro
 // todo está siempre habilitado — no hace falta ningún estado "bloqueada".
-export function FooterFicha({ ficha, onGuardar, limiteTecnicos }: Props) {
+export function FooterFicha({ ficha, onGuardar, limiteTecnicos, mostrarFechasFirmas = true }: Props) {
   return (
     <div className="mt-6 space-y-5">
       <GlassSurface fuerte className="rounded-glass p-5">
@@ -43,7 +44,12 @@ export function FooterFicha({ ficha, onGuardar, limiteTecnicos }: Props) {
         <h2 className="mb-3 font-display text-base font-semibold text-concreto-oscuro">Realizado por</h2>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {ficha.tecnicos.slice(0, limiteTecnicos).map((t) => (
-            <FilaTecnico key={t.posicion} tecnico={t} onGuardar={onGuardar} />
+            <FilaTecnico
+              key={t.posicion}
+              tecnico={t}
+              onGuardar={onGuardar}
+              mostrarFecha={mostrarFechasFirmas}
+            />
           ))}
         </div>
       </GlassSurface>
@@ -55,6 +61,7 @@ export function FooterFicha({ ficha, onGuardar, limiteTecnicos }: Props) {
             nombre={ficha.ingMrNombre ?? ''}
             firma={ficha.ingMrFirma ?? ''}
             fecha={aFechaCorta(ficha.ingMrFecha)}
+            mostrarFecha={mostrarFechasFirmas}
             onGuardar={(cambios) =>
               onGuardar({
                 ingMrNombre: cambios.nombre,
@@ -68,6 +75,7 @@ export function FooterFicha({ ficha, onGuardar, limiteTecnicos }: Props) {
             nombre={ficha.responsableMantenimientoNombre ?? ''}
             firma={ficha.responsableMantenimientoFirma ?? ''}
             fecha={aFechaCorta(ficha.responsableMantenimientoFecha)}
+            mostrarFecha={mostrarFechasFirmas}
             nombreObligatorio
             onGuardar={(cambios) =>
               onGuardar({
@@ -210,9 +218,11 @@ function ComentariosActividad({
 function FilaTecnico({
   tecnico,
   onGuardar,
+  mostrarFecha,
 }: {
   tecnico: FichaTecnico
   onGuardar: (cambios: CambiosFicha) => void
+  mostrarFecha: boolean
 }) {
   const [form, setForm] = useState({
     nombre: tecnico.nombre ?? '',
@@ -230,7 +240,7 @@ function FilaTecnico({
       <p className="mb-2 font-body text-[0.6875rem] font-semibold uppercase tracking-wide text-concreto">
         Técnico {tecnico.posicion}
       </p>
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+      <div className={`grid grid-cols-1 gap-2 ${mostrarFecha ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
         <input
           className={CLASE_INPUT}
           placeholder="Nombre"
@@ -244,7 +254,7 @@ function FilaTecnico({
           valor={form.firma}
           onGuardar={(firma) => guardarCampo('firma', firma)}
         />
-        <div className="flex items-center gap-1">
+        {mostrarFecha && <div className="flex items-center gap-1">
           <input
             type="date"
             className={`${CLASE_INPUT} flex-1`}
@@ -253,7 +263,7 @@ function FilaTecnico({
             onChange={(e) => guardarCampo('fecha', e.target.value)}
           />
           <BotonFechaHoy onClick={() => guardarCampo('fecha', fechaHoyCorta())} />
-        </div>
+        </div>}
       </div>
     </div>
   )
@@ -264,6 +274,7 @@ function BloqueResponsable({
   nombre,
   firma,
   fecha,
+  mostrarFecha,
   nombreObligatorio = false,
   onGuardar,
 }: {
@@ -271,6 +282,7 @@ function BloqueResponsable({
   nombre: string
   firma: string
   fecha: string
+  mostrarFecha: boolean
   nombreObligatorio?: boolean
   onGuardar: (cambios: { nombre?: string; firma?: string; fecha?: string }) => void
 }) {
@@ -290,7 +302,7 @@ function BloqueResponsable({
           </WarningTooltip>
         )}
       </div>
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+      <div className={`grid grid-cols-1 gap-2 ${mostrarFecha ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
         <input
           className={`${CLASE_INPUT} ${vacio ? 'ring-1 ring-[color:var(--color-estado-critico)]/50' : ''}`.trim()}
           placeholder="Nombre"
@@ -308,7 +320,7 @@ function BloqueResponsable({
             onGuardar({ firma })
           }}
         />
-        <div className="flex items-center gap-1">
+        {mostrarFecha && <div className="flex items-center gap-1">
           <input
             type="date"
             className={`${CLASE_INPUT} flex-1`}
@@ -325,7 +337,7 @@ function BloqueResponsable({
               onGuardar({ fecha: fechaHoyCorta() })
             }}
           />
-        </div>
+        </div>}
       </div>
     </div>
   )

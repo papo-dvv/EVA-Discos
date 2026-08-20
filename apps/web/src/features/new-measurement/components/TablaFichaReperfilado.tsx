@@ -7,6 +7,14 @@ import type { CambiosFicha, CodigosBogie, CodigosCoche, PosicionEsqueleto, Previ
 
 type Lado = 'izquierdo' | 'derecho'
 
+type AlertaReperfilado = {
+  id: string
+  severidad: 'critica' | 'advertencia'
+  eje: number
+  lado: Lado
+  mensaje: string
+}
+
 type Props = {
   fichaId: string
   esqueleto: PosicionEsqueleto[]
@@ -86,11 +94,76 @@ export function TablaFichaReperfilado({
       lado.tInvalido || lado.rdInvalido,
     ).length
   }, 0)
+  const alertas = useMemo<AlertaReperfilado[]>(() => {
+    const resultado: AlertaReperfilado[] = []
+    for (const fila of filas) {
+      for (const [lado, datos] of [
+        ['izquierdo', fila.izquierdo],
+        ['derecho', fila.derecho],
+      ] as const) {
+        if (!ladoTocado(datos)) continue
+        const posicion = `Eje ${fila.ejeNumero}, lado ${lado}`
+        if (!ladoCompleto(datos)) {
+          resultado.push({
+            id: `${fila.ejeNumero}-${lado}-incompleto`,
+            severidad: 'advertencia',
+            eje: fila.ejeNumero,
+            lado,
+            mensaje: `${posicion}: faltan mediciones por completar.`,
+          })
+        }
+        if (datos.reperfiladoTAntes !== null && datos.tValue !== null && datos.tValue >= datos.reperfiladoTAntes) {
+          resultado.push({
+            id: `${fila.ejeNumero}-${lado}-espesor`,
+            severidad: 'critica',
+            eje: fila.ejeNumero,
+            lado,
+            mensaje: `${posicion}: el espesor posterior no disminuye.`,
+          })
+        }
+        if (datos.reperfiladoHAntes !== null && datos.hValue !== null && datos.hValue >= datos.reperfiladoHAntes) {
+          resultado.push({
+            id: `${fila.ejeNumero}-${lado}-concavo`,
+            severidad: 'critica',
+            eje: fila.ejeNumero,
+            lado,
+            mensaje: `${posicion}: el cóncavo posterior no disminuye.`,
+          })
+        }
+        if (datos.recordId !== null && datos.rugosidadRa !== RUGOSIDAD_RA_OBJETIVO) {
+          resultado.push({
+            id: `${fila.ejeNumero}-${lado}-rugosidad`,
+            severidad: 'critica',
+            eje: fila.ejeNumero,
+            lado,
+            mensaje: `${posicion}: la rugosidad final no es 2,5 µm.`,
+          })
+        }
+        if (datos.tInvalido || datos.rdInvalido) {
+          resultado.push({
+            id: `${fila.ejeNumero}-${lado}-historial`,
+            severidad: 'critica',
+            eje: fila.ejeNumero,
+            lado,
+            mensaje: `${posicion}: contradice la medición confirmada anterior.`,
+          })
+        }
+      }
+    }
+    return resultado
+  }, [filas])
+  const ejesConAlertas = new Set(alertas.map((alerta) => alerta.eje))
+  const criticas = alertas.filter((alerta) => alerta.severidad === 'critica').length
+  const codigosCocheFaltantes = TIPOS_COCHE.filter((tipo) => !codigosCoche?.[tipo]).length
+  const codigosBogieFaltantes = filas
+    .filter((fila) => (fila.ejeNumero - 1) % 2 === 0)
+    .filter((fila) => !codigosBogie?.[`${fila.tipoCoche}:${fila.bogieCodigo}`]).length
   const filasVisibles = soloPendientes
     ? filas.filter(
         (fila) =>
           (ladoTocado(fila.izquierdo) && !ladoCompleto(fila.izquierdo)) ||
-          (ladoTocado(fila.derecho) && !ladoCompleto(fila.derecho)),
+          (ladoTocado(fila.derecho) && !ladoCompleto(fila.derecho)) ||
+          ejesConAlertas.has(fila.ejeNumero),
       )
     : filas
   const cochesActuales = Object.fromEntries(TIPOS_COCHE.map((tipo) => [
@@ -121,7 +194,7 @@ export function TablaFichaReperfilado({
                 : 'border-concreto/15 bg-white/45 text-concreto'
             }`}
           >
-            {soloPendientes ? 'Mostrando pendientes' : 'Ver solo pendientes'}
+            {soloPendientes ? 'Mostrando alertas' : 'Ver solo alertas'}
           </button>
         </div>
         <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -146,6 +219,55 @@ export function TablaFichaReperfilado({
             {fueraDeLimite > 0 && <span>⚠ {fueraDeLimite} posiciones necesitan revisión.</span>}
           </div>
         )}
+        <div className="mt-3 rounded-2xl border border-concreto/10 bg-white/50 p-3" aria-live="polite">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="font-body text-xs font-semibold uppercase tracking-[0.08em] text-concreto-oscuro">
+                Asistente preventivo
+              </p>
+              <p className="mt-0.5 text-[0.6875rem] text-concreto">
+                Revisa la ficha mientras trabajas y te lleva directo a cada incidencia.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-1.5 text-[0.6875rem] font-semibold">
+              <span className={`rounded-full px-2.5 py-1 ${criticas ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800'}`}>
+                {criticas} críticas
+              </span>
+              <span className="rounded-full bg-amber-100 px-2.5 py-1 text-amber-800">
+                {alertas.length - criticas} advertencias
+              </span>
+              <span className="rounded-full bg-sky-100 px-2.5 py-1 text-sky-800">
+                {codigosCocheFaltantes + codigosBogieFaltantes} códigos pendientes
+              </span>
+            </div>
+          </div>
+          {alertas.length > 0 ? (
+            <div className="mt-2 flex max-h-24 flex-wrap gap-1.5 overflow-y-auto">
+              {alertas.map((alerta) => (
+                <button
+                  key={alerta.id}
+                  type="button"
+                  onClick={() => {
+                    const destino = document.querySelector<HTMLElement>(`[data-reperfilado-posicion="${alerta.eje}-${alerta.lado}"]`)
+                    destino?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                    destino?.querySelector<HTMLInputElement>('input[data-reperfilado-invalido="true"], input:not(:disabled)')?.focus()
+                  }}
+                  className={`rounded-xl border px-2.5 py-1 text-left text-[0.6875rem] transition hover:-translate-y-px ${
+                    alerta.severidad === 'critica'
+                      ? 'border-red-300/60 bg-red-50 text-red-800'
+                      : 'border-amber-300/60 bg-amber-50 text-amber-900'
+                  }`}
+                >
+                  {alerta.severidad === 'critica' ? '⛔' : '⚠'} {alerta.mensaje}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-2 text-xs font-semibold text-emerald-800">
+              ✓ No se detectan inconsistencias en las posiciones ingresadas.
+            </p>
+          )}
+        </div>
       </div>
       <div className="w-full">
         <table className="w-full table-fixed border-collapse font-body text-xs">
@@ -372,7 +494,12 @@ function LadoReperfilado({
   }
 
   return (
-    <>
+    <td
+      colSpan={5}
+      data-reperfilado-posicion={`${eje}-${lado}`}
+      className="p-0"
+    >
+      <div className="grid grid-cols-5">
       <Campo
         valor={tAntes}
         onGuardar={(v) => guardar('reperfiladoTAntes', v)}
@@ -401,7 +528,8 @@ function LadoReperfilado({
         disabled
         invalido={datos.recordId !== null && datos.rugosidadRa !== RUGOSIDAD_RA_OBJETIVO}
       />
-    </>
+      </div>
+    </td>
   )
 }
 
@@ -420,10 +548,11 @@ function Campo({
     valor === null ? '' : String(valor),
   )
   return (
-    <td className="px-1.5 py-1">
+    <div className="px-1.5 py-1">
       <input
         type="number"
         data-reperfilado-invalido={invalido ? 'true' : undefined}
+        aria-invalid={invalido || undefined}
         step="0.01"
         disabled={disabled}
         value={borrador}
@@ -437,6 +566,6 @@ function Campo({
           borrador === '' ? 'border-amber-500/25 bg-amber-50/25' : 'border-emerald-700/20 bg-emerald-50/30'
         } ${invalido ? 'border-[color:var(--color-estado-critico)]' : ''}`}
       />
-    </td>
+    </div>
   )
 }

@@ -330,6 +330,7 @@ export function Reperfilado() {
                   ficha={ficha}
                   onGuardar={(c) => editar.mutate(c)}
                   limiteTecnicos={2}
+                  mostrarFechasFirmas={false}
                 />
               )}
               <div className="mt-5 flex justify-end">
