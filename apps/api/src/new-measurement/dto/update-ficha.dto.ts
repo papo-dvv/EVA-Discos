@@ -8,9 +8,12 @@ import {
   IsOptional,
   IsString,
   Max,
+  MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
+
+const MAX_CARACTERES_COMENTARIOS_ACTIVIDAD = 612;
 
 // "Realizado por" — 1 de las 4 filas fijas (posicion 1-4) de la ficha. Todos
 // los campos son opcionales incluso dentro de la fila: solo
@@ -93,6 +96,7 @@ export class UpdateFichaDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(MAX_CARACTERES_COMENTARIOS_ACTIVIDAD)
   comentariosActividad?: string;
 
   @IsOptional()

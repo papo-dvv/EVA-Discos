@@ -15,6 +15,7 @@ type Props = {
 
 const CLASE_INPUT =
   'glass-field px-2.5 py-1.5 text-xs'
+const MAX_CARACTERES_COMENTARIOS_ACTIVIDAD = 612
 
 // Footer completo de la ficha (punto 3 del enunciado): instrumentos (3 filas
 // fijas), comentarios, técnicos (4 fijos, 2x2) y el bloque Ing. MR/Responsable
@@ -194,6 +195,7 @@ function ComentariosActividad({
   return (
     <textarea
       rows={3}
+      maxLength={MAX_CARACTERES_COMENTARIOS_ACTIVIDAD}
       value={borrador}
       onChange={(e) => setBorrador(e.target.value)}
       onBlur={() => {

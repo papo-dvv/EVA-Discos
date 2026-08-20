@@ -5,6 +5,9 @@ import type { FichaMedicion, PosicionEsqueleto, PreviewRow } from './types'
 const PLANTILLA = '/UT-UF-MTO-FR-215 CARTILLA DE MANTENIMIENTO PREVENTIVO IM1 - TREN ALSTOM v6.pdf'
 const COCHES = ['MA1', 'MB1', 'MB3', 'REM', 'MB2', 'MA2']
 const FILAS_Y = [710, 697, 684, 671, 644, 630, 617, 604, 577, 564, 551, 537, 511, 497, 471, 457, 430, 417, 404, 390, 364, 350, 337, 324]
+const COORDENADA_NUMERO_COCHE: Partial<Record<string, { x: number; y: number }>> = {
+  REM: { x: 255, y: 476 },
+}
 
 function texto(value: number | string | null | undefined, decimales = 2) {
   return typeof value === 'number' ? value.toFixed(decimales) : value?.trim() || ''
@@ -129,7 +132,8 @@ export async function descargarCartillaPdf(ficha: FichaMedicion, esqueleto: Posi
     }
     const numeroCoche = filasPorPosicion.get(`${coche}|${indiceCoche * 4 + 1}`)?.numeroCoche
     if (numeroCoche !== null && numeroCoche !== undefined) {
-      escribirCentrado(page, String(numeroCoche), 255, FILAS_Y[indiceCoche * 4 + 2], 6)
+      const coordenadaNumero = COORDENADA_NUMERO_COCHE[coche] ?? { x: 255, y: FILAS_Y[indiceCoche * 4 + 2] }
+      escribirCentrado(page, String(numeroCoche), coordenadaNumero.x, coordenadaNumero.y, 6)
     }
   }
 
@@ -147,8 +151,8 @@ export async function descargarCartillaPdf(ficha: FichaMedicion, esqueleto: Posi
   // superior y=135, inferior y=115, izquierdo x=55, derecho x≈563 — ver
   // grilla dibujada sobre el PDF real). La etiqueta "Observaciones:" vive
   // en la celda a la izquierda del borde (termina en x≈58), por eso la
-  // primera línea puede arrancar en x=70 sin pisarla. y=135 pone la base
-  // del texto justo sobre el borde superior (no flotando hacia abajo).
+  // primera línea arranca sobre la línea después de la etiqueta; las
+  // siguientes continúan debajo con el mismo margen izquierdo.
   // Si el comentario no entra en una sola línea, se reparte hasta en 3
   // (135 / 127.5 / 120 — la última deja ~5pt de aire sobre el borde
   // inferior) y, si aun así sobra texto, la 3ª línea se recorta con "…".
@@ -164,7 +168,7 @@ export async function descargarCartillaPdf(ficha: FichaMedicion, esqueleto: Posi
       lineasVisibles[ultimoIndice] = truncarConElipsis(fuente, lineasVisibles[ultimoIndice], tamanoObs, anchoMaximoObs)
     }
     lineasVisibles.forEach((linea, indice) => {
-      escribir(page, linea, indice === 0 ? 70 : 60, 135 - indice * 7.5, tamanoObs)
+      escribir(page, linea, indice === 0 ? 70 : 60, 139 - indice * 7.5, tamanoObs) // antes 135
     })
   }
 
