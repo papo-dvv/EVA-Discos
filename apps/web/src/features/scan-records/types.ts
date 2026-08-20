@@ -8,7 +8,8 @@
 // que H llegue al umbral de reperfilado y el resultado post-descuento siga
 // fuera de zona de Cambio. Es un valor más del chip de Estado, no una
 // etiqueta aparte.
-export type EstadoDisco = 'OK' | 'SEGUIMIENTO' | 'CAMBIO' | 'CRITICO' | 'REPERFILADO'
+export type EstadoDisco =
+  'OK' | 'SEGUIMIENTO' | 'CAMBIO' | 'CRITICO' | 'REPERFILADO'
 
 // Espejo de LadoDisco (generated/prisma) y de VistaFecha/VISTAS_FECHA
 // (apps/api/src/migration/dto/preview-query.dto.ts).
@@ -59,6 +60,8 @@ export interface PreviewRow {
   estadoSugeridoExcel: string | null
   corregidoPorHoja: boolean
   trenOriginalExcel: number | null
+  numeroCocheOriginalExcel: number | null
+  corregidoNumeroCoche: boolean
   discrepanciaEstadoExcel: boolean
   hojaExcelOrigen: string | null
   // Exclusivo de features/new-measurement (ficha de medición individual) —

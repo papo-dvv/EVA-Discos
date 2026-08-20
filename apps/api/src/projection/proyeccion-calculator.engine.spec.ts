@@ -86,8 +86,7 @@ describe('proyectarCiclos', () => {
 
     // Ciclo 1: T = h+rd = 0.5+2.0 = 2.5. meses=(1.0-0.5)/0.1=5, rdAntes =
     // 2.0-0.5=1.5, rdDespues=1.5-0.7=0.8 (>0.4) -> viable, se registra. El
-    // siguiente ciclo arranca con H=0 y T=2.5-0.7=1.8 (T pierde el
-    // descuento, NO H).
+    // siguiente ciclo arranca con H=0 y T=rdDespues=0.8.
     expect(resultado.ciclosReperfilado).toHaveLength(1);
     expect(resultado.ciclosReperfilado[0].mesesHastaFecha).toBeCloseTo(5, 6);
     expect(resultado.ciclosReperfilado[0].hEnEseMomento).toBeCloseTo(1.0, 6);
@@ -95,15 +94,14 @@ describe('proyectarCiclos', () => {
     expect(resultado.ciclosReperfilado[0].rdAntes).toBeCloseTo(1.5, 6);
     expect(resultado.ciclosReperfilado[0].rdDespues).toBeCloseTo(0.8, 6);
 
-    // Ciclo 2: arranca con H=0 y T=1.8 -> meses=(1.0-0)/0.1=10, rdAntes =
-    // 1.8-1.0=0.8 (mismo valor que rdDespues del ciclo 1, por construcción:
-    // rdAntes_(n+1) = T_(n+1) - h_umbral = rdDespues_n), rdDespues=0.8-0.7=0.1
+    // Ciclo 2: arranca con H=0 y T=0.8 -> meses=(1.0-0)/0.1=10, rdAntes =
+    // 0.8-1.0=-0.2 (<=0.4) -> ya no es viable.
     // (<=0.4) -> YA NO es viable: pasa a cambio, y el ciclo NO se agrega a
     // ciclosReperfilado (sigue en longitud 1).
     expect(resultado.ciclosReperfilado).toHaveLength(1);
-    // mesesHastaFecha = 5 (ciclo1) + 10 (crecimiento ciclo2) + 8
-    // (rdAntes/tasaMensual = 0.8/0.1, interpolación sin cambios) = 23.
-    expect(resultado.cicloCambio.mesesHastaFecha).toBeCloseTo(23, 6);
+    // mesesHastaFecha = 5 (ciclo1) + 10 (crecimiento ciclo2) + 0
+    // (rdAntes ya quedó bajo umbral de cambio) = 15.
+    expect(resultado.cicloCambio.mesesHastaFecha).toBeCloseTo(15, 6);
   });
 
   // Punto 1 del enunciado: se elimina el tope de 5 ciclos. Umbrales elegidos
@@ -198,12 +196,12 @@ describe('proyectarCiclos', () => {
     expect(resultado.ciclosReperfilado[0].hEnEseMomento).toBeCloseTo(2.0, 6);
   });
 
-  // Ejemplo numérico exacto del enunciado: T=7 fijo durante el crecimiento
+  // Ejemplo numérico exacto: T=7 fijo durante el primer crecimiento
   // (h+rd = 0.6+6.4=7), H crece de 0.6 a 1.6 (el umbral) en 2 meses a razón
-  // de 0.5 mm/mes -> rdAntes=7-1.6=5.4, rdDespues=5.4-0.8=4.6 (viable, ya que
-  // 4.6 > 0.4). La corrección central del modelo: el SIGUIENTE ciclo arranca
-  // con H=0 (no con H=0.8) y T=7-0.8=6.2 (T pierde el descuento, NO H).
-  it('ejemplo numérico exacto: T=7, H crece hasta 1.6 -> rdAntes=5.4, rdDespues=4.6 (viable); el siguiente ciclo arranca con H=0 y T=6.2', () => {
+  // de 0.5 mm/mes -> rdAntes=7-1.6=5.4, rdDespues=5.4-0.8=4.6. La regla nueva:
+  // tras cada reperfilado, rdDespues pasa a ser el T del siguiente ciclo, y
+  // el Rd de ese ciclo vuelve a calcularse como T-H.
+  it('ejemplo numérico exacto: T=7, H crece hasta 1.6 -> rdAntes=5.4, rdDespues=4.6; el siguiente ciclo arranca con T=4.6', () => {
     const fechaActual = new Date('2026-01-01T00:00:00.000Z');
     const tasaMensual = 0.5;
     const actual = { h: 0.6, rd: 6.4, fecha: fechaActual }; // T = 0.6+6.4 = 7
@@ -220,13 +218,14 @@ describe('proyectarCiclos', () => {
     expect(ciclo1.rdAntes).toBeCloseTo(5.4, 6);
     expect(ciclo1.rdDespues).toBeCloseTo(4.6, 6);
 
-    // El ciclo 2 arranca con T=7-0.8=6.2 (NO con T=rdDespues=4.6, y NO con
-    // H=0+0.8=0.8): tEnEseMomento del segundo ciclo es la base real que usó.
-    expect(ciclo2.tEnEseMomento).toBeCloseTo(6.2, 6);
+    // El ciclo 2 arranca con T=rdDespues del ciclo 1.
+    expect(ciclo2.tEnEseMomento).toBeCloseTo(4.6, 6);
+    expect(ciclo2.rdAntes).toBeCloseTo(3.0, 6);
+    expect(ciclo2.rdDespues).toBeCloseTo(2.2, 6);
 
     // Confirmación independiente vía interpolarEnFecha: en la fecha exacta
-    // del primer reperfilado, el punto proyectado da H=0 y Rd=6.2 (=
-    // T_siguiente - H_siguiente = 6.2 - 0), no Rd=rdDespues=4.6.
+    // del primer reperfilado, el punto proyectado da H=0 y Rd=4.6
+    // (= T_siguiente), el nuevo arranque del ciclo posterior.
     const punto = interpolarEnFecha(
       actual,
       resultado.ciclosReperfilado,
@@ -234,7 +233,27 @@ describe('proyectarCiclos', () => {
       ciclo1.fechaEstimada,
     );
     expect(punto.h).toBeCloseTo(0, 6);
-    expect(punto.rd).toBeCloseTo(6.2, 6);
+    expect(punto.rd).toBeCloseTo(4.6, 6);
+  });
+
+  it('caso solicitado: tras cada reperfilado Rd pasa a ser el nuevo T y el siguiente Rd antes vuelve a ser T-H', () => {
+    const fechaActual = new Date('2026-01-01T00:00:00.000Z');
+    const resultado = proyectarCiclos(
+      { h: 0.32, rd: 6.75, fecha: fechaActual }, // T = 7.07
+      0.25,
+      UMBRALES_POR_DEFECTO,
+    );
+
+    const [ciclo1, ciclo2] = resultado.ciclosReperfilado;
+    expect(ciclo1.hEnEseMomento).toBeCloseTo(1.6, 6);
+    expect(ciclo1.tEnEseMomento).toBeCloseTo(7.07, 6);
+    expect(ciclo1.rdAntes).toBeCloseTo(5.47, 6);
+    expect(ciclo1.rdDespues).toBeCloseTo(4.67, 6);
+
+    expect(ciclo2.hEnEseMomento).toBeCloseTo(1.6, 6);
+    expect(ciclo2.tEnEseMomento).toBeCloseTo(4.67, 6);
+    expect(ciclo2.rdAntes).toBeCloseTo(3.07, 6);
+    expect(ciclo2.rdDespues).toBeCloseTo(2.27, 6);
   });
 });
 
@@ -263,7 +282,7 @@ describe('interpolarEnFecha', () => {
   const actualUnSoloCiclo = { h: 0.5, rd: 2.0, fecha: fechaActual };
   const tasaUnSoloCiclo = 0.1;
 
-  it('después de un ciclo de reperfilado: continúa desde el checkpoint del ciclo (H=0, Rd=T_siguiente)', () => {
+  it('después de un ciclo de reperfilado: continúa desde el checkpoint del ciclo (H=0, Rd=rdDespues)', () => {
     const { ciclosReperfilado } = proyectarCiclos(
       actualUnSoloCiclo,
       tasaUnSoloCiclo,
@@ -279,16 +298,11 @@ describe('interpolarEnFecha', () => {
       tasaUnSoloCiclo,
       fechaLuego,
     );
-    // rdDespues(0.8) + hEnEseMomento(1.0) = 1.8 = T_siguiente(2.5-0.7) - H(0).
-    const rdJustoTrasReperfilado = ciclo.rdDespues + ciclo.hEnEseMomento;
     expect(punto.h).toBeCloseTo(0 + tasaUnSoloCiclo * 3, 6);
-    expect(punto.rd).toBeCloseTo(
-      rdJustoTrasReperfilado - tasaUnSoloCiclo * 3,
-      6,
-    );
+    expect(punto.rd).toBeCloseTo(ciclo.rdDespues, 6);
   });
 
-  it('en la fecha exacta de un ciclo, da el estado justo tras el reperfilado (H=0, Rd=T_siguiente)', () => {
+  it('en la fecha exacta de un ciclo, da el estado justo tras el reperfilado (H=0, Rd=rdDespues)', () => {
     const { ciclosReperfilado } = proyectarCiclos(
       actualUnSoloCiclo,
       tasaUnSoloCiclo,
@@ -303,7 +317,7 @@ describe('interpolarEnFecha', () => {
       ciclo.fechaEstimada,
     );
     expect(punto.h).toBeCloseTo(0, 6);
-    expect(punto.rd).toBeCloseTo(ciclo.rdDespues + ciclo.hEnEseMomento, 6);
+    expect(punto.rd).toBeCloseTo(ciclo.rdDespues, 6);
   });
 });
 
