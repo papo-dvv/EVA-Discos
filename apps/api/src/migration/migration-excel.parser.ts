@@ -7,6 +7,7 @@ import type {
   EstadoDiscoCalculado,
 } from '../brake-disc-rules/brake-disc-rules.engine';
 import { calcularOrdenFisico } from '../common/orden-fisico';
+import { numeroCocheOficial } from '../fleet/relacion-oficial-coches';
 
 // Parser puro de la migración masiva desde Excel. Sin Nest ni Prisma: recibe
 // un WorkBook ya leído y un motor de reglas ya resuelto, y devuelve las filas
@@ -56,6 +57,8 @@ export interface FilaMigracion {
   hojaExcelOrigen: string;
   trenOriginalExcel: number | null;
   corregidoPorHoja: boolean;
+  numeroCocheOriginalExcel: number | null;
+  corregidoNumeroCoche: boolean;
   discrepanciaEstadoExcel: boolean;
   // Identidad cruda del disco (se resuelve disc_id recién al confirmar).
   cocheExcel: string | null;
@@ -74,7 +77,7 @@ export interface FilaMigracion {
 export interface Discrepancia {
   hoja: string;
   filaExcel: number; // número de fila 1-based dentro de la hoja
-  tipo: 'tren' | 'estado';
+  tipo: 'tren' | 'estado' | 'numero_coche';
   valorExcel: string | number | null;
   valorSistema: string | number;
 }
@@ -617,6 +620,27 @@ export function procesarWorkbook(
         const ejeExcel = aNumeroONull(filaCruda[col.eje]);
         const ubicacionExcel = aTextoONull(filaCruda[col.ubicacion]);
         const ruedaExcel = aNumeroONull(filaCruda[col.rueda]);
+        const numeroCocheOriginalExcel = aNumeroONull(
+          filaCruda[col.numeroCoche],
+        );
+        const numeroCocheSistema = numeroCocheOficial(
+          trenNumero,
+          cocheNormalizado,
+        );
+        const numeroCocheExcel = numeroCocheSistema ?? numeroCocheOriginalExcel;
+        const corregidoNumeroCoche =
+          numeroCocheSistema !== null &&
+          numeroCocheOriginalExcel !== numeroCocheSistema;
+
+        if (corregidoNumeroCoche) {
+          detalleDiscrepancias.push({
+            hoja: nombreHoja,
+            filaExcel,
+            tipo: 'numero_coche',
+            valorExcel: numeroCocheOriginalExcel,
+            valorSistema: numeroCocheSistema,
+          });
+        }
 
         filas.push({
           responsableNombre: aTextoONull(filaCruda[col.responsable]) ?? '',
@@ -632,9 +656,13 @@ export function procesarWorkbook(
           hojaExcelOrigen: nombreHoja,
           trenOriginalExcel: corregidoPorHoja ? trenExcel : null,
           corregidoPorHoja,
+          numeroCocheOriginalExcel: corregidoNumeroCoche
+            ? numeroCocheOriginalExcel
+            : null,
+          corregidoNumeroCoche,
           discrepanciaEstadoExcel,
           cocheExcel: cocheNormalizado,
-          numeroCocheExcel: aNumeroONull(filaCruda[col.numeroCoche]),
+          numeroCocheExcel,
           bogieExcel,
           ejeExcel,
           ubicacionExcel,

@@ -14,7 +14,16 @@ import type { PreviewRow } from '../types'
 
 // Columnas cuyos valores son numéricos → tipografía mono, alineados a la
 // derecha (styles.md §6.1: los datos de medición se leen como instrumento).
-const COLUMNAS_MONO = new Set(['tren', 'kilometraje', 'numeroCoche', 'eje', 'rueda', 'h', 't', 'rd'])
+const COLUMNAS_MONO = new Set([
+  'tren',
+  'kilometraje',
+  'numeroCoche',
+  'eje',
+  'rueda',
+  'h',
+  't',
+  'rd',
+])
 
 // Tabla virtualizada (scroll propio) de mediciones, compartida entre la vista
 // previa de una migración en curso y la vista permanente de confirmados.
@@ -46,7 +55,8 @@ export function TablaScanRecords({
   scrollHorizontal = false,
 }: Props) {
   const columns = useMemo(
-    () => construirColumnas(onEditar, onEliminar, accionesDeshabilitadas, compacta),
+    () =>
+      construirColumnas(onEditar, onEliminar, accionesDeshabilitadas, compacta),
     [onEditar, onEliminar, accionesDeshabilitadas, compacta],
   )
 
@@ -67,84 +77,98 @@ export function TablaScanRecords({
   const tabla = (
     <table
       className={`border-collapse text-left font-body ${
-        compacta ? 'min-w-[72rem] table-fixed text-[0.71rem]' : 'w-full text-[0.8125rem]'
+        compacta
+          ? 'min-w-[72rem] table-fixed text-[0.71rem]'
+          : 'w-full text-[0.8125rem]'
       }`}
     >
-          <thead>
-            {table.getHeaderGroups().map((hg) => (
-              <tr key={hg.id} className="border-b border-concreto/20">
-                {hg.headers.map((header) => {
-                  const puedeOrdenar = header.column.getCanSort()
-                  const orden = header.column.getIsSorted()
-                  const mono = COLUMNAS_MONO.has(header.column.id)
-                  return (
-                    <th
-                      key={header.id}
-                      onClick={puedeOrdenar ? header.column.getToggleSortingHandler() : undefined}
-                      className={`bg-[color:var(--color-arena-suave)] font-semibold uppercase tracking-wide text-concreto ${
-                        sinScrollInterno ? '' : 'sticky top-0 z-[1]'
-                      } ${
-                        compacta
-                          ? 'whitespace-normal break-words px-1 py-2 text-[0.6875rem] leading-tight'
-                          : 'whitespace-nowrap px-3 py-3 text-xs'
-                      } ${
-                        mono ? 'text-right' : 'text-left'
-                      } ${puedeOrdenar ? 'cursor-pointer select-none hover:text-concreto-oscuro' : ''}`}
-                    >
-                      {flexRender(header.column.columnDef.header, header.getContext())}
-                      {orden === 'asc' ? ' ▲' : orden === 'desc' ? ' ▼' : ''}
-                    </th>
-                  )
-                })}
-              </tr>
-            ))}
-          </thead>
-          <tbody>
-            {table.getRowModel().rows.map((row) => (
-              <tr key={row.id} className="tabla-fila--glass border-b border-concreto/10">
-                {row.getVisibleCells().map((cell) => {
-                  const mono = COLUMNAS_MONO.has(cell.column.id)
-                  return (
-                    <td
-                      key={cell.id}
-                      className={`overflow-hidden text-concreto-oscuro ${
-                        compacta
-                          ? 'whitespace-nowrap px-1 py-2 leading-tight'
-                          : 'whitespace-nowrap px-3 py-2.5'
-                      } ${
-                        mono ? 'text-right font-data' : ''
-                      }`}
-                      title={String(cell.getValue() ?? '')}
-                    >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </td>
-                  )
-                })}
-              </tr>
-            ))}
-            {table.getRowModel().rows.length === 0 && (
-              <tr>
-                <td colSpan={columns.length} className="px-4 py-8 text-center font-body text-sm text-concreto">
-                  Sin filas para el filtro actual.
+      <thead>
+        {table.getHeaderGroups().map((hg) => (
+          <tr key={hg.id} className="border-b border-concreto/20">
+            {hg.headers.map((header) => {
+              const puedeOrdenar = header.column.getCanSort()
+              const orden = header.column.getIsSorted()
+              const mono = COLUMNAS_MONO.has(header.column.id)
+              return (
+                <th
+                  key={header.id}
+                  onClick={
+                    puedeOrdenar
+                      ? header.column.getToggleSortingHandler()
+                      : undefined
+                  }
+                  className={`bg-[color:var(--color-arena-suave)] font-semibold uppercase tracking-wide text-concreto ${
+                    sinScrollInterno ? '' : 'sticky top-0 z-[1]'
+                  } ${
+                    compacta
+                      ? 'whitespace-normal break-words px-1 py-2 text-[0.6875rem] leading-tight'
+                      : 'whitespace-nowrap px-3 py-3 text-xs'
+                  } ${
+                    mono ? 'text-right' : 'text-left'
+                  } ${puedeOrdenar ? 'cursor-pointer select-none hover:text-concreto-oscuro' : ''}`}
+                >
+                  {flexRender(
+                    header.column.columnDef.header,
+                    header.getContext(),
+                  )}
+                  {orden === 'asc' ? ' ▲' : orden === 'desc' ? ' ▼' : ''}
+                </th>
+              )
+            })}
+          </tr>
+        ))}
+      </thead>
+      <tbody>
+        {table.getRowModel().rows.map((row) => (
+          <tr
+            key={row.id}
+            className="tabla-fila--glass border-b border-concreto/10"
+          >
+            {row.getVisibleCells().map((cell) => {
+              const mono = COLUMNAS_MONO.has(cell.column.id)
+              return (
+                <td
+                  key={cell.id}
+                  className={`overflow-hidden text-concreto-oscuro ${
+                    compacta
+                      ? 'whitespace-nowrap px-1 py-2 leading-tight'
+                      : 'whitespace-nowrap px-3 py-2.5'
+                  } ${mono ? 'text-right font-data' : ''}`}
+                  title={String(cell.getValue() ?? '')}
+                >
+                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
                 </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+              )
+            })}
+          </tr>
+        ))}
+        {table.getRowModel().rows.length === 0 && (
+          <tr>
+            <td
+              colSpan={columns.length}
+              className="px-4 py-8 text-center font-body text-sm text-concreto"
+            >
+              Sin filas para el filtro actual.
+            </td>
+          </tr>
+        )}
+      </tbody>
+    </table>
   )
 
   return (
-    <GlassSurface fuerte className={`mt-4 rounded-glass ${sinScrollInterno ? 'overflow-visible' : 'overflow-hidden'}`}>
+    <GlassSurface
+      fuerte
+      className={`mt-4 rounded-glass ${sinScrollInterno ? 'overflow-visible' : 'overflow-hidden'}`}
+    >
       {sinScrollInterno && scrollHorizontal ? (
-        <ScrollArea ejes="x">
-          {tabla}
-        </ScrollArea>
+        <ScrollArea ejes="x">{tabla}</ScrollArea>
       ) : sinScrollInterno ? (
         tabla
       ) : (
         <ScrollArea ejes="both" viewportClassName="max-h-[64vh]">
           {tabla}
-      </ScrollArea>
+        </ScrollArea>
       )}
     </GlassSurface>
   )
@@ -157,6 +181,15 @@ function textoAdvertencia(row: PreviewRow): string | null {
   if (row.corregidoPorHoja) {
     partes.push(
       `Tren corregido: la planilla decía ${row.trenOriginalExcel}, se usó ${row.trenNumero} según la hoja ${row.hojaExcelOrigen}.`,
+    )
+  }
+  if (row.corregidoNumeroCoche) {
+    const original =
+      row.numeroCocheOriginalExcel === null
+        ? 'vacío'
+        : row.numeroCocheOriginalExcel
+    partes.push(
+      `N° Coche corregido: la planilla decía ${original}, se usó ${row.numeroCocheExcel} según la relación oficial ${row.cocheExcel} del tren ${row.trenNumero}.`,
     )
   }
   if (row.discrepanciaEstadoExcel) {
@@ -190,11 +223,20 @@ function construirColumnas(
       header: 'Tren',
       enableSorting: false,
     }),
-    columnHelper.accessor('responsableNombre', { id: 'responsable', header: 'Responsable' }),
-    columnHelper.accessor('kilometraje', { id: 'kilometraje', header: 'Kilometraje' }),
+    columnHelper.accessor('responsableNombre', {
+      id: 'responsable',
+      header: 'Responsable',
+    }),
+    columnHelper.accessor('kilometraje', {
+      id: 'kilometraje',
+      header: 'Kilometraje',
+    }),
     columnHelper.accessor('motivo', { id: 'motivo', header: 'Motivo' }),
     columnHelper.accessor('cocheExcel', { id: 'coche', header: 'Coche' }),
-    columnHelper.accessor('numeroCocheExcel', { id: 'numeroCoche', header: 'N° Coche' }),
+    columnHelper.accessor('numeroCocheExcel', {
+      id: 'numeroCoche',
+      header: 'N° Coche',
+    }),
     columnHelper.accessor('bogieExcel', { id: 'bogie', header: 'Bogie' }),
     columnHelper.accessor('ejeExcel', { id: 'eje', header: 'Eje' }),
     columnHelper.accessor('ruedaExcel', { id: 'rueda', header: 'Rueda' }),
@@ -222,7 +264,9 @@ function construirColumnas(
     columnHelper.accessor('estadoCalculado', {
       id: 'estado',
       header: 'Estado',
-      cell: ({ getValue }) => <EstadoChip estado={getValue()} compacta={compacta} />,
+      cell: ({ getValue }) => (
+        <EstadoChip estado={getValue()} compacta={compacta} />
+      ),
     }),
   ]
 
@@ -278,7 +322,13 @@ const CLASE_CHIP_ESTADO: Record<string, string> = {
   REPERFILADO: 'tabla-chip--reperfilado',
 }
 
-function EstadoChip({ estado, compacta = false }: { estado: string | null; compacta?: boolean }) {
+function EstadoChip({
+  estado,
+  compacta = false,
+}: {
+  estado: string | null
+  compacta?: boolean
+}) {
   if (!estado) return null
   return (
     <span

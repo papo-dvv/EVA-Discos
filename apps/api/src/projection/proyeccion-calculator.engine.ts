@@ -66,15 +66,13 @@ export interface CicloReperfilado {
   // spec).
   hEnEseMomento: number;
   // T (Espesor Medido) vigente ANTES de este reperfilado — la base sobre la
-  // que se calcula rdAntes. El siguiente ciclo arranca con
-  // tEnEseMomento - reperfiladoDescuentoRd (T pierde el descuento, no H).
+  // que se calcula rdAntes. El siguiente ciclo arranca con T=rdDespues y H=0.
   tEnEseMomento: number;
   // Rd (Vida Útil) justo antes de aplicar el descuento de reperfilado.
   rdAntes: number;
-  // Rd proyectado cuando H vuelva a alcanzar h_umbral_reperfilado en el
-  // siguiente ciclo (= tEnEseMomento - reperfiladoDescuentoRd - hEnEseMomento
-  // del siguiente ciclo) — NO es el Rd real inmediatamente tras el
-  // reperfilado (ese es tEnEseMomento - reperfiladoDescuentoRd, con H=0).
+  // Rd real inmediatamente después de aplicar el descuento de reperfilado.
+  // Como H resetea a 0, este mismo valor pasa a ser el nuevo T del ciclo
+  // siguiente.
   rdDespues: number;
 }
 
@@ -99,8 +97,8 @@ export function proyectarCiclos(
   const ciclosReperfilado: CicloReperfilado[] = [];
   let h = actual.h;
   // T (Espesor Medido) no viaja en EstadoActualDisco — se deriva una sola vez
-  // de Rd = T - H (h + rd) y de ahí en más es la base que decrece 0.8 por
-  // reperfilado viable, mientras H resetea a 0 (ver CicloReperfilado).
+  // de Rd = T - H (h + rd). Tras cada reperfilado viable, H resetea a 0 y el
+  // Rd inmediatamente posterior pasa a ser el nuevo T del ciclo siguiente.
   let t = actual.h + actual.rd;
   let fecha = actual.fecha;
   let mesesAcumulados = 0;
@@ -157,7 +155,7 @@ export function proyectarCiclos(
     });
 
     h = 0;
-    t = t - umbrales.reperfiladoDescuentoRd;
+    t = rdDespues;
     fecha = fechaReperfilado;
   }
 
@@ -175,17 +173,19 @@ export function interpolarEnFecha(
   tasaMensual: number,
   fecha: Date,
 ): PuntoProyectado {
-  let checkpoint = { fecha: actual.fecha, h: actual.h, rd: actual.rd };
+  let checkpoint = {
+    fecha: actual.fecha,
+    h: actual.h,
+    rd: actual.rd,
+  };
   for (const ciclo of ciclosReperfilado) {
     if (ciclo.fechaEstimada > fecha) break;
-    // Justo tras el reperfilado: H resetea a 0 y Rd = T_siguiente - 0, con
-    // T_siguiente = tEnEseMomento - reperfiladoDescuentoRd. Se deriva de
-    // rdDespues + hEnEseMomento en vez de recibir el descuento como
-    // parámetro (rdDespues = (tEnEseMomento - hEnEseMomento) - descuento).
+    // Justo tras el reperfilado: H resetea a 0 y Rd=rdDespues. Ese mismo
+    // Rd pasa a ser el T_siguiente del ciclo posterior.
     checkpoint = {
       fecha: ciclo.fechaEstimada,
       h: 0,
-      rd: ciclo.rdDespues + ciclo.hEnEseMomento,
+      rd: ciclo.rdDespues,
     };
   }
 

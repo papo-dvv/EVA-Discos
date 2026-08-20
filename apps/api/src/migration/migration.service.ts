@@ -62,7 +62,10 @@ export class MigrationService {
     }
 
     const filasConAdvertencia = resultado.filas.filter(
-      (fila) => fila.corregidoPorHoja || fila.discrepanciaEstadoExcel,
+      (fila) =>
+        fila.corregidoPorHoja ||
+        fila.corregidoNumeroCoche ||
+        fila.discrepanciaEstadoExcel,
     ).length;
 
     // Se generan los id de cada ScanRecord por adelantado para poder enlazar
@@ -89,6 +92,23 @@ export class MigrationService {
         valorNuevo: String(fila.trenNumero),
         usuarioId: SISTEMA_USER_ID,
       }));
+    const correccionesNumeroCoche: Prisma.ScanEditLogCreateManyInput[] =
+      registros
+        .filter(({ fila }) => fila.corregidoNumeroCoche)
+        .map(({ id, fila }) => ({
+          scanRecordId: id,
+          etapa: 'pre_commit',
+          campoEditado: 'numeroCocheExcel',
+          valorAnterior:
+            fila.numeroCocheOriginalExcel === null
+              ? null
+              : String(fila.numeroCocheOriginalExcel),
+          valorNuevo:
+            fila.numeroCocheExcel === null
+              ? null
+              : String(fila.numeroCocheExcel),
+          usuarioId: SISTEMA_USER_ID,
+        }));
 
     // UploadedFile + ScanRecords en una transacción: el borrador queda en
     // 'review' para que el Administrador lo revise antes de confirmar.
@@ -120,10 +140,12 @@ export class MigrationService {
           await tx.scanRecord.createMany({ data: lote });
         }
 
-        const editLogs = correccionesTren.map((entrada) => ({
-          ...entrada,
-          fileId: uploadedFile.id,
-        }));
+        const editLogs = [...correccionesTren, ...correccionesNumeroCoche].map(
+          (entrada) => ({
+            ...entrada,
+            fileId: uploadedFile.id,
+          }),
+        );
         for (const lote of enLotes(editLogs, LOTE_INSERCION)) {
           await tx.scanEditLog.createMany({ data: lote });
         }
@@ -202,6 +224,8 @@ export class MigrationService {
       hojaExcelOrigen: fila.hojaExcelOrigen,
       trenOriginalExcel: fila.trenOriginalExcel,
       corregidoPorHoja: fila.corregidoPorHoja,
+      numeroCocheOriginalExcel: fila.numeroCocheOriginalExcel,
+      corregidoNumeroCoche: fila.corregidoNumeroCoche,
       discrepanciaEstadoExcel: fila.discrepanciaEstadoExcel,
       cocheExcel: fila.cocheExcel,
       numeroCocheExcel: fila.numeroCocheExcel,

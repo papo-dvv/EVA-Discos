@@ -8,6 +8,7 @@ import {
   procesarWorkbook,
   resolverLado,
 } from './migration-excel.parser';
+import { numeroCocheOficial } from '../fleet/relacion-oficial-coches';
 
 const evaluador = new BrakeDiscRulesEngine(UMBRALES_POR_DEFECTO);
 
@@ -118,25 +119,53 @@ describe('procesarWorkbook — fixture T06/T07', () => {
 
   it('cuenta 3 advertencias (2 correcciones de tren + 1 discrepancia de estado)', () => {
     const conAdvertencia = resultado.filas.filter(
-      (f) => f.corregidoPorHoja || f.discrepanciaEstadoExcel,
+      (f) =>
+        f.corregidoPorHoja ||
+        f.corregidoNumeroCoche ||
+        f.discrepanciaEstadoExcel,
     );
-    expect(conAdvertencia).toHaveLength(3);
+    expect(conAdvertencia).toHaveLength(8);
   });
 
   it('detalleDiscrepancias incluye tanto correcciones de tren como discrepancias de estado', () => {
     const tipos = resultado.detalleDiscrepancias.map((d) => d.tipo);
     expect(tipos.filter((t) => t === 'tren')).toHaveLength(2);
     expect(tipos.filter((t) => t === 'estado')).toHaveLength(1);
+    expect(tipos.filter((t) => t === 'numero_coche')).toHaveLength(5);
   });
 
   it('conserva la identidad cruda del disco para resolver disc_id al confirmar', () => {
     const primera = resultado.filas[0];
     expect(primera.cocheExcel).toBe('MA1');
-    expect(primera.numeroCocheExcel).toBe(129);
+    expect(primera.numeroCocheExcel).toBe(101);
+    expect(primera.numeroCocheOriginalExcel).toBe(129);
+    expect(primera.corregidoNumeroCoche).toBe(true);
     expect(primera.bogieExcel).toBe('PB2');
     expect(primera.ejeExcel).toBe(1);
     expect(primera.ubicacionExcel).toBe('izquierdo');
     expect(primera.ruedaExcel).toBe(1);
+  });
+
+  it('corrige N° Coche con la relación oficial aunque el Excel traiga el valor de otro tren', () => {
+    const wb = workbookDeUnaHoja('T26', [
+      ['Panel Principal'],
+      ENCABEZADOS_BASE,
+      filaValida({ 1: 26, 5: 'MA1', 6: 157 }),
+    ]);
+    const res = procesarWorkbook(wb, evaluador);
+    expect(res.filas).toHaveLength(1);
+    expect(res.filas[0].trenNumero).toBe(26);
+    expect(res.filas[0].cocheExcel).toBe('MA1');
+    expect(res.filas[0].numeroCocheOriginalExcel).toBe(157);
+    expect(res.filas[0].numeroCocheExcel).toBe(181);
+    expect(res.filas[0].corregidoNumeroCoche).toBe(true);
+    expect(res.detalleDiscrepancias).toContainEqual({
+      hoja: 'T26',
+      filaExcel: 3,
+      tipo: 'numero_coche',
+      valorExcel: 157,
+      valorSistema: 181,
+    });
   });
 
   it('lee correctamente el resto de columnas fuente (responsable, kilometraje, motivo, fecha)', () => {
@@ -202,6 +231,7 @@ describe('procesarWorkbook — casos aislados', () => {
     expect(res.hojasFaltantes).toEqual([]);
     expect(res.filas).toHaveLength(1);
     expect(res.filas[0].trenNumero).toBe(12);
+    expect(res.filas[0].numeroCocheExcel).toBe(125);
     expect(res.filas[0].corregidoPorHoja).toBe(false);
   });
 
@@ -539,7 +569,7 @@ describe('procesarWorkbook — casos aislados', () => {
       ]);
       const res = procesarWorkbook(wb, evaluador);
       expect(res.filas).toHaveLength(1);
-      expect(res.filas[0].numeroCocheExcel).toBe(130);
+      expect(res.filas[0].numeroCocheExcel).toBe(113);
       expect(res.filasInvalidas).toEqual([
         { hoja: 'T09', fila: 3, motivo: 'Tipo de coche inválido (XYZ)' },
       ]);
@@ -557,5 +587,22 @@ describe('procesarWorkbook — casos aislados', () => {
         { hoja: 'T06', fila: 3, motivo: 'Tipo de coche inválido (vacío)' },
       ]);
     });
+  });
+});
+
+describe('numeroCocheOficial', () => {
+  it('usa la relación oficial ALSTOM por tren y tipo', () => {
+    expect(numeroCocheOficial(26, 'MA1')).toBe(181);
+    expect(numeroCocheOficial(26, 'MB1')).toBe(182);
+    expect(numeroCocheOficial(26, 'MB3')).toBe(521);
+    expect(numeroCocheOficial(26, 'REM')).toBe(421);
+    expect(numeroCocheOficial(26, 'MB2')).toBe(183);
+    expect(numeroCocheOficial(26, 'MA2')).toBe(184);
+  });
+
+  it('no aplica fuera de ALSTOM T06-T44 o con tipo desconocido', () => {
+    expect(numeroCocheOficial(5, 'MA1')).toBeNull();
+    expect(numeroCocheOficial(45, 'MA1')).toBeNull();
+    expect(numeroCocheOficial(26, 'XYZ')).toBeNull();
   });
 });

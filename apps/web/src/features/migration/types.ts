@@ -23,7 +23,7 @@ export type {
 export interface Discrepancia {
   hoja: string
   filaExcel: number
-  tipo: 'tren' | 'estado'
+  tipo: 'tren' | 'estado' | 'numero_coche'
   valorExcel: string | number | null
   valorSistema: string | number
 }
@@ -53,9 +53,7 @@ export interface ResumenMigracion {
 }
 
 export type TipoEventoHistorialMigracion =
-  | 'migracion_subida'
-  | 'migracion_confirmada'
-  | 'migracion_cancelada'
+  'migracion_subida' | 'migracion_confirmada' | 'migracion_cancelada'
 
 export interface EventoHistorialMigracionApi {
   id: string

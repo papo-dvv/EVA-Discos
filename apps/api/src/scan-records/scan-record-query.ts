@@ -116,6 +116,8 @@ export interface PreviewRow {
   estadoSugeridoExcel: string | null;
   corregidoPorHoja: boolean;
   trenOriginalExcel: number | null;
+  numeroCocheOriginalExcel: number | null;
+  corregidoNumeroCoche: boolean;
   discrepanciaEstadoExcel: boolean;
   hojaExcelOrigen: string | null;
   // Exclusivo de NewMeasurementModule (ver comentario en ScanRecord.observacion
@@ -211,15 +213,20 @@ export function construirWhereScanRecord(
     condiciones.push({ estadoCalculado: { in: q.estado } });
   }
 
-  // Un solo control combina las dos "advertencias": corrección por hoja y
-  // discrepancia de estado con el Excel.
+  // Un solo control combina las advertencias automáticas de la fila:
+  // corrección por hoja, corrección de N° Coche y discrepancia de estado.
   if (q.corregidoOAdvertencia === true) {
     condiciones.push({
-      OR: [{ corregidoPorHoja: true }, { discrepanciaEstadoExcel: true }],
+      OR: [
+        { corregidoPorHoja: true },
+        { corregidoNumeroCoche: true },
+        { discrepanciaEstadoExcel: true },
+      ],
     });
   } else if (q.corregidoOAdvertencia === false) {
     condiciones.push({
       corregidoPorHoja: false,
+      corregidoNumeroCoche: false,
       discrepanciaEstadoExcel: false,
     });
   }
@@ -520,7 +527,11 @@ export async function obtenerResumenPorTrenScanRecord(
     by: ['trenNumero'],
     where: {
       ...base,
-      OR: [{ corregidoPorHoja: true }, { discrepanciaEstadoExcel: true }],
+      OR: [
+        { corregidoPorHoja: true },
+        { corregidoNumeroCoche: true },
+        { discrepanciaEstadoExcel: true },
+      ],
     },
     _count: { _all: true },
   });
@@ -625,6 +636,8 @@ export function aPreviewRow(r: ScanRecord): PreviewRow {
     estadoSugeridoExcel: r.estadoSugeridoExcel,
     corregidoPorHoja: r.corregidoPorHoja,
     trenOriginalExcel: r.trenOriginalExcel,
+    numeroCocheOriginalExcel: r.numeroCocheOriginalExcel,
+    corregidoNumeroCoche: r.corregidoNumeroCoche,
     discrepanciaEstadoExcel: r.discrepanciaEstadoExcel,
     hojaExcelOrigen: r.hojaExcelOrigen,
     observacion: r.observacion,
