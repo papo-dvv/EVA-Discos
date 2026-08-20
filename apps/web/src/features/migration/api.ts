@@ -6,6 +6,7 @@ import type {
   PreviewParams,
   PreviewResult,
   PreviewRow,
+  EventoHistorialMigracionApi,
   ResumenMigracion,
   ResumenTren,
   StatsMigracion,
@@ -15,6 +16,13 @@ export async function subirMigracion(file: File): Promise<ResumenMigracion> {
   const form = new FormData()
   form.append('file', file)
   const { data } = await apiClient.post<ResumenMigracion>('/migration/upload', form)
+  return data
+}
+
+export async function obtenerHistorialMigracion(limit?: number): Promise<EventoHistorialMigracionApi[]> {
+  const { data } = await apiClient.get<EventoHistorialMigracionApi[]>('/migration/historial', {
+    params: { limit },
+  })
   return data
 }
 

@@ -187,6 +187,7 @@ model User {
   systemParamAudits             SystemParamAudit[]
   moduleSnapshotsGenerados      ModuleSnapshot[]
   measurementHistoryEvents      MeasurementHistoryEvent[]
+  migrationHistoryEvents        MigrationHistoryEvent[]
 
   @@index([rol], map: "idx_users_rol")
   @@index([estadoCuenta], map: "idx_users_estado_cuenta")
@@ -349,10 +350,31 @@ model UploadedFile {
   scanRecords       ScanRecord[]
   scanEditLogs      ScanEditLog[]
   measurementSheets MeasurementSheet[]
-
   @@index([status], map: "idx_uploaded_files_status")
   @@index([tipoCarga], map: "idx_uploaded_files_tipo_carga")
   @@map("uploaded_files")
+}
+
+model MigrationHistoryEvent {
+  id             String   @id @default(uuid()) @db.Uuid
+  tipo           String   @db.VarChar(40)
+  fileId         String?  @map("file_id") @db.Uuid
+  nombreArchivo  String?  @map("nombre_archivo") @db.VarChar(300)
+  alcance        String?  @db.VarChar(40)
+  marca          String?  @db.VarChar(20)
+  trenNumero     Int?     @map("tren_numero")
+  totalFilas     Int?     @map("total_filas")
+  filasValidas   Int?     @map("filas_validas")
+  filasInvalidas Int?     @map("filas_invalidas")
+  detalle        String?
+  usuarioId      String   @map("usuario_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  usuario User @relation(fields: [usuarioId], references: [id])
+
+  @@index([createdAt], map: "idx_migration_history_events_created_at")
+  @@index([tipo], map: "idx_migration_history_events_tipo")
+  @@map("migration_history_events")
 }
 
 // Registro de cada fila procesada del CSV. El estado se RECALCULA siempre por

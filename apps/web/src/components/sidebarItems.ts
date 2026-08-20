@@ -1,9 +1,11 @@
 import {
   ClipboardList,
+  Database,
   FolderUp,
   Gauge,
   LineChart,
   PenLine,
+  TrainFront,
   TrendingUp,
   type LucideIcon,
 } from 'lucide-react'
@@ -33,6 +35,8 @@ export const SECCIONES_SIDEBAR: SeccionSidebar[] = [
     items: [
       { etiqueta: 'Nuevas mediciones', ruta: '/nuevas-mediciones', icono: PenLine },
       { etiqueta: 'Mediciones', ruta: '/mediciones', icono: ClipboardList },
+      { etiqueta: 'Flota', ruta: '/fleet', icono: TrainFront, soloAdministrador: true },
+      { etiqueta: 'Relación de bogies', ruta: '/relacion-bogies', icono: Database },
       { etiqueta: 'Migración', ruta: '/migracion', icono: FolderUp, soloAdministrador: true },
     ],
   },

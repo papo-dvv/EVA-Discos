@@ -43,6 +43,7 @@ import {
   NewMeasurementValidationService,
   type FlagsFichaNivelRaiz,
 } from './new-measurement-validation.service';
+import { codigosBogiePorTren } from './new-measurement-bogie-codes';
 
 // kilometraje/kilometrajeOriginalCsv se exponen como number (nunca el
 // Prisma.Decimal crudo de MeasurementSheet): un Decimal serializa a STRING en
@@ -149,6 +150,10 @@ export class NewMeasurementPreviewService {
       cambios.corregidoTren =
         ficha.trenOriginalCsv !== null &&
         dto.trenNumero !== ficha.trenOriginalCsv;
+      if (dto.codigosBogie === undefined) {
+        cambios.codigosBogie =
+          codigosBogiePorTren(dto.trenNumero) ?? Prisma.JsonNull;
+      }
     }
     if (dto.kilometraje !== undefined) {
       cambios.kilometraje = dto.kilometraje;
@@ -620,8 +625,13 @@ export class NewMeasurementPreviewService {
         orderBy: { posicion: 'asc' },
       }),
     ]);
+    const codigosBogie =
+      (ficha.codigosBogie as Record<string, string> | null) ??
+      codigosBogiePorTren(ficha.trenNumero);
+
     return {
       ...ficha,
+      codigosBogie: codigosBogie ?? null,
       kilometraje: Number(ficha.kilometraje),
       kilometrajeOriginalCsv:
         ficha.kilometrajeOriginalCsv !== null

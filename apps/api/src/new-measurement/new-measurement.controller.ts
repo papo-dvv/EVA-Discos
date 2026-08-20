@@ -36,6 +36,7 @@ import { NewMeasurementPreviewService } from './new-measurement-preview.service'
 import { NewMeasurementReferenceService } from './new-measurement-reference.service';
 import { NewMeasurementValidationService } from './new-measurement-validation.service';
 import { NewMeasurementService } from './new-measurement.service';
+import type { RelacionBogieInput } from './new-measurement-bogie-codes';
 import { ReprofilingGeminiService } from './reprofiling-gemini.service';
 import { ReprofilingPdfService } from './reprofiling-pdf.service';
 
@@ -74,6 +75,29 @@ export class NewMeasurementController {
   @Get('historial')
   historial(@Query() query: HistorialQueryDto) {
     return this.historyService.listar(query.limit);
+  }
+
+  @Get('bogie-catalog')
+  catalogoBogies() {
+    return this.service.catalogoBogies();
+  }
+
+  @Post('bogie-catalog')
+  crearRelacionBogie(@Body() dto: RelacionBogieInput) {
+    return this.service.crearRelacionBogie(dto);
+  }
+
+  @Patch('bogie-catalog/:id')
+  actualizarRelacionBogie(
+    @Param('id') id: string,
+    @Body() dto: RelacionBogieInput,
+  ) {
+    return this.service.actualizarRelacionBogie(id, dto);
+  }
+
+  @Delete('bogie-catalog/:id')
+  eliminarRelacionBogie(@Param('id') id: string) {
+    return this.service.eliminarRelacionBogie(id);
   }
 
   @Post('upload')

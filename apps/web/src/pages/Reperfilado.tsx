@@ -3,7 +3,6 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { GlassButton } from '../components/GlassButton'
 import { GlassSurface } from '../components/GlassSurface'
-import { PantallaFondo } from '../components/PantallaFondo'
 import { SegmentedControl } from '../components/SegmentedControl'
 import { WarningTooltip } from '../components/WarningTooltip'
 import { FooterFicha } from '../features/new-measurement/components/FooterFicha'
@@ -23,12 +22,65 @@ import {
   obtenerFichaActiva,
 } from '../features/new-measurement/fichaActiva'
 import type {
+  FichaInstrumento,
   MotivoFicha,
   ResumenVerificacion,
 } from '../features/new-measurement/types'
 import { CargaInicialReperfilado } from '../features/reprofiling/CargaInicialReperfilado'
 import { HeaderReperfilado } from '../features/reprofiling/HeaderReperfilado'
 import { extraerMensajeError } from '../lib/extraerMensajeError'
+
+function valorConformidad(todasConformes: boolean | null): 'si' | 'no' | undefined {
+  if (todasConformes === null) return undefined
+  return todasConformes ? 'si' : 'no'
+}
+
+function juntarConY(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? ''
+  return `${items.slice(0, -1).join(', ')} y ${items.at(-1)}`
+}
+
+function problemaInstrumentos(instrumentos: FichaInstrumento[], fechaVerificacion: string): string | null {
+  const fecha = fechaVerificacion.slice(0, 10)
+  for (const instrumento of instrumentos) {
+    const valores = [
+      instrumento.codigo,
+      instrumento.descripcion,
+      instrumento.modeloMarca,
+      instrumento.fechaCalibracion,
+      instrumento.fechaVencimientoCalibracion,
+      instrumento.observaciones,
+    ].map((valor) => valor?.trim() ?? '')
+    if (valores.some(Boolean) && valores.some((valor) => !valor)) {
+      return `completar todos los campos del instrumento ${instrumento.posicion} o dejar esa fila vacía`
+    }
+    if (instrumento.fechaVencimientoCalibracion && instrumento.fechaVencimientoCalibracion.slice(0, 10) < fecha) {
+      return `corregir el vencimiento del instrumento ${instrumento.posicion}; no puede ser anterior a la fecha de verificación`
+    }
+    if (
+      instrumento.fechaCalibracion &&
+      instrumento.fechaVencimientoCalibracion &&
+      instrumento.fechaVencimientoCalibracion.slice(0, 10) < instrumento.fechaCalibracion.slice(0, 10)
+    ) {
+      return `corregir el vencimiento del instrumento ${instrumento.posicion}; no puede ser anterior a la fecha de calibración`
+    }
+  }
+  return null
+}
+
+function mensajeConfirmarBloqueado(
+  tablaBloqueada: boolean,
+  responsableVacio: boolean,
+  cabeceraIncompleta: boolean,
+  problemaInstrumentosFicha: string | null,
+): string {
+  const faltantes: string[] = []
+  if (!tablaBloqueada) faltantes.push('bloquear la tabla de reperfilado')
+  if (responsableVacio) faltantes.push('completar el Responsable de Mantenimiento')
+  if (cabeceraIncompleta) faltantes.push('completar el P.T. y la fecha/hora de inicio')
+  if (problemaInstrumentosFicha) faltantes.push(problemaInstrumentosFicha)
+  return `Falta ${juntarConY(faltantes)} para poder confirmar la ficha.`
+}
 
 export function Reperfilado() {
   const { fichaId } = useParams<{ fichaId?: string }>()
@@ -52,6 +104,8 @@ export function Reperfilado() {
   const cabeceraIncompleta =
     !ficha?.puestoTrabajo?.trim() ||
     !ficha?.fechaHoraInicio
+  const problemaInstrumentosFicha = ficha ? problemaInstrumentos(ficha.instrumentos, ficha.fechaFicha) : null
+  const puedeConfirmar = tablaBloqueada && !responsableVacio && !cabeceraIncompleta && !problemaInstrumentosFicha
   const motivosValidacion = resultado
     ? [
         resultado.kmInvalido?.motivo,
@@ -89,8 +143,8 @@ export function Reperfilado() {
   }
 
   return (
-    <PantallaFondo className="px-3 py-6 sm:px-5">
-      <div className="mx-auto max-w-[88rem]">
+    <div className="px-2 py-4 sm:px-3">
+      <div className="w-full">
         <GlassSurface className="rounded-glass px-6 py-4">
           <h1 className="font-display text-2xl font-semibold tracking-tight text-concreto-oscuro">
             Reperfilado
@@ -264,11 +318,7 @@ export function Reperfilado() {
                     { valor: 'no', etiqueta: 'No' },
                   ]}
                   valor={
-                    ficha.todasConformes === null
-                      ? undefined
-                      : ficha.todasConformes
-                        ? 'si'
-                        : 'no'
+                    valorConformidad(ficha.todasConformes)
                   }
                   onCambiar={(v) =>
                     editar.mutate({ todasConformes: v === 'si' })
@@ -283,7 +333,7 @@ export function Reperfilado() {
                 />
               )}
               <div className="mt-5 flex justify-end">
-                {tablaBloqueada && !responsableVacio && !cabeceraIncompleta ? (
+                {puedeConfirmar ? (
                   <GlassButton
                     cargando={confirmar.isPending}
                     onClick={() => setConfirmando(true)}
@@ -291,7 +341,7 @@ export function Reperfilado() {
                     Confirmar ficha
                   </GlassButton>
                 ) : (
-                  <WarningTooltip texto="Completa P.T. y fecha/hora de inicio, bloquea la tabla y registra el Responsable de Mantenimiento.">
+                  <WarningTooltip texto={mensajeConfirmarBloqueado(tablaBloqueada, responsableVacio, cabeceraIncompleta, problemaInstrumentosFicha)}>
                     <GlassButton
                       aria-disabled="true"
                       className="cursor-not-allowed opacity-60"
@@ -351,6 +401,6 @@ export function Reperfilado() {
           </ul>
         </ConfirmDialog>
       )}
-    </PantallaFondo>
+    </div>
   )
 }

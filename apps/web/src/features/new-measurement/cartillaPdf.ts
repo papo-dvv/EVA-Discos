@@ -8,6 +8,8 @@ const FILAS_Y = [710, 697, 684, 671, 644, 630, 617, 604, 577, 564, 551, 537, 511
 const COORDENADA_NUMERO_COCHE: Partial<Record<string, { x: number; y: number }>> = {
   REM: { x: 255, y: 476 },
 }
+const CODIGO_BOGIE_X = 32
+const CODIGO_BOGIE_Y_OFFSET = -7
 
 function texto(value: number | string | null | undefined, decimales = 2) {
   return typeof value === 'number' ? value.toFixed(decimales) : value?.trim() || ''
@@ -16,6 +18,10 @@ function texto(value: number | string | null | undefined, decimales = 2) {
 function fecha(value: string) {
   const [anio, mes, dia] = value.slice(0, 10).split('-')
   return anio && mes && dia ? `${dia}/${mes}/${anio}` : ''
+}
+
+function serieBogie(codigo: string) {
+  return codigo.includes('/') ? codigo.split('/').at(-1)?.trim() || codigo : codigo
 }
 
 function descargar(bytes: Uint8Array, nombre: string) {
@@ -97,6 +103,7 @@ export async function descargarCartillaPdf(ficha: FichaMedicion, esqueleto: Posi
       fila,
     ]),
   )
+  const codigosBogie = ficha.codigosBogie ?? {}
   // maximoAltoFirma calibrado contra la plantilla real (ver public/*.pdf):
   // Técnico 1/2 (y=79) solo tiene ~12pt libres antes de pisar el texto
   // "REALIZADO POR:" de arriba (baseline y≈91); Técnico 3/4 (y=55) tiene
@@ -134,6 +141,14 @@ export async function descargarCartillaPdf(ficha: FichaMedicion, esqueleto: Posi
     if (numeroCoche !== null && numeroCoche !== undefined) {
       const coordenadaNumero = COORDENADA_NUMERO_COCHE[coche] ?? { x: 255, y: FILAS_Y[indiceCoche * 4 + 2] }
       escribirCentrado(page, String(numeroCoche), coordenadaNumero.x, coordenadaNumero.y, 6)
+    }
+
+    for (const ejeInicio of [1, 3]) {
+      const fila = filasPorPosicion.get(`${coche}|${indiceCoche * 4 + ejeInicio}`)
+      const codigo = fila ? codigosBogie[`${fila.tipoCoche}:${fila.bogieCodigo}`] : ''
+      if (codigo) {
+        escribirCentrado(page, serieBogie(codigo), CODIGO_BOGIE_X, FILAS_Y[indiceCoche * 4 + ejeInicio - 1] + CODIGO_BOGIE_Y_OFFSET, 5)
+      }
     }
   }
 

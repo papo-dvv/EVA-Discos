@@ -2,8 +2,9 @@ import { GlassDatePicker } from '../../../components/GlassDatePicker'
 import { GlassField } from '../../../components/GlassField'
 import { WarningTooltip } from '../../../components/WarningTooltip'
 import { useSyncedState } from '../../../hooks/useSyncedState'
-import { aFechaCorta } from '../fecha'
+import { aFechaCorta, fechaHoyCorta } from '../fecha'
 import type { CambiosFicha, FichaMedicion, ReferenciaUltimaMedicion } from '../types'
+import { BotonFechaHoy } from './BotonFechaHoy'
 
 type Props = {
   ficha: FichaMedicion
@@ -60,6 +61,7 @@ export function HeaderFicha({
   let claseResaltadoPt = ''
   if (resaltarPt) claseResaltadoPt = 'ring-2 ring-[color:var(--color-estado-seguimiento)] transition-shadow'
   else if (ptVacio) claseResaltadoPt = 'ring-1 ring-[color:var(--color-estado-critico)]/50'
+  const fechaReferencia = referencia?.fecha ? aFechaCorta(referencia.fecha) : null
 
   return (
     <div className="space-y-4">
@@ -69,13 +71,15 @@ export function HeaderFicha({
           los ubica en las columnas 1-2 de la fila siguiente, con el mismo
           ancho que el resto de los inputs, sin flotar centrados. */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:items-end lg:grid-cols-4">
-        <div>
+        <div className="self-stretch">
           <p className="mb-1.5 font-body text-xs font-semibold uppercase tracking-[0.1em] text-concreto">
             Actividad
           </p>
-          <p className="font-display text-sm font-semibold text-concreto-oscuro">
-            ACTIVIDAD: {ficha.actividad}
-          </p>
+          <div className="flex min-h-[3rem] items-center rounded-2xl border border-transparent py-2">
+            <p className="font-display text-sm font-semibold leading-snug text-concreto-oscuro">
+              ACTIVIDAD: {ficha.actividad}
+            </p>
+          </div>
         </div>
 
         <div className="flex items-end gap-1.5">
@@ -88,6 +92,13 @@ export function HeaderFicha({
               if (iso && iso !== aFechaCorta(ficha.fechaFicha)) onGuardar({ fechaFicha: iso })
             }}
             className="flex-1"
+          />
+          <BotonFechaHoy
+            onClick={() => {
+              const hoy = fechaHoyCorta()
+              setFecha(hoy)
+              if (hoy !== aFechaCorta(ficha.fechaFicha)) onGuardar({ fechaFicha: hoy })
+            }}
           />
           {fechaInvalido && (
             <WarningTooltip
@@ -124,11 +135,13 @@ export function HeaderFicha({
           )}
         </div>
 
-        <div>
+        <div className="self-stretch">
           <p className="mb-1.5 font-body text-xs font-semibold uppercase tracking-[0.1em] text-concreto">
             Unidad
           </p>
-          <p className="font-display text-sm font-semibold text-concreto-oscuro">mm · CONTROL DISCO DE FRENO</p>
+          <div className="flex min-h-[3rem] items-center rounded-2xl border border-transparent py-2">
+            <p className="font-display text-sm font-semibold leading-snug text-concreto-oscuro">mm · CONTROL DISCO DE FRENO</p>
+          </div>
         </div>
 
         {/* id usado por NuevasMediciones.tsx para el scroll de "Llenar ahora" (modal de bloqueo) */}
@@ -155,37 +168,44 @@ export function HeaderFicha({
           />
         </div>
 
-        <div className="flex items-end gap-1.5">
-          <GlassField
-            label="Kilometraje"
-            type="number"
-            step="any"
-            value={kilometraje}
-            disabled={deshabilitada}
-            onChange={(e) => setKilometraje(e.target.value)}
-            onBlur={() => {
-              const n = Number(kilometraje)
-              if (kilometraje.trim() !== '' && Number.isFinite(n) && n !== ficha.kilometraje) {
-                onGuardar({ kilometraje: n })
-              }
-            }}
-            contenedorClassName="flex-1"
-          />
-          {discrepanciaKm && (
-            <WarningTooltip
-              texto={`El CSV traía ${ficha.kilometrajeOriginalCsv} km; se está usando ${ficha.kilometraje} km.`}
-              className="mb-3"
-            >
-              ⚠️
-            </WarningTooltip>
-          )}
-          {kmInvalido && (
-            <WarningTooltip
-              texto={`${kmInvalido.motivo}${referencia ? ' — último confirmado: ' + referencia.kilometraje + ' km.' : '.'}`}
-              className="mb-3"
-            >
-              ⚠️
-            </WarningTooltip>
+        <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-2">
+          <div className="flex w-full max-w-[22.34rem] items-end gap-1.5">
+            <GlassField
+              label="Kilometraje"
+              type="number"
+              step="any"
+              value={kilometraje}
+              disabled={deshabilitada}
+              onChange={(e) => setKilometraje(e.target.value)}
+              onBlur={() => {
+                const n = Number(kilometraje)
+                if (kilometraje.trim() !== '' && Number.isFinite(n) && n !== ficha.kilometraje) {
+                  onGuardar({ kilometraje: n })
+                }
+              }}
+              contenedorClassName="flex-1"
+            />
+            {discrepanciaKm && (
+              <WarningTooltip
+                texto={`El CSV traía ${ficha.kilometrajeOriginalCsv} km; se está usando ${ficha.kilometraje} km.`}
+                className="mb-3"
+              >
+                ⚠️
+              </WarningTooltip>
+            )}
+            {kmInvalido && (
+              <WarningTooltip
+                texto={`${kmInvalido.motivo}${referencia ? ' — último confirmado: ' + referencia.kilometraje + ' km.' : '.'}`}
+                className="mb-3"
+              >
+                ⚠️
+              </WarningTooltip>
+            )}
+          </div>
+          {referencia && (
+            <p className="mb-3 shrink-0 whitespace-nowrap font-body text-[0.6875rem] font-medium leading-snug text-concreto">
+              Última registrada: {fechaReferencia ?? '—'} · {referencia.kilometraje} km
+            </p>
           )}
         </div>
       </div>

@@ -1,13 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   agregarFilaFicha,
+  actualizarRelacionBogie,
   bloquearFicha,
   cancelarFicha,
   confirmarFicha,
+  crearRelacionBogie,
   editarFicha,
   editarFilaFicha,
+  eliminarRelacionBogie,
   eliminarFilaFicha,
   obtenerHistorialMediciones,
+  obtenerCatalogoBogies,
   obtenerPreviewFicha,
   obtenerReferenciaFicha,
   reiniciarFicha,
@@ -20,6 +24,7 @@ import type {
   PreviewParams,
   TipoReferencia,
 } from './types'
+import type { RelacionBogieInput as RelacionBogieInputApi } from './api'
 
 // Hooks de una ficha de medición individual — espejo de features/migration/queries.ts
 // (que además importa los de lectura compartidos de features/scan-records/queries;
@@ -30,6 +35,7 @@ const claveRaiz = (fichaId: string) => ['new-measurement', fichaId] as const
 const clavePreview = (fichaId: string, params: PreviewParams) =>
   ['new-measurement', fichaId, 'preview', params] as const
 const claveHistorial = ['new-measurement', 'historial'] as const
+const claveCatalogoBogies = ['new-measurement', 'bogie-catalog'] as const
 
 // Feed global (todos los trenes) de la card de historial — ver
 // PanelHistorialMediciones. Se invalida desde las mutaciones que generan un
@@ -45,6 +51,38 @@ export function useHistorialMediciones(limit?: number) {
 export function useInvalidarHistorialMediciones() {
   const queryClient = useQueryClient()
   return () => queryClient.invalidateQueries({ queryKey: claveHistorial })
+}
+
+export function useCatalogoBogies() {
+  return useQuery({
+    queryKey: claveCatalogoBogies,
+    queryFn: obtenerCatalogoBogies,
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
+export function useCrearRelacionBogie() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (dto: RelacionBogieInputApi) => crearRelacionBogie(dto),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: claveCatalogoBogies }),
+  })
+}
+
+export function useActualizarRelacionBogie() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, dto }: { id: string; dto: RelacionBogieInputApi }) => actualizarRelacionBogie(id, dto),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: claveCatalogoBogies }),
+  })
+}
+
+export function useEliminarRelacionBogie() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => eliminarRelacionBogie(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: claveCatalogoBogies }),
+  })
 }
 
 export function useFichaPreview(fichaId: string, params: PreviewParams) {

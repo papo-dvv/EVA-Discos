@@ -4,6 +4,7 @@ import { ModuleSnapshotModule } from '../module-snapshot/module-snapshot.module'
 import { WearRateModule } from '../wear-rate/wear-rate.module';
 import { MigrationController } from './migration.controller';
 import { MigrationCommitService } from './migration-commit.service';
+import { MigrationHistoryService } from './migration-history.service';
 import { MigrationPreviewService } from './migration-preview.service';
 import { MigrationService } from './migration.service';
 
@@ -17,6 +18,7 @@ import { MigrationService } from './migration.service';
     MigrationService,
     MigrationPreviewService,
     MigrationCommitService,
+    MigrationHistoryService,
   ],
 })
 export class MigrationModule {}

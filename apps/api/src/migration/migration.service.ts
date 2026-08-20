@@ -12,6 +12,7 @@ import {
   type FilaMigracion,
   type HojaConError,
 } from './migration-excel.parser';
+import { MigrationHistoryService } from './migration-history.service';
 
 export interface ResumenMigracion {
   fileId: string;
@@ -41,6 +42,7 @@ export class MigrationService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly brakeDiscRules: BrakeDiscRulesService,
+    private readonly history: MigrationHistoryService,
   ) {}
 
   async procesarUpload(
@@ -125,6 +127,21 @@ export class MigrationService {
         for (const lote of enLotes(editLogs, LOTE_INSERCION)) {
           await tx.scanEditLog.createMany({ data: lote });
         }
+
+        await this.history.registrar(
+          {
+            tipo: 'migracion_subida',
+            fileId: uploadedFile.id,
+            nombreArchivo: archivo.originalname,
+            alcance: 'marca',
+            marca: 'ALSTOM',
+            totalFilas: resultado.totalFilasLeidas,
+            filasValidas: resultado.filas.length,
+            filasInvalidas: resultado.filasInvalidas.length,
+            usuarioId,
+          },
+          tx,
+        );
 
         return uploadedFile.id;
       },

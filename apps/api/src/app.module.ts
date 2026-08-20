@@ -5,6 +5,7 @@ import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { BrakeDiscRulesModule } from './brake-disc-rules/brake-disc-rules.module';
 import { FleetCompletenessModule } from './fleet-completeness/fleet-completeness.module';
+import { FleetModule } from './fleet/fleet.module';
 import { MeasurementGapModule } from './measurement-gap/measurement-gap.module';
 import { MigrationModule } from './migration/migration.module';
 import { ModuleSnapshotModule } from './module-snapshot/module-snapshot.module';
@@ -26,6 +27,7 @@ import { WearRateModule } from './wear-rate/wear-rate.module';
     AuthModule,
     BrakeDiscRulesModule,
     FleetCompletenessModule,
+    FleetModule,
     MeasurementGapModule,
     MigrationModule,
     ModuleSnapshotModule,

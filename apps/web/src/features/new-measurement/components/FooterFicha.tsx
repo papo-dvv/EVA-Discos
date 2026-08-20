@@ -1,11 +1,10 @@
-import { CalendarClock } from 'lucide-react'
 import { useState } from 'react'
-import { GlassButton } from '../../../components/GlassButton'
 import { GlassSurface } from '../../../components/GlassSurface'
 import { WarningTooltip } from '../../../components/WarningTooltip'
 import { useSyncedState } from '../../../hooks/useSyncedState'
 import { aFechaCorta, fechaHoyCorta } from '../fecha'
 import type { CambiosFicha, FichaInstrumento, FichaMedicion, FichaTecnico } from '../types'
+import { BotonFechaHoy } from './BotonFechaHoy'
 import { FirmaDigital } from './FirmaDigital'
 
 type Props = {
@@ -329,23 +328,5 @@ function BloqueResponsable({
         </div>
       </div>
     </div>
-  )
-}
-
-// Botón compartido (técnicos + Ing.MR/Responsable de Mantenimiento) para
-// completar el campo de fecha con la fecha actual sin tipear — la mayoría de
-// las firmas se hacen el mismo día de la medición.
-function BotonFechaHoy({ onClick }: { onClick: () => void }) {
-  return (
-    <GlassButton
-      type="button"
-      variante="secundario"
-      onClick={onClick}
-      aria-label="Usar fecha de hoy"
-      title="Usar fecha de hoy"
-      className="px-2 py-1.5"
-    >
-      <CalendarClock size={14} aria-hidden />
-    </GlassButton>
   )
 }

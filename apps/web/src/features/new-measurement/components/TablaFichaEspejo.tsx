@@ -4,7 +4,7 @@ import { WarningTooltip } from '../../../components/WarningTooltip'
 import { useSyncedState } from '../../../hooks/useSyncedState'
 import { useAgregarFilaFicha, useEditarFilaFicha } from '../queries'
 import { construirFilasEspejo, type FilaEspejo, type LadoFilaEspejo } from '../filaEspejo'
-import type { CampoInvalido, EstadoDisco, MotivoInvalido, PosicionEsqueleto, PreviewRow } from '../types'
+import type { CampoInvalido, CodigosBogie, EstadoDisco, MotivoInvalido, PosicionEsqueleto, PreviewRow } from '../types'
 
 type Lado = 'izquierdo' | 'derecho'
 
@@ -12,6 +12,7 @@ type Props = {
   fichaId: string
   esqueleto: PosicionEsqueleto[]
   rows: PreviewRow[]
+  codigosBogie?: CodigosBogie | null
   deshabilitada?: boolean
   // true recién después de que el usuario presionó "Verificar" al menos una
   // vez (ver NuevasMediciones.tsx: se activa con la response de POST
@@ -37,6 +38,7 @@ export function TablaFichaEspejo({
   fichaId,
   esqueleto,
   rows,
+  codigosBogie = null,
   deshabilitada = false,
   resaltarInvalidos = false,
 }: Props) {
@@ -115,6 +117,7 @@ export function TablaFichaEspejo({
                 deshabilitada={deshabilitada}
                 resaltarInvalidos={resaltarInvalidos}
                 mostrarColumnaMotivo={mostrarColumnaMotivo}
+                codigosBogie={codigosBogie}
               />
             ))}
           </tbody>
@@ -218,18 +221,24 @@ function useLadoEditable(fichaId: string, eje: number, lado: Lado, datos: LadoFi
 const CLASE_RESALTADO =
   'ring-1 ring-inset ring-[color:var(--color-estado-seguimiento)] bg-[color:var(--color-estado-seguimiento)]/10 rounded-lg'
 
+function serieBogie(codigo: string): string {
+  return codigo.includes('/') ? codigo.split('/').at(-1)?.trim() || codigo : codigo
+}
+
 function FilaEspejoRow({
   fichaId,
   fila,
   deshabilitada,
   resaltarInvalidos,
   mostrarColumnaMotivo,
+  codigosBogie,
 }: {
   fichaId: string
   fila: FilaEspejo
   deshabilitada: boolean
   resaltarInvalidos: boolean
   mostrarColumnaMotivo: boolean
+  codigosBogie: CodigosBogie | null
 }) {
   const izq = useLadoEditable(fichaId, fila.ejeNumero, 'izquierdo', fila.izquierdo)
   const der = useLadoEditable(fichaId, fila.ejeNumero, 'derecho', fila.derecho)
@@ -254,7 +263,14 @@ function FilaEspejoRow({
         </td>
       )}
 
-      <Celda>{fila.bogieCodigo}</Celda>
+      <Celda>
+        <span className="block font-semibold">{fila.bogieCodigo}</span>
+        {codigosBogie?.[`${fila.tipoCoche}:${fila.bogieCodigo}`] && (
+          <span className="mt-0.5 block font-data text-[0.6875rem] leading-none text-concreto">
+            {serieBogie(codigosBogie[`${fila.tipoCoche}:${fila.bogieCodigo}`] ?? '')}
+          </span>
+        )}
+      </Celda>
       <CeldaEstado estado={fila.izquierdo.estadoCalculado} />
       <Celda mono className={resaltarRdIzq ? CLASE_RESALTADO : ''}>
         {fila.izquierdo.rdValue !== null ? fila.izquierdo.rdValue.toFixed(2) : '—'}

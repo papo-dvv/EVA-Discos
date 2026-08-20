@@ -5,6 +5,8 @@ import { MainLayout } from './components/MainLayout'
 import { DevComponentes } from './pages/dev/DevComponentes'
 import { CambiarPasswordObligatorio } from './pages/CambiarPasswordObligatorio'
 import { Galeria } from './pages/Galeria'
+import { Flota } from './pages/Flota'
+import { FlotaDetalle } from './pages/FlotaDetalle'
 import { Inicio } from './pages/Inicio'
 import { Login } from './pages/Login'
 import { MedicionesConfirmadas } from './pages/MedicionesConfirmadas'
@@ -12,6 +14,7 @@ import { MigracionPreview } from './pages/MigracionPreview'
 import { MigracionUpload } from './pages/MigracionUpload'
 import { NuevasMediciones } from './pages/NuevasMediciones'
 import { Proyeccion } from './pages/Proyeccion'
+import { RelacionBogies } from './pages/RelacionBogies'
 import { Reperfilado } from './pages/Reperfilado'
 import { TasaDesgaste } from './pages/TasaDesgaste'
 import { Trazabilidad } from './pages/Trazabilidad'
@@ -73,9 +76,12 @@ function App() {
       >
         <Route path="/" element={<Inicio />} />
         <Route path="/mediciones" element={<MedicionesConfirmadas />} />
+        <Route path="/fleet" element={<Flota />} />
+        <Route path="/fleet/:tren" element={<FlotaDetalle />} />
         <Route path="/tasa-desgaste" element={<TasaDesgaste />} />
         <Route path="/trazabilidad" element={<Trazabilidad />} />
         <Route path="/proyeccion" element={<Proyeccion />} />
+        <Route path="/relacion-bogies" element={<RelacionBogies />} />
         <Route path="/migracion" element={<MigracionUpload />} />
         <Route path="/migracion/:fileId" element={<MigracionPreview />} />
         <Route path="/nuevas-mediciones" element={<NuevasMediciones />} />

@@ -21,9 +21,11 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import type { AuthenticatedUser } from '../auth/interfaces/jwt-payload.interface';
 import { ValoresDistintosQueryDto } from '../scan-records/dto/valores-distintos-query.dto';
+import { MigrationHistorialQueryDto } from './dto/migration-historial-query.dto';
 import { PreviewQueryDto } from './dto/preview-query.dto';
 import { UpdateRowDto } from './dto/update-row.dto';
 import { MigrationCommitService } from './migration-commit.service';
+import { MigrationHistoryService } from './migration-history.service';
 import { MigrationPreviewService } from './migration-preview.service';
 import { MigrationService, type ResumenMigracion } from './migration.service';
 
@@ -49,7 +51,13 @@ export class MigrationController {
     private readonly migrationService: MigrationService,
     private readonly previewService: MigrationPreviewService,
     private readonly commitService: MigrationCommitService,
+    private readonly historyService: MigrationHistoryService,
   ) {}
+
+  @Get('historial')
+  historial(@Query() query: MigrationHistorialQueryDto) {
+    return this.historyService.listar(query.limit);
+  }
 
   @Post('upload')
   @UseInterceptors(
@@ -152,7 +160,10 @@ export class MigrationController {
   }
 
   @Delete(':fileId')
-  cancelar(@Param('fileId', ParseUUIDPipe) fileId: string) {
-    return this.commitService.cancelar(fileId);
+  cancelar(
+    @Param('fileId', ParseUUIDPipe) fileId: string,
+    @CurrentUser() usuario: AuthenticatedUser,
+  ) {
+    return this.commitService.cancelar(fileId, usuario.userId);
   }
 }

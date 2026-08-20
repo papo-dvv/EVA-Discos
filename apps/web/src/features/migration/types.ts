@@ -51,3 +51,24 @@ export interface ResumenMigracion {
   hojasConError: HojaConError[]
   detalleDiscrepancias: Discrepancia[]
 }
+
+export type TipoEventoHistorialMigracion =
+  | 'migracion_subida'
+  | 'migracion_confirmada'
+  | 'migracion_cancelada'
+
+export interface EventoHistorialMigracionApi {
+  id: string
+  tipo: TipoEventoHistorialMigracion
+  fileId: string | null
+  nombreArchivo: string | null
+  alcance: string | null
+  marca: string | null
+  trenNumero: number | null
+  totalFilas: number | null
+  filasValidas: number | null
+  filasInvalidas: number | null
+  detalle: string | null
+  usuarioNombre: string
+  createdAt: string
+}

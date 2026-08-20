@@ -212,6 +212,48 @@ export async function obtenerReferenciaFicha(
   return data
 }
 
+export type RelacionBogieCatalogo = {
+  id: string
+  trenNumero: number
+  trenCodigo: string
+  coche: string
+  numeroCoche: number | null
+  posicion: string
+  serieBogie: string
+  bogieActual: string
+  ejeActual: string | null
+  fechaUltimoCambio: string | null
+}
+
+export type RelacionBogieInput = {
+  trenNumero: number
+  coche: string
+  posicion: string
+  serieBogie: string
+  ejeActual?: string | null
+  fechaUltimoCambio?: string | null
+}
+
+export async function obtenerCatalogoBogies(): Promise<RelacionBogieCatalogo[]> {
+  const { data } = await apiClient.get<RelacionBogieCatalogo[]>('/new-measurement/bogie-catalog')
+  return data
+}
+
+export async function crearRelacionBogie(dto: RelacionBogieInput): Promise<RelacionBogieCatalogo> {
+  const { data } = await apiClient.post<RelacionBogieCatalogo>('/new-measurement/bogie-catalog', dto)
+  return data
+}
+
+export async function actualizarRelacionBogie(id: string, dto: RelacionBogieInput): Promise<RelacionBogieCatalogo> {
+  const { data } = await apiClient.patch<RelacionBogieCatalogo>(`/new-measurement/bogie-catalog/${encodeURIComponent(id)}`, dto)
+  return data
+}
+
+export async function eliminarRelacionBogie(id: string): Promise<{ eliminada: true }> {
+  const { data } = await apiClient.delete<{ eliminada: true }>(`/new-measurement/bogie-catalog/${encodeURIComponent(id)}`)
+  return data
+}
+
 export async function confirmarFicha(
   fichaId: string,
 ): Promise<ResumenCommitMedicion> {

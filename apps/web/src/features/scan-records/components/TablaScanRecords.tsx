@@ -28,6 +28,9 @@ type Props = {
   onEditar?: (row: PreviewRow) => void
   onEliminar?: (row: PreviewRow) => void
   accionesDeshabilitadas?: boolean
+  compacta?: boolean
+  sinScrollInterno?: boolean
+  scrollHorizontal?: boolean
 }
 
 export function TablaScanRecords({
@@ -38,10 +41,13 @@ export function TablaScanRecords({
   onEditar,
   onEliminar,
   accionesDeshabilitadas = false,
+  compacta = false,
+  sinScrollInterno = false,
+  scrollHorizontal = false,
 }: Props) {
   const columns = useMemo(
-    () => construirColumnas(onEditar, onEliminar, accionesDeshabilitadas),
-    [onEditar, onEliminar, accionesDeshabilitadas],
+    () => construirColumnas(onEditar, onEliminar, accionesDeshabilitadas, compacta),
+    [onEditar, onEliminar, accionesDeshabilitadas, compacta],
   )
 
   const table = useReactTable({
@@ -58,10 +64,12 @@ export function TablaScanRecords({
     getCoreRowModel: getCoreRowModel(),
   })
 
-  return (
-    <GlassSurface fuerte className="mt-4 overflow-hidden rounded-glass">
-      <ScrollArea ejes="both" viewportClassName="max-h-[64vh]">
-        <table className="w-full border-collapse text-left font-body text-[0.8125rem]">
+  const tabla = (
+    <table
+      className={`border-collapse text-left font-body ${
+        compacta ? 'min-w-[72rem] table-fixed text-[0.71rem]' : 'w-full text-[0.8125rem]'
+      }`}
+    >
           <thead>
             {table.getHeaderGroups().map((hg) => (
               <tr key={hg.id} className="border-b border-concreto/20">
@@ -73,7 +81,13 @@ export function TablaScanRecords({
                     <th
                       key={header.id}
                       onClick={puedeOrdenar ? header.column.getToggleSortingHandler() : undefined}
-                      className={`sticky top-0 z-[1] whitespace-nowrap bg-[color:var(--color-arena-suave)] px-3 py-3 text-xs font-semibold uppercase tracking-wide text-concreto ${
+                      className={`bg-[color:var(--color-arena-suave)] font-semibold uppercase tracking-wide text-concreto ${
+                        sinScrollInterno ? '' : 'sticky top-0 z-[1]'
+                      } ${
+                        compacta
+                          ? 'whitespace-normal break-words px-1 py-2 text-[0.6875rem] leading-tight'
+                          : 'whitespace-nowrap px-3 py-3 text-xs'
+                      } ${
                         mono ? 'text-right' : 'text-left'
                       } ${puedeOrdenar ? 'cursor-pointer select-none hover:text-concreto-oscuro' : ''}`}
                     >
@@ -93,9 +107,14 @@ export function TablaScanRecords({
                   return (
                     <td
                       key={cell.id}
-                      className={`whitespace-nowrap px-3 py-2.5 text-concreto-oscuro ${
+                      className={`overflow-hidden text-concreto-oscuro ${
+                        compacta
+                          ? 'whitespace-nowrap px-1 py-2 leading-tight'
+                          : 'whitespace-nowrap px-3 py-2.5'
+                      } ${
                         mono ? 'text-right font-data' : ''
                       }`}
+                      title={String(cell.getValue() ?? '')}
                     >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>
@@ -112,7 +131,21 @@ export function TablaScanRecords({
             )}
           </tbody>
         </table>
+  )
+
+  return (
+    <GlassSurface fuerte className={`mt-4 rounded-glass ${sinScrollInterno ? 'overflow-visible' : 'overflow-hidden'}`}>
+      {sinScrollInterno && scrollHorizontal ? (
+        <ScrollArea ejes="x">
+          {tabla}
+        </ScrollArea>
+      ) : sinScrollInterno ? (
+        tabla
+      ) : (
+        <ScrollArea ejes="both" viewportClassName="max-h-[64vh]">
+          {tabla}
       </ScrollArea>
+      )}
     </GlassSurface>
   )
 }
@@ -138,6 +171,7 @@ function construirColumnas(
   onEditar: ((row: PreviewRow) => void) | undefined,
   onEliminar: ((row: PreviewRow) => void) | undefined,
   deshabilitado: boolean,
+  compacta: boolean,
 ) {
   const columnas = [
     columnHelper.display({
@@ -188,7 +222,7 @@ function construirColumnas(
     columnHelper.accessor('estadoCalculado', {
       id: 'estado',
       header: 'Estado',
-      cell: ({ getValue }) => <EstadoChip estado={getValue()} />,
+      cell: ({ getValue }) => <EstadoChip estado={getValue()} compacta={compacta} />,
     }),
   ]
 
@@ -205,7 +239,9 @@ function construirColumnas(
                 type="button"
                 onClick={() => onEditar(row.original)}
                 disabled={deshabilitado}
-                className="rounded-full border border-concreto/30 px-3 py-1 font-body text-xs text-concreto-oscuro transition-colors hover:bg-white/60 disabled:opacity-40"
+                className={`rounded-full border border-concreto/30 font-body text-concreto-oscuro transition-colors hover:bg-white/60 disabled:opacity-40 ${
+                  compacta ? 'px-2 py-0.5 text-[0.71rem]' : 'px-3 py-1 text-xs'
+                }`}
               >
                 Editar
               </button>
@@ -215,7 +251,9 @@ function construirColumnas(
                 type="button"
                 onClick={() => onEliminar(row.original)}
                 disabled={deshabilitado}
-                className="rounded-full border border-[color:var(--color-estado-critico)]/40 px-3 py-1 font-body text-xs text-[color:var(--color-estado-critico)] transition-colors hover:bg-white/60 disabled:opacity-40"
+                className={`rounded-full border border-[color:var(--color-estado-critico)]/40 font-body text-[color:var(--color-estado-critico)] transition-colors hover:bg-white/60 disabled:opacity-40 ${
+                  compacta ? 'px-2 py-0.5 text-[0.71rem]' : 'px-3 py-1 text-xs'
+                }`}
               >
                 Eliminar
               </button>
@@ -240,9 +278,15 @@ const CLASE_CHIP_ESTADO: Record<string, string> = {
   REPERFILADO: 'tabla-chip--reperfilado',
 }
 
-function EstadoChip({ estado }: { estado: string | null }) {
+function EstadoChip({ estado, compacta = false }: { estado: string | null; compacta?: boolean }) {
   if (!estado) return null
-  return <span className={`tabla-chip ${CLASE_CHIP_ESTADO[estado] ?? ''}`}>{estado}</span>
+  return (
+    <span
+      className={`tabla-chip ${compacta ? '!px-2 !py-1 !text-[0.71rem]' : ''} ${CLASE_CHIP_ESTADO[estado] ?? ''}`}
+    >
+      {estado}
+    </span>
+  )
 }
 
 // Cálculo puro en frontend, sin campo propio en PreviewRow: impar =

@@ -42,22 +42,40 @@ export function TablaFichaReperfilado({
     [esqueleto, rows],
   )
   const [soloPendientes, setSoloPendientes] = useState(false)
+  const ladoTocado = (lado: LadoFilaEspejo) =>
+    lado.recordId !== null ||
+    lado.reperfiladoTAntes !== null ||
+    lado.reperfiladoHAntes !== null ||
+    lado.tValue !== null ||
+    lado.hValue !== null ||
+    lado.rugosidadRa !== null
   const ladoCompleto = (lado: LadoFilaEspejo) =>
+    !ladoTocado(lado) ||
     lado.reperfiladoTAntes !== null &&
     lado.reperfiladoHAntes !== null &&
     lado.tValue !== null &&
     lado.hValue !== null &&
     (lado.rugosidadRa !== null || lado.recordId !== null)
+  const ladoMedido = (lado: LadoFilaEspejo) => ladoTocado(lado) && ladoCompleto(lado)
   const ladosCompletos = filas.reduce(
     (total, fila) =>
-      total +
-      Number(ladoCompleto(fila.izquierdo)) +
-      Number(ladoCompleto(fila.derecho)),
+      total + Number(ladoMedido(fila.izquierdo)) + Number(ladoMedido(fila.derecho)),
     0,
   )
-  const totalLados = filas.length * 2
-  const porcentaje = totalLados
-    ? Math.round((ladosCompletos / totalLados) * 100)
+  const ladosTocados = filas.reduce(
+    (total, fila) =>
+      total + Number(ladoTocado(fila.izquierdo)) + Number(ladoTocado(fila.derecho)),
+    0,
+  )
+  const ladosPendientes = filas.reduce(
+    (total, fila) =>
+      total +
+      Number(ladoTocado(fila.izquierdo) && !ladoCompleto(fila.izquierdo)) +
+      Number(ladoTocado(fila.derecho) && !ladoCompleto(fila.derecho)),
+    0,
+  )
+  const porcentaje = ladosTocados
+    ? Math.round((ladosCompletos / ladosTocados) * 100)
     : 0
   const fueraDeLimite = filas.reduce((total, fila) => {
     const lados = [fila.izquierdo, fila.derecho]
@@ -71,7 +89,8 @@ export function TablaFichaReperfilado({
   const filasVisibles = soloPendientes
     ? filas.filter(
         (fila) =>
-          !ladoCompleto(fila.izquierdo) || !ladoCompleto(fila.derecho),
+          (ladoTocado(fila.izquierdo) && !ladoCompleto(fila.izquierdo)) ||
+          (ladoTocado(fila.derecho) && !ladoCompleto(fila.derecho)),
       )
     : filas
   const cochesActuales = Object.fromEntries(TIPOS_COCHE.map((tipo) => [
@@ -106,8 +125,8 @@ export function TablaFichaReperfilado({
           </button>
         </div>
         <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
-          <ResumenDato etiqueta="Completados" valor={`${ladosCompletos}/${totalLados}`} />
-          <ResumenDato etiqueta="Pendientes" valor={String(totalLados - ladosCompletos)} />
+          <ResumenDato etiqueta="Medidos" valor={String(ladosCompletos)} />
+          <ResumenDato etiqueta="Pendientes" valor={String(ladosPendientes)} />
           <div className="col-span-2 rounded-2xl border border-concreto/10 bg-white/45 px-3 py-2 sm:col-span-1">
             <div className="flex items-center justify-between font-body text-[0.6875rem] text-concreto">
               <span>Avance</span>
@@ -121,9 +140,9 @@ export function TablaFichaReperfilado({
             </div>
           </div>
         </div>
-        {(totalLados - ladosCompletos > 0 || fueraDeLimite > 0) && (
+        {(ladosPendientes > 0 || fueraDeLimite > 0) && (
           <div role="alert" className="mt-3 flex flex-wrap gap-x-5 gap-y-1 rounded-2xl border border-amber-600/20 bg-amber-50/60 px-4 py-2.5 text-xs text-amber-900">
-            {totalLados - ladosCompletos > 0 && <span>⚠ Faltan {totalLados - ladosCompletos} posiciones por completar.</span>}
+            {ladosPendientes > 0 && <span>⚠ Hay {ladosPendientes} posición(es) iniciadas sin completar.</span>}
             {fueraDeLimite > 0 && <span>⚠ {fueraDeLimite} posiciones necesitan revisión.</span>}
           </div>
         )}

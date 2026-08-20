@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ClipboardPenLine, Download, RefreshCcw, Ruler } from 'lucide-react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { GlassButton } from '../components/GlassButton'
 import { GlassSurface } from '../components/GlassSurface'
@@ -133,6 +133,7 @@ function mensajeEstadoVerificacion(
 export function NuevasMediciones() {
   const { fichaId } = useParams<{ fichaId?: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
   const [motivo, setMotivo] = useState<MotivoFicha | undefined>(fichaId ? 'Medición' : undefined)
   const [cancelando, setCancelando] = useState(false)
   const [confirmando, setConfirmando] = useState(false)
@@ -154,13 +155,11 @@ export function NuevasMediciones() {
   // los pocos segundos, no dependen de que el usuario complete el campo.
   const [resaltarPt, setResaltarPt] = useState(false)
   const [resaltarConformidad, setResaltarConformidad] = useState(false)
-  // fichaId pendiente de auto-verificar apenas termine de cargar (ver
-  // manejarFichaCreada/efecto más abajo) — SOLO se setea desde el flujo de
-  // carga por CSV (CargaInicialFicha.onCreada con autoVerificar=true), nunca
-  // en modo manual. Vive en un ref (no en query param ni router state) para
-  // no depender de cómo React Router decida remontar o no este componente
-  // entre /nuevas-mediciones y /nuevas-mediciones/:fichaId.
-  const autoVerificarPendiente = useRef<string | null>(null)
+  const verificarCardRef = useRef<HTMLDivElement>(null)
+  const [verificarFlotante, setVerificarFlotante] = useState(false)
+  const [verificarRect, setVerificarRect] = useState({ left: 0, width: 0 })
+  const autoVerificarPendiente =
+    (location.state as { autoVerificar?: boolean } | null)?.autoVerificar === true
 
   const preview = useFichaPreview(fichaId ?? '', { page: 1, pageSize: 100 })
   const editarFicha = useEditarFicha(fichaId ?? '')
@@ -229,23 +228,25 @@ export function NuevasMediciones() {
 
   // onCreada de CargaInicialFicha (carga inicial y reupload tras un reset):
   // navega a la ficha recién creada y, si vino de un CSV (autoVerificar),
-  // marca su id como pendiente — el efecto de abajo dispara la misma
-  // verificación que un click manual en "Verificar" apenas la URL cambia a
-  // ese fichaId, sin esperar a que el usuario la pida.
+  // deja una marca en router state. Esa marca sobrevive al cambio de ruta y
+  // dispara la misma verificación que un click manual en "Verificar".
   function manejarFichaCreada(id: string, autoVerificar = false, opciones?: { replace?: boolean }) {
-    if (autoVerificar) autoVerificarPendiente.current = id
-    navigate(`/nuevas-mediciones/${id}`, opciones)
+    navigate(`/nuevas-mediciones/${id}`, {
+      ...opciones,
+      state: autoVerificar ? { autoVerificar: true } : undefined,
+    })
   }
 
-  // Dispara UNA sola vez por ficha (guardado en el propio ref, que se limpia
-  // apenas se consume) — no depende de que `preview` ya haya cargado: verificar()
-  // solo necesita el fichaId, ya disponible desde la URL.
+  // Dispara UNA sola vez por ficha recién creada desde CSV — no depende de
+  // que `preview` ya haya cargado: verificar() solo necesita el fichaId. El
+  // replace limpia la marca para que recargar o re-renderizar no reabra el
+  // modal automáticamente.
   useEffect(() => {
-    if (!fichaId || autoVerificarPendiente.current !== fichaId) return
-    autoVerificarPendiente.current = null
+    if (!fichaId || !autoVerificarPendiente) return
     verificar()
+    navigate(`/nuevas-mediciones/${fichaId}`, { replace: true, state: null })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fichaId])
+  }, [fichaId, autoVerificarPendiente])
 
   const responsableVacio = !ficha?.responsableMantenimientoNombre?.trim()
   const ptVacio = !ficha?.ptCodigo?.trim()
@@ -253,6 +254,33 @@ export function NuevasMediciones() {
   const problemaInstrumentosFicha = ficha ? problemaInstrumentos(ficha.instrumentos, ficha.fechaFicha) : null
   const tablaBloqueada = ficha?.tablaBloqueada ?? false
   const puedeConfirmar = tablaBloqueada && !responsableVacio && !ptVacio && !problemaInstrumentosFicha
+
+  useEffect(() => {
+    const card = verificarCardRef.current
+    const scroller = card?.closest('main')
+    if (!card || !scroller) return
+    const cardEl = card
+    const scrollerEl = scroller
+
+    function actualizarBarraFlotante() {
+      const cardRect = cardEl.getBoundingClientRect()
+      const scrollerRect = scrollerEl.getBoundingClientRect()
+      const margenSuperior = scrollerRect.top + 12
+      setVerificarFlotante(cardRect.bottom < margenSuperior)
+      setVerificarRect({
+        left: cardRect.left,
+        width: cardRect.width,
+      })
+    }
+
+    actualizarBarraFlotante()
+    scrollerEl.addEventListener('scroll', actualizarBarraFlotante, { passive: true })
+    window.addEventListener('resize', actualizarBarraFlotante)
+    return () => {
+      scrollerEl.removeEventListener('scroll', actualizarBarraFlotante)
+      window.removeEventListener('resize', actualizarBarraFlotante)
+    }
+  }, [fichaId, preview.data, resultadoVerificacion, tablaBloqueada])
 
   // "Llenar ahora" del modal "Todos los datos están OK" (ver ConfirmDialog más
   // abajo): cierra el modal y hace scroll al primer campo faltante (P.T., más
@@ -282,6 +310,32 @@ export function NuevasMediciones() {
     } finally {
       setDescargandoPdf(false)
     }
+  }
+
+  function cardVerificacion(flotante = false) {
+    return (
+      <GlassSurface
+        fuerte
+        className={`flex flex-wrap items-center justify-between gap-3 rounded-glass p-4 ${
+          flotante ? 'shadow-[0_18px_45px_rgba(15,23,42,0.16)]' : ''
+        }`}
+      >
+        <p className="font-body text-sm text-concreto-oscuro">
+          {mensajeEstadoVerificacion(tablaBloqueada, ficha?.verificado ?? false, resultadoVerificacion)}
+        </p>
+        {!tablaBloqueada && (
+          <GlassButton
+            type="button"
+            variante="secundario"
+            onClick={verificar}
+            cargando={verificarFicha.isPending}
+            className="text-xs"
+          >
+            Verificar
+          </GlassButton>
+        )}
+      </GlassSurface>
+    )
   }
 
   // Punto 1 de la ampliación: la vista previa de la ficha (una vez creada)
@@ -393,22 +447,20 @@ export function NuevasMediciones() {
                         de conteo (ver ConteoEstadosFicha) quedan siempre
                         visibles apenas se entra a la ficha, sin tener que
                         bajar hasta después de la tabla. */}
-                    <GlassSurface fuerte className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-glass p-4">
-                      <p className="font-body text-sm text-concreto-oscuro">
-                        {mensajeEstadoVerificacion(tablaBloqueada, ficha.verificado, resultadoVerificacion)}
-                      </p>
-                      {!tablaBloqueada && (
-                        <GlassButton
-                          type="button"
-                          variante="secundario"
-                          onClick={verificar}
-                          cargando={verificarFicha.isPending}
-                          className="text-xs"
-                        >
-                          Verificar
-                        </GlassButton>
-                      )}
-                    </GlassSurface>
+                    <div ref={verificarCardRef} className="mt-3">
+                      {cardVerificacion()}
+                    </div>
+                    {verificarFlotante && (
+                      <div
+                        className="pointer-events-auto fixed top-[4.75rem] z-50"
+                        style={{
+                          left: verificarRect.left,
+                          width: verificarRect.width,
+                        }}
+                      >
+                        {cardVerificacion(true)}
+                      </div>
+                    )}
 
                     <ConteoEstadosFicha rows={rows} />
 
@@ -428,6 +480,7 @@ export function NuevasMediciones() {
                       fichaId={fichaId}
                       esqueleto={preview.data.esqueleto}
                       rows={rows}
+                      codigosBogie={ficha.codigosBogie}
                       deshabilitada={tablaBloqueada}
                       resaltarInvalidos={resultadoVerificacion !== null}
                     />

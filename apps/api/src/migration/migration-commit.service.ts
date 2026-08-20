@@ -14,6 +14,7 @@ import {
 import { GenerarSnapshotService } from '../module-snapshot/generar-snapshot.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { WearRateService } from '../wear-rate/wear-rate.service';
+import { MigrationHistoryService } from './migration-history.service';
 import { normalizarCoche, resolverLado } from './migration-excel.parser';
 
 // Tamaño de lote y timeout de cada transacción corta de FASE 2. A este
@@ -84,6 +85,7 @@ export class MigrationCommitService {
     private readonly prisma: PrismaService,
     private readonly wearRate: WearRateService,
     private readonly generarSnapshot: GenerarSnapshotService,
+    private readonly history: MigrationHistoryService,
   ) {}
 
   // Confirmación final de la migración, rediseñada en dos fases para escalar
@@ -273,6 +275,20 @@ export class MigrationCommitService {
           usuarioId,
         },
       });
+      await this.history.registrar(
+        {
+          tipo: 'migracion_confirmada',
+          fileId,
+          nombreArchivo: actualizado.filename,
+          alcance: 'marca',
+          marca: 'ALSTOM',
+          totalFilas: actualizado.totalRows,
+          filasValidas: actualizado.validRows,
+          filasInvalidas: actualizado.invalidRows,
+          usuarioId,
+        },
+        tx,
+      );
       return actualizado;
     });
 
@@ -309,7 +325,10 @@ export class MigrationCommitService {
   // (onDelete: Cascade en schema.prisma), sus ScanRecord y ScanEditLog. Nunca
   // se puede cancelar una carga ya confirmada en base de datos — ahí ya hay
   // coches/discos reales creados, cancelar sería perder datos definitivos.
-  async cancelar(fileId: string): Promise<ResumenCancelacion> {
+  async cancelar(
+    fileId: string,
+    usuarioId: string,
+  ): Promise<ResumenCancelacion> {
     const file = await this.prisma.uploadedFile.findUnique({
       where: { id: fileId },
     });
@@ -322,7 +341,23 @@ export class MigrationCommitService {
       );
     }
 
-    await this.prisma.uploadedFile.delete({ where: { id: fileId } });
+    await this.prisma.$transaction(async (tx) => {
+      await this.history.registrar(
+        {
+          tipo: 'migracion_cancelada',
+          fileId,
+          nombreArchivo: file.filename,
+          alcance: 'marca',
+          marca: 'ALSTOM',
+          totalFilas: file.totalRows,
+          filasValidas: file.validRows,
+          filasInvalidas: file.invalidRows,
+          usuarioId,
+        },
+        tx,
+      );
+      await tx.uploadedFile.delete({ where: { id: fileId } });
+    });
 
     return { fileId, cancelado: true };
   }

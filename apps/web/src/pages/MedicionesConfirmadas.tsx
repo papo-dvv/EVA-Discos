@@ -109,7 +109,7 @@ export function MedicionesConfirmadas() {
   const totalPaginas = preview.data?.totalPaginas ?? preview.data?.totalPages ?? 1
 
   return (
-    <div className="px-3 py-6 sm:px-5">
+    <div className="px-3 py-6 text-[0.8125rem] sm:px-5 [&_.text-2xl]:text-lg [&_.text-sm]:text-[0.6875rem] [&_.text-xs]:text-[0.5625rem]">
       <div className="mx-auto flex max-w-[112.5rem] items-start gap-5">
         <SidebarTrenes
           resumen={resumen.data ?? []}
@@ -201,6 +201,9 @@ export function MedicionesConfirmadas() {
               mostrarColumnaTren={trenSeleccionado === null}
               onEditar={setFilaEditando}
               onEliminar={setFilaAEliminar}
+              compacta
+              sinScrollInterno
+              scrollHorizontal
             />
           )}
 

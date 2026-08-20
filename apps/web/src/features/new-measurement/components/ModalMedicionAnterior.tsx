@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { GlassButton } from '../../../components/GlassButton'
 import { GlassModal } from '../../../components/GlassModal'
 import { GlassSurface } from '../../../components/GlassSurface'
+import { ScrollArea } from '../../../components/ScrollArea'
 import { SegmentedControl } from '../../../components/SegmentedControl'
 import { useReferenciaFicha } from '../queries'
 import type {
@@ -52,7 +53,19 @@ export function ModalMedicionAnterior({ fichaId, trenNumero, onCerrar }: Props) 
   const esFichaCompleta = comoFichaCompleta(tipo, activa.data)
 
   return (
-    <GlassModal titulo={`Medición anterior — Tren ${trenNumero}`} onCerrar={onCerrar} ancho={960}>
+    <GlassModal
+      titulo={`Medición anterior — Tren ${trenNumero}`}
+      onCerrar={onCerrar}
+      ancho={1240}
+      altoMaximo="min(88dvh, 56rem)"
+      footer={
+        <div className="mt-5 flex justify-end">
+          <GlassButton type="button" variante="secundario" onClick={onCerrar} className="px-5 py-2.5 text-xs">
+            Cerrar
+          </GlassButton>
+        </div>
+      }
+    >
       <SegmentedControl
         ariaLabel="Tipo de referencia"
         opciones={[
@@ -69,7 +82,8 @@ export function ModalMedicionAnterior({ fichaId, trenNumero, onCerrar }: Props) 
         className="mt-1"
       />
 
-      <div className="mt-4">
+      <ScrollArea ejes="both" className="mt-4 flex min-h-0 flex-1 flex-col" viewportClassName="min-h-0 flex-1 pr-3 pb-3">
+        <div className="min-w-[68rem]">
         {activa.isLoading ? (
           <p className="font-body text-sm text-concreto">Cargando…</p>
         ) : activa.isError ? (
@@ -113,13 +127,8 @@ export function ModalMedicionAnterior({ fichaId, trenNumero, onCerrar }: Props) 
             )}
           </>
         )}
-      </div>
-
-      <div className="mt-5 flex justify-end">
-        <GlassButton type="button" variante="secundario" onClick={onCerrar} className="px-5 py-2.5 text-xs">
-          Cerrar
-        </GlassButton>
-      </div>
+        </div>
+      </ScrollArea>
     </GlassModal>
   )
 }

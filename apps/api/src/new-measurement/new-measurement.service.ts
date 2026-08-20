@@ -28,6 +28,15 @@ import {
   type FilaSnapshotHistorial,
 } from './new-measurement-history.service';
 import { NewMeasurementValidationService } from './new-measurement-validation.service';
+import {
+  actualizarRelacionBogie,
+  catalogoRelacionBogies,
+  codigosBogiePorTren,
+  crearRelacionBogie,
+  eliminarRelacionBogie,
+  type RelacionBogieCatalogo,
+  type RelacionBogieInput,
+} from './new-measurement-bogie-codes';
 
 export interface ResumenCargaMedicion {
   fichaId: string;
@@ -110,6 +119,10 @@ export interface ResumenReperfiladoDesdeMedicion {
   reutilizada: boolean;
   filasCopiadas: number;
 }
+
+export type RelacionBogieCatalogoConNumeroCoche = RelacionBogieCatalogo & {
+  numeroCoche: number | null;
+};
 
 // Valida que el motivo pedido sea el único implementado por este módulo.
 // Reperfilado y Cambio existen en el enunciado como alcance futuro; se
@@ -240,6 +253,8 @@ export class NewMeasurementService {
             actividad: ACTIVIDAD_BAJO_BASTIDOR,
             trenOriginalCsv: tren.numero,
             kilometrajeOriginalCsv: resultado.metadata.kilometraje!,
+            codigosBogie:
+              codigosBogiePorTren(tren.numero) ?? Prisma.JsonNull,
           },
         });
 
@@ -330,6 +345,7 @@ export class NewMeasurementService {
               ? 'CONTROL DE TRABAJOS EN TORNO FOSA'
               : ACTIVIDAD_BAJO_BASTIDOR,
           motivo: dto.motivo ?? MOTIVO_MEDICION,
+          codigosBogie: codigosBogiePorTren(tren.numero) ?? Prisma.JsonNull,
         },
       });
 
@@ -353,6 +369,42 @@ export class NewMeasurementService {
       kilometraje: dto.kilometraje,
       esqueleto: generarEsqueleto48(numerosCoche),
     };
+  }
+
+  async catalogoBogies(): Promise<RelacionBogieCatalogoConNumeroCoche[]> {
+    return this.conSeriesCoche(catalogoRelacionBogies());
+  }
+
+  async crearRelacionBogie(
+    input: RelacionBogieInput,
+  ): Promise<RelacionBogieCatalogoConNumeroCoche> {
+    try {
+      const creada = crearRelacionBogie(input);
+      return (await this.conSeriesCoche([creada]))[0]!;
+    } catch (error) {
+      throw new BadRequestException((error as Error).message);
+    }
+  }
+
+  async actualizarRelacionBogie(
+    id: string,
+    input: RelacionBogieInput,
+  ): Promise<RelacionBogieCatalogoConNumeroCoche> {
+    try {
+      const actualizada = actualizarRelacionBogie(id, input);
+      return (await this.conSeriesCoche([actualizada]))[0]!;
+    } catch (error) {
+      throw new BadRequestException((error as Error).message);
+    }
+  }
+
+  eliminarRelacionBogie(id: string): { eliminada: true } {
+    try {
+      eliminarRelacionBogie(id);
+      return { eliminada: true };
+    } catch (error) {
+      throw new BadRequestException((error as Error).message);
+    }
   }
 
   // Busca la ficha CONFIRMADA (uploadedFile.status='committed') más reciente
@@ -498,6 +550,10 @@ export class NewMeasurementService {
           motivo: 'Reperfilado',
           trenOriginalCsv: origen.trenOriginalCsv,
           kilometrajeOriginalCsv: origen.kilometrajeOriginalCsv,
+          codigosBogie:
+            (origen.codigosBogie as Prisma.InputJsonValue | null) ??
+            codigosBogiePorTren(origen.trenNumero) ??
+            Prisma.JsonNull,
         },
       });
       await this.crearPlaceholdersFicha(tx, ficha.id);
@@ -590,5 +646,28 @@ export class NewMeasurementService {
         ruedaNumero: fila.ruedaNumero,
       }),
     };
+  }
+
+  private async conSeriesCoche(
+    filas: RelacionBogieCatalogo[],
+  ): Promise<RelacionBogieCatalogoConNumeroCoche[]> {
+    if (filas.length === 0) return [];
+    const trenes = await this.prisma.train.findMany({
+      where: { numero: { in: [...new Set(filas.map((fila) => fila.trenNumero))] } },
+      select: {
+        numero: true,
+        wagonUnits: { select: { tipoCoche: true, numeroCoche: true } },
+      },
+    });
+    const series = new Map<string, number>();
+    for (const tren of trenes) {
+      for (const wagon of tren.wagonUnits) {
+        series.set(`${tren.numero}:${wagon.tipoCoche}`, wagon.numeroCoche);
+      }
+    }
+    return filas.map((fila) => ({
+      ...fila,
+      numeroCoche: series.get(`${fila.trenNumero}:${fila.coche}`) ?? null,
+    }));
   }
 }

@@ -206,8 +206,14 @@ export class NewMeasurementValidationService {
     const rugosidadInvalida = filas.filter(
       (fila) => fila.rugosidadRa === null || Number(fila.rugosidadRa) !== 2.5,
     ).length;
+    const valoresAntesIncompletos = filas.filter(
+      (fila) =>
+        fila.reperfiladoTAntes === null || fila.reperfiladoHAntes === null,
+    ).length;
 
     const alertas: string[] = [];
+    if (valoresAntesIncompletos)
+      alertas.push(`${valoresAntesIncompletos} posición(es): completa espesor y cóncavo antes del reperfilado.`);
     if (espesorNoReduce)
       alertas.push(`${espesorNoReduce} posición(es): el espesor posterior debe ser menor que el anterior.`);
     if (concavoNoReduce)
