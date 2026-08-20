@@ -1,11 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { ClipboardPenLine, Download, RefreshCcw, Ruler } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { BotonVolverInicio } from '../components/BotonVolverInicio'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { GlassButton } from '../components/GlassButton'
 import { GlassSurface } from '../components/GlassSurface'
-import { PantallaFondo } from '../components/PantallaFondo'
 import { SegmentedControl } from '../components/SegmentedControl'
 import { WarningTooltip } from '../components/WarningTooltip'
 import { CargaInicialFicha } from '../features/new-measurement/components/CargaInicialFicha'
@@ -301,7 +299,7 @@ export function NuevasMediciones() {
     : 'mx-auto flex max-w-[75rem] flex-col gap-4 xl:max-w-[96rem] xl:flex-row xl:items-start'
 
   return (
-    <PantallaFondo className={fichaId ? 'px-2 py-4 sm:px-3' : 'px-3 py-6 sm:px-5'}>
+    <div className={fichaId ? 'px-2 py-4 sm:px-3' : 'px-3 py-6 sm:px-5'}>
       {/* Historial global (todos los trenes) — exclusivo de la pantalla de
           entrada (!fichaId): aside sticky a la derecha desde xl, fallback
           apilado debajo en pantallas angostas. La vista de la ficha ya
@@ -315,7 +313,6 @@ export function NuevasMediciones() {
             </h1>
             <p className="mt-0.5 font-body text-sm text-concreto">Registro de una ficha de medición individual</p>
           </div>
-          <BotonVolverInicio />
         </GlassSurface>
 
         {/* Fuera de cualquier GlassSurface a propósito: esas tarjetas usan
@@ -579,6 +576,6 @@ export function NuevasMediciones() {
           onCerrar={() => setMedicionAnteriorAbierta(false)}
         />
       )}
-    </PantallaFondo>
+    </div>
   )
 }

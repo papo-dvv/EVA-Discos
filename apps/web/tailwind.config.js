@@ -5,23 +5,43 @@ export default {
     extend: {
       colors: {
         verde: {
-          institucional: '#1B8A56',
-          oscuro: '#0F5C39',
-          claro: '#DCEFE2',
+          institucional: '#059669',
+          oscuro: '#047857',
+          claro: '#ECFDF5',
         },
         arena: {
-          DEFAULT: '#E7DDC9',
-          suave: '#F3EEE2',
+          DEFAULT: '#E2E8F0',
+          suave: '#F8FAFC',
         },
         concreto: {
-          DEFAULT: '#8C897F',
-          oscuro: '#55524A',
+          DEFAULT: '#64748B',
+          oscuro: '#1E293B',
         },
         estado: {
-          ok: '#1B8A56',
-          seguimiento: '#C79A3E',
-          cambio: '#C2703C',
-          critico: '#B33B3B',
+          ok: '#10B981',
+          seguimiento: '#F59E0B',
+          cambio: '#F97316',
+          critico: '#DC2626',
+        },
+        // Grupo nuevo (styles.md §2.3) — sidebar oscura cinemática, siempre
+        // fija independientemente del tema claro del resto de la app.
+        sidebar: {
+          DEFAULT: '#0f172a',
+          foreground: '#e2e8f0',
+          primary: '#10b981',
+          accent: 'rgba(16,185,129,0.14)',
+          border: 'rgba(148,163,184,0.18)',
+        },
+        // Grupo nuevo (styles.md §2.4) — tokens de marca "Metro" para el
+        // shell (sidebar/topbar), no reemplazan los semánticos de arriba.
+        metro: {
+          'primary': '#059669',
+          'primary-light': '#10b981',
+          'primary-dark': '#047857',
+          'sidebar-from': '#02050b',
+          'sidebar-mid': '#050914',
+          'sidebar-to': '#0a1220',
+          'sidebar-glow': '#7fb8c9',
         },
       },
       fontFamily: {

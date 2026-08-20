@@ -1,10 +1,8 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BotonVolverInicio } from '../components/BotonVolverInicio'
 import { GlassButton } from '../components/GlassButton'
 import { GlassSurface } from '../components/GlassSurface'
 import { Marca } from '../components/Marca'
-import { PantallaFondo } from '../components/PantallaFondo'
 import { subirMigracion } from '../features/migration/api'
 import { extraerMensajeError } from '../lib/extraerMensajeError'
 
@@ -31,7 +29,7 @@ export function MigracionUpload() {
   }
 
   return (
-    <PantallaFondo degradado centrado className="px-6 py-16">
+    <div className="flex min-h-full items-center justify-center px-6 py-16">
       <GlassSurface fuerte iris className="w-full max-w-lg rounded-glass-lg p-8 sm:p-10">
         <Marca tono="oscuro" tamano="condensado" />
         <h1 className="mt-6 font-display text-3xl font-semibold tracking-tight text-concreto-oscuro">
@@ -65,14 +63,13 @@ export function MigracionUpload() {
             </p>
           )}
 
-          <div className="mt-6 flex items-center justify-between gap-4">
-            <BotonVolverInicio />
+          <div className="mt-6 flex items-center justify-end gap-4">
             <GlassButton type="submit" cargando={cargando} disabled={!file}>
               {cargando ? 'Procesando…' : 'Subir y revisar'}
             </GlassButton>
           </div>
         </form>
       </GlassSurface>
-    </PantallaFondo>
+    </div>
   )
 }

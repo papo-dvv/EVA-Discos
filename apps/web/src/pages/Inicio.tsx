@@ -1,10 +1,6 @@
 import { Link } from 'react-router-dom'
-import { GlassSurface } from '../components/GlassSurface'
-import { Marca } from '../components/Marca'
-import { PantallaFondo } from '../components/PantallaFondo'
 import { Widget } from '../components/Widget'
 import { useAuth } from '../auth/useAuth'
-import { CampanitaNotificaciones } from '../features/notifications/components/CampanitaNotificaciones'
 
 // Inicio real de la app: dashboard de widgets estilo Apple (styles.md §4.1).
 // La grilla bento mezcla el widget hero (saludo) con las tarjetas de módulo.
@@ -18,32 +14,15 @@ const MODULOS_PROXIMOS = [
 ]
 
 export function Inicio() {
-  const { sesion, logout } = useAuth()
+  const { sesion } = useAuth()
   const nombreCompleto = sesion?.usuario.nombresCompletos ?? 'Invitado'
   const primerNombre = nombreCompleto.split(' ')[0]
 
   return (
-    <PantallaFondo className="px-5 py-6 sm:px-8">
+    <div className="px-5 py-6 sm:px-8">
       <div className="mx-auto max-w-6xl">
-        {/* Nav flotante glass (§9) */}
-        <GlassSurface className="sticky top-4 z-10 flex items-center justify-between rounded-glass px-5 py-3">
-          <Marca tono="oscuro" tamano="condensado" />
-          {sesion && (
-            <div className="flex items-center gap-3">
-              <CampanitaNotificaciones />
-              <button
-                type="button"
-                onClick={logout}
-                className="font-body text-xs text-concreto underline underline-offset-2 transition-colors hover:text-concreto-oscuro"
-              >
-                Cerrar sesión
-              </button>
-            </div>
-          )}
-        </GlassSurface>
-
         {/* Grilla bento de widgets */}
-        <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {/* Widget hero — saludo personalizado, con tilt (§4.1) */}
           <Widget
             tamano="l"
@@ -183,6 +162,6 @@ export function Inicio() {
           ))}
         </div>
       </div>
-    </PantallaFondo>
+    </div>
   )
 }

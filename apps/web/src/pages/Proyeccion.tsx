@@ -1,8 +1,6 @@
 import { useMemo, useState } from 'react'
-import { BotonVolverInicio } from '../components/BotonVolverInicio'
 import { CardFormulas } from '../components/CardFormulas'
 import { GlassSurface } from '../components/GlassSurface'
-import { PantallaFondo } from '../components/PantallaFondo'
 import { EstadoActualizacionModulo } from '../features/module-snapshot/components/EstadoActualizacionModulo'
 import { PaginacionNumerica } from '../features/scan-records/components/PaginacionNumerica'
 import { SidebarTrenes } from '../features/scan-records/components/SidebarTrenes'
@@ -79,7 +77,7 @@ export function Proyeccion() {
     modo === 'global' ? 'Toda la flota' : trenSeleccionado !== null ? `Tren ${trenSeleccionado}` : 'Todos los trenes'
 
   return (
-    <PantallaFondo className="px-3 py-6 sm:px-5">
+    <div className="px-3 py-6 sm:px-5">
       <div className="mx-auto flex max-w-[112.5rem] items-start gap-5">
         {modo === 'tren' && (
           <SidebarTrenes
@@ -117,7 +115,6 @@ export function Proyeccion() {
                 ))}
               </div>
               <EstadoActualizacionModulo modulo="proyeccion" />
-              <BotonVolverInicio />
             </div>
           </GlassSurface>
 
@@ -186,6 +183,6 @@ export function Proyeccion() {
           </div>
         </aside>
       </div>
-    </PantallaFondo>
+    </div>
   )
 }

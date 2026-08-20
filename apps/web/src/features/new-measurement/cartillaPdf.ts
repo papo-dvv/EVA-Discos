@@ -25,6 +25,36 @@ function descargar(bytes: Uint8Array, nombre: string) {
   URL.revokeObjectURL(url)
 }
 
+// Corta `texto` en líneas que no superen `anchoMaximo` a `size`, partiendo
+// por palabras (sin cortar una palabra a la mitad salvo que ella sola ya
+// exceda el ancho, caso borde que igual se deja pasar entera).
+function dividirEnLineas(fuente: Awaited<ReturnType<PDFDocument['embedFont']>>, valor: string, size: number, anchoMaximo: number) {
+  const palabras = valor.split(/\s+/).filter(Boolean)
+  const lineas: string[] = []
+  let actual = ''
+  for (const palabra of palabras) {
+    const candidata = actual ? `${actual} ${palabra}` : palabra
+    if (actual && fuente.widthOfTextAtSize(candidata, size) > anchoMaximo) {
+      lineas.push(actual)
+      actual = palabra
+    } else {
+      actual = candidata
+    }
+  }
+  if (actual) lineas.push(actual)
+  return lineas
+}
+
+// Recorta `linea` letra por letra hasta que "<linea>…" entre en `anchoMaximo`.
+function truncarConElipsis(fuente: Awaited<ReturnType<PDFDocument['embedFont']>>, linea: string, size: number, anchoMaximo: number) {
+  if (fuente.widthOfTextAtSize(linea, size) <= anchoMaximo) return linea
+  let recorte = linea
+  while (recorte.length > 0 && fuente.widthOfTextAtSize(`${recorte}…`, size) > anchoMaximo) {
+    recorte = recorte.slice(0, -1)
+  }
+  return `${recorte}…`
+}
+
 async function dibujarFirma(
   page: ReturnType<PDFDocument['getPages']>[number],
   firma: string | null | undefined,
@@ -113,11 +143,30 @@ export async function descargarCartillaPdf(ficha: FichaMedicion, esqueleto: Posi
     escribir(page, fecha(instrumento.fechaVencimientoCalibracion ?? ''), 405, y)
     escribir(page, texto(instrumento.observaciones), 467, y)
   })
-  // x=70/y=136 calibrado contra la plantilla: la línea en blanco de
-  // "Observaciones:" (mismo renglón, a la derecha de la etiqueta) queda a
-  // y≈134 — el texto va con la base apenas arriba, sobre la línea, no
-  // flotando en el hueco hacia la siguiente línea (ver comentario del PDF).
-  escribir(page, texto(ficha.comentariosActividad), 70, 136, 6)
+  // Recuadro de "Observaciones" calibrado contra la plantilla real (borde
+  // superior y=135, inferior y=115, izquierdo x=55, derecho x≈563 — ver
+  // grilla dibujada sobre el PDF real). La etiqueta "Observaciones:" vive
+  // en la celda a la izquierda del borde (termina en x≈58), por eso la
+  // primera línea puede arrancar en x=70 sin pisarla. y=135 pone la base
+  // del texto justo sobre el borde superior (no flotando hacia abajo).
+  // Si el comentario no entra en una sola línea, se reparte hasta en 3
+  // (135 / 127.5 / 120 — la última deja ~5pt de aire sobre el borde
+  // inferior) y, si aun así sobra texto, la 3ª línea se recorta con "…".
+  const comentario = texto(ficha.comentariosActividad)
+  if (comentario) {
+    const tamanoObs = 6
+    const anchoMaximoObs = 488 // 558 (borde derecho usable) - 70 (x de la primera línea)
+    const maximoLineas = 3
+    const lineas = dividirEnLineas(fuente, comentario, tamanoObs, anchoMaximoObs)
+    const lineasVisibles = lineas.slice(0, maximoLineas)
+    if (lineas.length > maximoLineas) {
+      const ultimoIndice = lineasVisibles.length - 1
+      lineasVisibles[ultimoIndice] = truncarConElipsis(fuente, lineasVisibles[ultimoIndice], tamanoObs, anchoMaximoObs)
+    }
+    lineasVisibles.forEach((linea, indice) => {
+      escribir(page, linea, indice === 0 ? 70 : 60, 135 - indice * 7.5, tamanoObs)
+    })
+  }
 
   for (const tecnico of ficha.tecnicos) {
     const posicion = posiciones[tecnico.posicion - 1]

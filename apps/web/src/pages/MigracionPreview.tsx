@@ -5,7 +5,6 @@ import { ConfirmDialog } from '../components/ConfirmDialog'
 import { GlassButton } from '../components/GlassButton'
 import { GlassField } from '../components/GlassField'
 import { GlassSurface } from '../components/GlassSurface'
-import { PantallaFondo } from '../components/PantallaFondo'
 import { TarjetaDatosFaltantes } from '../features/fleet-completeness/components/TarjetaDatosFaltantes'
 import { useCancelarMigracion, useConfirmarMigracion, useEliminarTren } from '../features/migration/queries'
 import { TarjetaBrechaFechas } from '../features/measurement-gap/components/TarjetaBrechaFechas'
@@ -146,7 +145,7 @@ export function MigracionPreview() {
   const totalFilasCarga = stats.data?.totalFilasSubidas ?? preview.data?.total ?? 0
 
   return (
-    <PantallaFondo className="px-3 py-6 sm:px-5">
+    <div className="px-3 py-6 sm:px-5">
       <div className="mx-auto flex max-w-[112.5rem] items-start gap-5">
         <SidebarTrenes
           resumen={resumen.data ?? []}
@@ -358,6 +357,6 @@ export function MigracionPreview() {
           mensaje="¿Confirmar y guardar la migración en base de datos? Después no podrás seguir editando este borrador."
         />
       )}
-    </PantallaFondo>
+    </div>
   )
 }

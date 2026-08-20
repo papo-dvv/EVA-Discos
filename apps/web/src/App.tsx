@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { PublicOnlyRoute } from './auth/PublicOnlyRoute'
 import { RequireAuth } from './auth/RequireAuth'
+import { MainLayout } from './components/MainLayout'
 import { DevComponentes } from './pages/dev/DevComponentes'
 import { CambiarPasswordObligatorio } from './pages/CambiarPasswordObligatorio'
 import { Galeria } from './pages/Galeria'
@@ -33,14 +34,9 @@ function App() {
           </RequireAuth>
         }
       />
-      <Route
-        path="/"
-        element={
-          <RequireAuth>
-            <Inicio />
-          </RequireAuth>
-        }
-      />
+      {/* Catálogo de estilo — fuera del shell a propósito: tiene su propio
+          nav (NavGaleria) y fondo de portada (bg-aura/bg-cuadricula), no es
+          un módulo real; meterlo en MainLayout duplicaría la navegación. */}
       <Route
         path="/design-system"
         element={
@@ -50,8 +46,10 @@ function App() {
         }
       />
       {/* RUTA TEMPORAL DE DESARROLLO — eliminar tras periodo de pruebas de UI.
-          Protegida por login (cualquier rol autenticado), a propósito fuera
-          del nav principal — no se enlaza desde Inicio ni desde ningún menú. */}
+          Fuera del shell a propósito, igual que /design-system: compara
+          variantes de fondo animado en aislamiento, cosa que ya no tiene
+          sentido dentro de MainLayout (que ahora fija el fondo). No se
+          enlaza desde Inicio ni desde ningún menú. */}
       <Route
         path="/dev/componentes"
         element={
@@ -60,70 +58,29 @@ function App() {
           </RequireAuth>
         }
       />
+
+      {/* Shell persistente (sidebar + topbar, ver MainLayout) — todas las
+          rutas autenticadas de acá abajo son SOLO el contenido, sin su
+          propio PantallaFondo (ver styles.md, fondo de engranajes ahora
+          vive en MainLayout). */}
       <Route
-        path="/mediciones"
         element={
           <RequireAuth>
-            <MedicionesConfirmadas />
+            <MainLayout />
           </RequireAuth>
         }
-      />
-      <Route
-        path="/tasa-desgaste"
-        element={
-          <RequireAuth>
-            <TasaDesgaste />
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/trazabilidad"
-        element={
-          <RequireAuth>
-            <Trazabilidad />
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/proyeccion"
-        element={
-          <RequireAuth>
-            <Proyeccion />
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/migracion"
-        element={
-          <RequireAuth>
-            <MigracionUpload />
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/migracion/:fileId"
-        element={
-          <RequireAuth>
-            <MigracionPreview />
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/nuevas-mediciones"
-        element={
-          <RequireAuth>
-            <NuevasMediciones />
-          </RequireAuth>
-        }
-      />
-      <Route
-        path="/nuevas-mediciones/:fichaId"
-        element={
-          <RequireAuth>
-            <NuevasMediciones />
-          </RequireAuth>
-        }
-      />
+      >
+        <Route path="/" element={<Inicio />} />
+        <Route path="/mediciones" element={<MedicionesConfirmadas />} />
+        <Route path="/tasa-desgaste" element={<TasaDesgaste />} />
+        <Route path="/trazabilidad" element={<Trazabilidad />} />
+        <Route path="/proyeccion" element={<Proyeccion />} />
+        <Route path="/migracion" element={<MigracionUpload />} />
+        <Route path="/migracion/:fileId" element={<MigracionPreview />} />
+        <Route path="/nuevas-mediciones" element={<NuevasMediciones />} />
+        <Route path="/nuevas-mediciones/:fichaId" element={<NuevasMediciones />} />
+      </Route>
+
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

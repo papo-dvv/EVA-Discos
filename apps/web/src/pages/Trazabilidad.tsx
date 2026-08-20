@@ -1,8 +1,6 @@
 import { useMemo, useState } from 'react'
-import { BotonVolverInicio } from '../components/BotonVolverInicio'
 import { GlassSelect } from '../components/GlassSelect'
 import { GlassSurface } from '../components/GlassSurface'
-import { PantallaFondo } from '../components/PantallaFondo'
 import { SegmentedControl } from '../components/SegmentedControl'
 import { Switch } from '../components/Switch'
 import { EstadoActualizacionModulo } from '../features/module-snapshot/components/EstadoActualizacionModulo'
@@ -102,7 +100,7 @@ export function Trazabilidad() {
   const etiquetaScope = construirEtiquetaScope(scope)
 
   return (
-    <PantallaFondo className="px-3 py-6 sm:px-5">
+    <div className="px-3 py-6 sm:px-5">
       <div className="mx-auto max-w-[87.5rem]">
         {/* Barra glass: título + alcance actual */}
         <GlassSurface className="flex flex-wrap items-center justify-between gap-4 rounded-glass px-6 py-4">
@@ -112,7 +110,6 @@ export function Trazabilidad() {
           </div>
           <div className="flex flex-wrap items-center gap-4">
             <EstadoActualizacionModulo modulo="trazabilidad" />
-            <BotonVolverInicio />
           </div>
         </GlassSurface>
 
@@ -258,6 +255,6 @@ export function Trazabilidad() {
           </div>
         )}
       </div>
-    </PantallaFondo>
+    </div>
   )
 }

@@ -1,9 +1,7 @@
 import type { SortingState } from '@tanstack/react-table'
 import { useMemo, useState } from 'react'
-import { BotonVolverInicio } from '../components/BotonVolverInicio'
 import { CardFormulas } from '../components/CardFormulas'
 import { GlassSurface } from '../components/GlassSurface'
-import { PantallaFondo } from '../components/PantallaFondo'
 import { PaginacionNumerica } from '../features/scan-records/components/PaginacionNumerica'
 import { SidebarTrenes } from '../features/scan-records/components/SidebarTrenes'
 import { useScanRecordsOpcionesFiltro, useScanRecordsResumenPorTren } from '../features/scan-records/queries'
@@ -99,7 +97,7 @@ export function TasaDesgaste() {
     modo === 'global' ? 'Toda la flota' : trenSeleccionado !== null ? `Tren ${trenSeleccionado}` : 'Todos los trenes'
 
   return (
-    <PantallaFondo className="px-3 py-6 sm:px-5">
+    <div className="px-3 py-6 sm:px-5">
       <div className="mx-auto flex max-w-[112.5rem] items-start gap-5">
         {modo === 'tren' && (
           <SidebarTrenes
@@ -136,7 +134,6 @@ export function TasaDesgaste() {
                   </button>
                 ))}
               </div>
-              <BotonVolverInicio />
             </div>
           </GlassSurface>
 
@@ -207,6 +204,6 @@ export function TasaDesgaste() {
           </div>
         </aside>
       </div>
-    </PantallaFondo>
+    </div>
   )
 }

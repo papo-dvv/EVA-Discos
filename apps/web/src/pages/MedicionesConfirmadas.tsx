@@ -1,10 +1,8 @@
 import type { SortingState } from '@tanstack/react-table'
 import { useEffect, useMemo, useState } from 'react'
-import { BotonVolverInicio } from '../components/BotonVolverInicio'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { GlassField } from '../components/GlassField'
 import { GlassSurface } from '../components/GlassSurface'
-import { PantallaFondo } from '../components/PantallaFondo'
 import { TarjetaDatosFaltantes } from '../features/fleet-completeness/components/TarjetaDatosFaltantes'
 import { TarjetaBrechaFechas } from '../features/measurement-gap/components/TarjetaBrechaFechas'
 import { ModalEditarFila } from '../features/scan-records/components/ModalEditarFila'
@@ -111,7 +109,7 @@ export function MedicionesConfirmadas() {
   const totalPaginas = preview.data?.totalPaginas ?? preview.data?.totalPages ?? 1
 
   return (
-    <PantallaFondo className="px-3 py-6 sm:px-5">
+    <div className="px-3 py-6 sm:px-5">
       <div className="mx-auto flex max-w-[112.5rem] items-start gap-5">
         <SidebarTrenes
           resumen={resumen.data ?? []}
@@ -135,7 +133,6 @@ export function MedicionesConfirmadas() {
                 <span className="font-data">{preview.data?.total ?? 0}</span> registros
               </p>
             </div>
-            <BotonVolverInicio />
           </GlassSurface>
 
           {/* Estado de la flota física completa (ver TarjetaUltimaMedicion) —
@@ -247,6 +244,6 @@ export function MedicionesConfirmadas() {
           mensaje={`¿Eliminar esta medición del tren ${filaAEliminar.trenNumero}? Esta acción no se puede deshacer.`}
         />
       )}
-    </PantallaFondo>
+    </div>
   )
 }

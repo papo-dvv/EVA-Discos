@@ -2,27 +2,27 @@
    Ver /styles.md en la raíz del repo para la especificación completa. */
 
 :root {
-  /* Dominantes — identidad del tren */
-  --color-verde-institucional: #1B8A56;
-  --color-verde-oscuro: #0F5C39;
-  --color-verde-claro: #DCEFE2;
+  /* Dominantes — identidad de marca (paleta emerald/slate, ver styles.md §2) */
+  --color-verde-institucional: #059669;
+  --color-verde-oscuro: #047857;
+  --color-verde-claro: #ECFDF5;
   --color-blanco: #FFFFFF;
 
-  /* Apoyo — la tierra de origen */
-  --color-arena: #E7DDC9;
-  --color-arena-suave: #F3EEE2;
-  --color-gris-concreto: #8C897F;
-  --color-gris-concreto-oscuro: #55524A;
+  /* Apoyo — neutros slate */
+  --color-arena: #E2E8F0;
+  --color-arena-suave: #F8FAFC;
+  --color-gris-concreto: #64748B;
+  --color-gris-concreto-oscuro: #1E293B;
 
   /* Semánticos — subordinados al verde, no compiten con él */
-  --color-estado-ok: #1B8A56;
-  --color-estado-seguimiento: #C79A3E;
-  --color-estado-cambio: #C2703C;
-  --color-estado-critico: #B33B3B;
-  --color-estado-reperfilado: #8E5E78; /* mauve tierra, versión desaturada del magenta de tabla */
+  --color-estado-ok: #10B981;
+  --color-estado-seguimiento: #F59E0B;
+  --color-estado-cambio: #F97316;
+  --color-estado-critico: #DC2626;
+  --color-estado-reperfilado: #8E5E78; /* sin equivalente en la paleta nueva, se mantiene */
 
   /* Superficies */
-  --color-fondo-app: var(--color-arena);
+  --color-fondo-app: var(--color-arena-suave);
   --color-texto-principal: var(--color-gris-concreto-oscuro);
   --color-texto-invertido: #FFFFFF;
 
@@ -42,13 +42,13 @@
   --glass-bg: rgba(255, 255, 255, 0.20);
   --glass-bg-strong: rgba(255, 255, 255, 0.36);
   --glass-border: rgba(255, 255, 255, 0.60);
-  --glass-border-inner: rgba(27, 138, 86, 0.12);
+  --glass-border-inner: rgba(5, 150, 105, 0.12);
   --glass-blur: 34px;
   --glass-blur-strong: 48px;
   --glass-saturate: 200%;
   --glass-brightness: 1.07;
-  --glass-shadow-ambient: 0 44px 96px -26px rgba(15, 92, 57, 0.18);
-  --glass-shadow-contact: 0 12px 28px rgba(85, 82, 74, 0.12);
+  --glass-shadow-ambient: 0 44px 96px -26px rgba(4, 120, 87, 0.18);
+  --glass-shadow-contact: 0 12px 28px rgba(30, 41, 59, 0.12);
   --glass-highlight-top: rgba(255, 255, 255, 0.95);
   --glass-highlight-bottom: rgba(255, 255, 255, 0.42);
   /* Radios squircle — esquinas continuas, más generosas (widgets Apple) */
@@ -63,7 +63,7 @@
   --glass-grano-blend: soft-light;
 
   /* Menisco curvo del borde de la burbuja (inset) + iridiscencia jabón */
-  --glass-menisco: inset 0 0 20px 2px rgba(255, 255, 255, 0.28), inset 0 -8px 18px -6px rgba(15, 92, 57, 0.10);
+  --glass-menisco: inset 0 0 20px 2px rgba(255, 255, 255, 0.28), inset 0 -8px 18px -6px rgba(4, 120, 87, 0.10);
   --glass-iridiscencia: conic-gradient(
     from 200deg at 50% 50%,
     color-mix(in srgb, var(--color-verde-claro) 40%, transparent) 0%,
@@ -79,13 +79,13 @@
   --tilt-max: 9deg;
 
   /* Tabla de mediciones (§6.1) — alto contraste, anula los semánticos §6 dentro de la tabla */
-  --tabla-estado-ok-bg: #1B8A56;
+  --tabla-estado-ok-bg: #059669;
   --tabla-estado-ok-text: #FFFFFF;
-  --tabla-estado-seguimiento-bg: #E3A518;
-  --tabla-estado-seguimiento-text: #3A2A00;
-  --tabla-estado-cambio-bg: #F2C90E;
-  --tabla-estado-cambio-text: #3A2E00;
-  --tabla-estado-critico-bg: #D62828;
+  --tabla-estado-seguimiento-bg: #F59E0B;
+  --tabla-estado-seguimiento-text: #451A03;
+  --tabla-estado-cambio-bg: #F97316;
+  --tabla-estado-cambio-text: #431407;
+  --tabla-estado-critico-bg: #DC2626;
   --tabla-estado-critico-text: #FFFFFF;
   --tabla-accion-reperfilado-bg: #B23E96;
   --tabla-accion-reperfilado-text: #FFFFFF;
@@ -154,7 +154,7 @@ body {
     var(--glass-iridiscencia);
 }
 
-.glass-card--estado-ok { border-color: rgba(27, 138, 86, 0.35); box-shadow: var(--glass-shadow-ambient), 0 0 0 1px rgba(27, 138, 86, 0.15); }
+.glass-card--estado-ok { border-color: rgba(5, 150, 105, 0.35); box-shadow: var(--glass-shadow-ambient), 0 0 0 1px rgba(5, 150, 105, 0.15); }
 .glass-card--estado-seguim { border-color: rgba(199, 154, 62, 0.35); box-shadow: var(--glass-shadow-ambient), 0 0 0 1px rgba(199, 154, 62, 0.15); }
 .glass-card--estado-cambio { border-color: rgba(194, 112, 60, 0.35); box-shadow: var(--glass-shadow-ambient), 0 0 0 1px rgba(194, 112, 60, 0.15); }
 .glass-card--estado-critico { border-color: rgba(179, 59, 59, 0.35); box-shadow: var(--glass-shadow-ambient), 0 0 0 1px rgba(179, 59, 59, 0.15); }
@@ -193,18 +193,18 @@ body {
 @keyframes eva-borde-girar { to { --eva-angulo-borde: 360deg; } }
 
 .glass-button-primary {
-  background: linear-gradient(180deg, #22A363 0%, #1B8A56 100%);
+  background: linear-gradient(180deg, #10B981 0%, #059669 100%);
   color: var(--color-texto-invertido);
   border: 1px solid rgba(255, 255, 255, 0.4);
   border-radius: 999px;
   box-shadow:
-    0 8px 24px rgba(27, 138, 86, 0.30),
+    0 8px 24px rgba(5, 150, 105, 0.30),
     inset 0 1px 0 rgba(255, 255, 255, 0.5);
   transition: transform var(--duracion-base) var(--ease-apple), box-shadow var(--duracion-base) var(--ease-apple);
 }
 .glass-button-primary:hover {
   transform: translateY(-2px);
-  box-shadow: 0 12px 32px rgba(27, 138, 86, 0.40), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  box-shadow: 0 12px 32px rgba(5, 150, 105, 0.40), inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 .glass-button-primary:active {
   transform: scale(0.97);
@@ -238,7 +238,7 @@ body {
 }
 .glass-chip[data-active="true"] {
   background: var(--color-verde-claro);
-  border-color: rgba(27, 138, 86, 0.4);
+  border-color: rgba(5, 150, 105, 0.4);
   color: var(--color-verde-oscuro);
 }
 
@@ -319,15 +319,15 @@ body {
   font-family: var(--font-body);
   font-size: 15px;
   color: var(--color-gris-concreto-oscuro);
-  box-shadow: inset 0 1px 2px rgba(85, 82, 74, 0.08);
+  box-shadow: inset 0 1px 2px rgba(30, 41, 59, 0.08);
   transition: border-color var(--duracion-base) var(--ease-apple), box-shadow var(--duracion-base) var(--ease-apple), background var(--duracion-base) var(--ease-apple);
 }
 .glass-field::placeholder { color: color-mix(in srgb, var(--color-gris-concreto) 85%, transparent); }
 .glass-field:focus {
   outline: none;
   background: rgba(255, 255, 255, 0.75);
-  border-color: rgba(27, 138, 86, 0.55);
-  box-shadow: inset 0 1px 2px rgba(85, 82, 74, 0.06), 0 0 0 3px rgba(27, 138, 86, 0.16);
+  border-color: rgba(5, 150, 105, 0.55);
+  box-shadow: inset 0 1px 2px rgba(30, 41, 59, 0.06), 0 0 0 3px rgba(5, 150, 105, 0.16);
 }
 
 /* --- Tabla híbrida sutil (§6.1): tinte glass MUY tenue en la fila, sin
@@ -464,13 +464,13 @@ body {
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.5);
   border: 1px solid var(--glass-border);
-  box-shadow: inset 0 1px 2px rgba(85, 82, 74, 0.12);
+  box-shadow: inset 0 1px 2px rgba(30, 41, 59, 0.12);
   transition: background var(--duracion-base) var(--ease-apple), border-color var(--duracion-base) var(--ease-apple);
   cursor: pointer;
 }
 .eva-switch[data-on='true'] {
-  background: linear-gradient(180deg, #22a363 0%, #1b8a56 100%);
-  border-color: rgba(27, 138, 86, 0.5);
+  background: linear-gradient(180deg, #10b981 0%, #059669 100%);
+  border-color: rgba(5, 150, 105, 0.5);
 }
 .eva-switch__perilla {
   position: absolute;
@@ -479,7 +479,7 @@ body {
   height: 1.1875rem;
   border-radius: 999px;
   background: #fff;
-  box-shadow: 0 1px 3px rgba(85, 82, 74, 0.35);
+  box-shadow: 0 1px 3px rgba(30, 41, 59, 0.35);
   transition: transform var(--duracion-base) var(--ease-apple-rebote);
 }
 .eva-switch[data-on='true'] .eva-switch__perilla {
@@ -497,7 +497,7 @@ body {
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.45);
   border: 1px solid var(--glass-border);
-  box-shadow: inset 0 1px 2px rgba(85, 82, 74, 0.1);
+  box-shadow: inset 0 1px 2px rgba(30, 41, 59, 0.1);
 }
 .eva-segmento__opcion {
   padding: 0.3125rem 1rem;
@@ -538,7 +538,7 @@ body {
 }
 .eva-pagina[data-active='true'] {
   background: var(--color-verde-claro);
-  border-color: rgba(27, 138, 86, 0.4);
+  border-color: rgba(5, 150, 105, 0.4);
   color: var(--color-verde-oscuro);
   font-weight: 600;
 }
@@ -560,7 +560,7 @@ body {
 }
 .eva-elevar:hover {
   transform: translateY(-6px) scale(1.015);
-  box-shadow: var(--glass-shadow-ambient), 0 18px 36px rgba(85, 82, 74, 0.16);
+  box-shadow: var(--glass-shadow-ambient), 0 18px 36px rgba(30, 41, 59, 0.16);
 }
 
 .eva-brillo { position: relative; overflow: hidden; }
@@ -596,6 +596,49 @@ body {
 .eva-revelar--derecha { transform: translateX(32px); }
 .eva-revelar--derecha.is-visible { transform: translateX(0); }
 
+/* Entrada de ruta dentro del <main> del shell (MainLayout) — mismo fade +
+   slide-y de 4px que describe styles(EVA-Frontend).md §4, pero vía CSS
+   puro (keyframe + `key={pathname}` para forzar el remount) en vez de
+   sumar framer-motion — no hace falta la librería para un efecto así de
+   chico. */
+@keyframes eva-entrada-ruta {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.eva-entrada-ruta {
+  animation: eva-entrada-ruta var(--duracion-rapida) var(--ease-apple) both;
+}
+
+/* Sidebar oscura cinemática (styles.md §4) — SIEMPRE oscura, independiente
+   del tema claro del resto de la app: gradiente vertical + radiales verdes
+   tenues (iluminación ambiental) + scanlines sutiles en screen blend. */
+.metro-sidebar-cinematic {
+  /* Sin position acá a propósito: el consumidor (Sidebar.tsx) siempre la
+     usa junto con `absolute inset-0` de Tailwind — si esta clase también
+     fijara `position: relative`, ganaría por orden de cascada (tokens.css
+     carga después del import de Tailwind en index.css) y pisaría el
+     `absolute`, colapsando el div a tamaño cero. */
+  overflow: hidden;
+  background:
+    radial-gradient(60% 45% at 15% 10%, rgba(16, 185, 129, 0.10) 0%, transparent 60%),
+    radial-gradient(50% 40% at 90% 85%, rgba(16, 185, 129, 0.07) 0%, transparent 65%),
+    linear-gradient(180deg, #080b13 0%, #0a1020 35%, #0d1728 68%, #14283a 100%);
+}
+.metro-sidebar-cinematic::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.035) 0px,
+    rgba(255, 255, 255, 0.035) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+  mix-blend-mode: screen;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .glass-surface--vivo::after { animation: none; }
   .eva-elevar, .eva-elevar:hover { transition: none; transform: none; }
@@ -607,19 +650,20 @@ body {
     transform: none;
     transition: none;
   }
+  .eva-entrada-ruta { animation: none; }
 }
 
 /* --- Fondo, cuadrícula y degradado (§7) --- */
 
 .bg-cuadricula {
   background-image:
-    linear-gradient(rgba(140, 137, 127, 0.08) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(140, 137, 127, 0.08) 1px, transparent 1px);
+    linear-gradient(rgba(100, 116, 139, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(100, 116, 139, 0.08) 1px, transparent 1px);
   background-size: 64px 64px;
 }
 
 .bg-textura-concreto {
-  background-image: radial-gradient(rgba(140, 137, 127, 0.15) 1px, transparent 1px);
+  background-image: radial-gradient(rgba(100, 116, 139, 0.15) 1px, transparent 1px);
   background-size: 6px 6px;
 }
 

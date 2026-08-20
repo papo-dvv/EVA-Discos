@@ -214,12 +214,12 @@ Regla dura: **cuanto más transparente, más blur y saturate hacen falta para co
 
 ```css
 .glass-button-primary {
-  background: linear-gradient(180deg, #22A363 0%, #1B8A56 100%);
+  background: linear-gradient(180deg, #10B981 0%, #059669 100%);
   color: var(--color-texto-invertido);
   border: 1px solid rgba(255,255,255,0.4);
   border-radius: 999px;
   box-shadow:
-    0 8px 24px rgba(27, 138, 86, 0.30),
+    0 8px 24px rgba(5, 150, 105, 0.30),
     inset 0 1px 0 rgba(255,255,255,0.5);
   transition: transform var(--duracion-base) var(--ease-apple), box-shadow var(--duracion-base) var(--ease-apple);
 }
@@ -332,6 +332,66 @@ Todo diálogo modal se apoya en `<GlassModal>` (portal a `<body>`, overlay con b
 
 ---
 
+## 4.4 Shell de la app (sidebar + topbar persistentes)
+
+Migración híbrida (ver nota de §6): EVA adoptó el **shell** de
+`styles(EVA-Frontend).md` — sidebar oscura fija + topbar — de forma
+literal, aunque el resto de los componentes de esa guía (shadcn/ui, Base
+UI, framer-motion, recharts) sigue **fuera de alcance** (ver ese documento
+para el detalle completo; acá solo se documenta lo que EVA ya implementó).
+
+**`MainLayout.tsx`** (`h-svh flex overflow-hidden`) reemplaza el patrón
+anterior de "cada página se envuelve en `<PantallaFondo>`": ahora
+`PantallaFondo`/`FondoEngranajes` viven **una sola vez**, dentro del
+`<main>` del shell — las páginas (`src/pages/*.tsx`) ya no traen su propio
+fondo, solo contenido. Estructura:
+
+```
+h-svh flex overflow-hidden
+├── <Sidebar />              — columna fija 256px/80px colapsada
+└── flex-1 flex-col
+    ├── <TopBar />           — h-16, breadcrumb + notificaciones
+    └── <main overflow-auto> — único elemento que scrollea; FondoEngranajes vive acá
+```
+
+- **`Sidebar.tsx`** — SIEMPRE oscura (clase `.metro-sidebar-cinematic`:
+  gradiente vertical + radiales verdes tenues + scanlines en
+  `mix-blend-mode: screen`), colapso 256px↔80px persistido en
+  `localStorage` (`eva.sidebar.colapsada`). Nav agrupado por
+  `sidebarItems.ts` (secciones "Mediciones"/"Análisis", ítems reales de la
+  app — no la agrupación genérica "Operación/Análisis/Administración" del
+  doc de referencia). Ítem activo: `translate-x-1` + fondo
+  `bg-sidebar-accent`, mismo criterio de redundancia color+posición que el
+  resto de la app. Los ítems marcados `soloAdministrador` (hoy solo
+  Migración) se ocultan para roles no-administrador, no se muestran
+  deshabilitados.
+- **`TopBar.tsx`** — breadcrumb `EVA › Módulo` derivado de la ruta activa,
+  `<CampanitaNotificaciones>` (reusa el componente existente de
+  `features/notifications`). El logout vive en el footer de la Sidebar,
+  no se repite acá.
+- **Entrada de ruta**: fade + slide-y de 4px al navegar (clase
+  `.eva-entrada-ruta` en `tokens.css`, animación CSS + `key={pathname}`
+  para forzar el remount) — **no** se sumó `framer-motion` para esto, el
+  efecto que pide el doc de referencia se logra sin la librería.
+- **Páginas fuera del shell, a propósito**: `Login`/`CambiarPasswordObligatorio`
+  (portada, con su propio `PantallaFondo degradado centrado`, igual que
+  antes) y `/design-system` + `/dev/componentes` (tienen su propio nav o
+  comparan variantes de fondo en aislamiento — meterlas en `MainLayout`
+  duplicaría navegación o no tendría sentido).
+
+**Gotcha de implementación (dejar registrado):** `.metro-sidebar-cinematic`
+**no** debe declarar su propio `position` — el consumidor siempre la
+combina con `absolute inset-0` de Tailwind, y si la clase también fijara
+`position: relative`, ganaría por orden de cascada (`tokens.css` carga
+después de `@import "tailwindcss"` en `index.css`) y el div colapsaría a
+tamaño cero. Por el mismo motivo, cualquier elemento que sobresalga del
+`<aside>` (como el botón de colapso, `-right-3`) necesita `z-index`
+explícito — sin él, contenido posicionado de `<main>` (ej. `FondoEngranajes`)
+puede terminar pintando encima en la franja de superposición y robarle los
+clics.
+
+---
+
 ## 5. Movimiento
 
 Nada estático se debe sentir "muerto" — pero tampoco todo puede moverse todo el tiempo, o se vuelve ruido en vez de vida. **Regla de balance: motion continuo (idle, en loop) limitado a máximo 2 elementos simultáneos en pantalla; todo lo demás es motion reactivo** (responde a hover/press/scroll, no corre solo).
@@ -418,42 +478,51 @@ Nada estático se debe sentir "muerto" — pero tampoco todo puede moverse todo 
 
 ## 6. Paleta de color
 
+> **Migración de paleta (ver §4.4):** EVA adoptó la paleta emerald/slate de
+> `styles(EVA-Frontend).md` (proyecto hermano "Metro Lima L1") como fondo
+> visual — los **nombres** de variable/clase se mantienen (`verde-*`,
+> `arena-*`, `concreto-*`, `estado-*`) por compatibilidad con el resto de
+> este documento y con cada componente ya escrito, pero los **valores** ya
+> no son la paleta "tierra" original. La paleta "tierra" descripta más
+> abajo en prosa es la INTENCIÓN histórica del nombre de cada token, no el
+> hex actual — para el hex real, la tabla de abajo manda.
+
 Dos colores dominantes (verde y blanco), dos de apoyo (arena y gris). Los semánticos son subordinados, nunca compiten en protagonismo con el verde institucional.
 
 ```css
 :root {
-  /* Dominantes — identidad del tren */
-  --color-verde-institucional: #1B8A56; /* verde base, botones primarios, marca */
-  --color-verde-oscuro:        #0F5C39; /* texto sobre verde claro, hover de botones */
-  --color-verde-claro:         #DCEFE2; /* fondos de estado OK, tags suaves */
+  /* Dominantes — identidad de marca (emerald) */
+  --color-verde-institucional: #059669; /* verde base, botones primarios, marca */
+  --color-verde-oscuro:        #047857; /* texto sobre verde claro, hover de botones */
+  --color-verde-claro:         #ECFDF5; /* fondos de estado OK, tags suaves */
   --color-blanco:              #FFFFFF; /* franja del tren, superficies glass */
 
-  /* Apoyo — la tierra de origen */
-  --color-arena:                #E7DDC9; /* fondo base de la app */
-  --color-arena-suave:          #F3EEE2; /* fondo de secciones internas */
-  --color-gris-concreto:        #8C897F; /* texto secundario, iconos inactivos */
-  --color-gris-concreto-oscuro: #55524A; /* texto principal sobre fondos claros */
+  /* Apoyo — neutros slate */
+  --color-arena:                #E2E8F0; /* borde/superficie secundaria */
+  --color-arena-suave:          #F8FAFC; /* fondo base de la app */
+  --color-gris-concreto:        #64748B; /* texto secundario, iconos inactivos */
+  --color-gris-concreto-oscuro: #1E293B; /* texto principal sobre fondos claros */
 
   /* Semánticos — subordinados al verde, no compiten con él (uso general de UI, NO tabla) */
-  --color-estado-ok:            #1B8A56; /* mismo verde institucional */
-  --color-estado-seguimiento:   #C79A3E; /* ámbar tierra, no amarillo puro */
-  --color-estado-cambio:        #C2703C; /* naranja terracota, cercano a la arena */
-  --color-estado-critico:       #B33B3B; /* rojo apagado, no saturado */
-  --color-estado-reperfilado:   #8E5E78; /* mauve tierra, versión desaturada del magenta de tabla (§6.1) */
+  --color-estado-ok:            #10B981; /* "Óptimo" */
+  --color-estado-seguimiento:   #F59E0B; /* "Monitoreo" */
+  --color-estado-cambio:        #F97316; /* "Alerta" */
+  --color-estado-critico:       #DC2626; /* "Crítico" */
+  --color-estado-reperfilado:   #8E5E78; /* mauve — sin equivalente en la paleta nueva, se mantiene */
 
   /* Superficies */
-  --color-fondo-app:            var(--color-arena);
+  --color-fondo-app:            var(--color-arena-suave);
   --color-texto-principal:      var(--color-gris-concreto-oscuro);
   --color-texto-invertido:      #FFFFFF;
 }
 ```
 
 **Reglas de uso:**
-- El fondo general de la app siempre es `.bg-engranajes-cayendo` (ver §7.1) o el degradado tierra→verde en piezas grandes. Nunca fondo oscuro, negro, ni un bloque de color plano parejo.
+- El fondo general de la app siempre es `.bg-engranajes-cayendo` (ver §7.1), montado dentro de `<main>` del shell (§4.4) — no como wrapper de cada página. Nunca fondo oscuro, negro, ni un bloque de color plano parejo, **salvo la sidebar** (§4.4), que es la única superficie de la app que es siempre oscura a propósito.
 - El verde institucional se reserva para: acciones primarias, estado OK, marca/logo, elementos activos de navegación.
-- Blanco puro se usa casi exclusivamente en superficies glass y franjas — no como fondo plano de página (perdería la identidad "arena").
-- Seguimiento/Cambio/Crítico usan tonos tierra desaturados, no colores de semáforo genéricos — deben sentirse parte de la misma familia cromática, no alarmas ajenas al sistema.
-- **Excepción explícita: la tabla de mediciones (§6.1) usa una paleta distinta y de mayor contraste, con prioridad sobre esta regla.** Fuera de la tabla, esta paleta "tierra" es la que manda.
+- Blanco puro se usa casi exclusivamente en superficies glass y franjas — no como fondo plano de página.
+- Seguimiento/Cambio/Crítico usan la familia ámbar/naranja/rojo de la paleta nueva (§2.5 de `styles(EVA-Frontend).md`) — ya no son tonos "tierra" desaturados, pero siguen sin usarse decorativamente fuera de su semántica de estado.
+- **Excepción explícita: la tabla de mediciones (§6.1) usa una paleta distinta y de mayor contraste, con prioridad sobre esta regla.**
 
 ### 6.1 Colores de tabla de mediciones (alto contraste — tienen prioridad)
 
@@ -466,16 +535,16 @@ La tabla de mediciones es la superficie de trabajo diaria de técnicos y supervi
 ```css
 :root {
   /* Estados de disco — tabla, drawer de detalle, export a Excel */
-  --tabla-estado-ok-bg:            #1B8A56; /* verde institucional sólido */
+  --tabla-estado-ok-bg:            #059669; /* verde institucional sólido */
   --tabla-estado-ok-text:          #FFFFFF;
 
-  --tabla-estado-seguimiento-bg:   #E3A518; /* ámbar dorado saturado, más fuerte que el "ámbar tierra" de §6 */
-  --tabla-estado-seguimiento-text: #3A2A00;
+  --tabla-estado-seguimiento-bg:   #F59E0B; /* ámbar saturado */
+  --tabla-estado-seguimiento-text: #451A03;
 
-  --tabla-estado-cambio-bg:        #F2C90E; /* amarillo pleno — iguala/supera el resaltado nativo del Excel */
-  --tabla-estado-cambio-text:      #3A2E00;
+  --tabla-estado-cambio-bg:        #F97316; /* naranja — iguala/supera el resaltado nativo del Excel */
+  --tabla-estado-cambio-text:      #431407;
 
-  --tabla-estado-critico-bg:       #D62828; /* rojo saturado, más intenso que el "rojo apagado" de §6 */
+  --tabla-estado-critico-bg:       #DC2626; /* rojo saturado */
   --tabla-estado-critico-text:     #FFFFFF;
 
   /* Quinto estado de disco (Migración/Mediciones): Rd manda salvo que H llegue al umbral de reperfilado */
@@ -676,23 +745,32 @@ export default {
     extend: {
       colors: {
         verde: {
-          institucional: '#1B8A56',
-          oscuro: '#0F5C39',
-          claro: '#DCEFE2',
+          institucional: '#059669',
+          oscuro: '#047857',
+          claro: '#ECFDF5',
         },
         arena: {
-          DEFAULT: '#E7DDC9',
-          suave: '#F3EEE2',
+          DEFAULT: '#E2E8F0',
+          suave: '#F8FAFC',
         },
         concreto: {
-          DEFAULT: '#8C897F',
-          oscuro: '#55524A',
+          DEFAULT: '#64748B',
+          oscuro: '#1E293B',
         },
         estado: {
-          ok: '#1B8A56',
-          seguimiento: '#C79A3E',
-          cambio: '#C2703C',
-          critico: '#B33B3B',
+          ok: '#10B981',
+          seguimiento: '#F59E0B',
+          cambio: '#F97316',
+          critico: '#DC2626',
+        },
+        // Sidebar oscura cinemática (§4.4) — siempre fija, independiente
+        // del tema claro del resto de la app.
+        sidebar: {
+          DEFAULT: '#0f172a',
+          foreground: '#e2e8f0',
+          primary: '#10b981',
+          accent: 'rgba(16,185,129,0.14)',
+          border: 'rgba(148,163,184,0.18)',
         },
       },
       fontFamily: {
@@ -726,8 +804,8 @@ export default {
 
 | Componente | Tratamiento |
 |---|---|
-| Fondo de app | `.bg-engranajes-cayendo` (ver §7.1), vía `PantallaFondo.tsx` — todas las pantallas de todos los módulos |
-| Nav flotante (persistente) | `.glass-surface` sticky, wordmark condensado (§1.1), sin `--vivo` (no es la pieza hero). En `/design-system` además se auto-oculta con `transform` al bajar y reaparece de inmediato al subir (ver nota abajo) |
+| Fondo de app | `.bg-engranajes-cayendo` (ver §7.1), dentro del `<main>` de `MainLayout` (§4.4) — no como wrapper por página |
+| Navegación persistente | Shell `Sidebar` + `TopBar` (§4.4) — reemplaza el nav flotante sticky por página que había antes. `/design-system` conserva su propio `NavGaleria` con auto-ocultado (ver nota abajo), queda fuera del shell a propósito |
 | Login / Onboarding | `.bg-degradado-transformacion` + `.bg-difuminado-inferior` sobre `.bg-engranajes-cayendo` + `.glass-surface--strong` (`--vivo` opcional) para el formulario |
 | Dashboard / Inicio | Grilla bento de **widgets** (§4.1): `.glass-surface .eva-widget --s/m/l`; el hero puede sumar `.eva-tilt` (+ `--vivo`) |
 | Widgets KPI | `.glass-surface .eva-widget` + `.eva-elevar` + borde-glow semántico si aplica |
