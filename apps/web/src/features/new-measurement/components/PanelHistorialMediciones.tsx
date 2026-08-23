@@ -13,7 +13,7 @@ import { GlassSurface } from '../../../components/GlassSurface'
 import { ScrollArea } from '../../../components/ScrollArea'
 import { extraerMensajeError } from '../../../lib/extraerMensajeError'
 import { useHistorialMediciones } from '../queries'
-import type { EventoHistorialApi, TipoEventoHistorialMedicion } from '../types'
+import type { EventoHistorialApi, MotivoFicha, TipoEventoHistorialMedicion } from '../types'
 
 const ICONO_POR_TIPO: Record<TipoEventoHistorialMedicion, ReactNode> = {
   csv_subido: <FileUp size={15} aria-hidden />,
@@ -25,7 +25,7 @@ const ICONO_POR_TIPO: Record<TipoEventoHistorialMedicion, ReactNode> = {
   ficha_confirmada: <CheckCircle2 size={15} aria-hidden />,
 }
 
-const TEXTO_POR_TIPO: Record<TipoEventoHistorialMedicion, string> = {
+const TEXTO_MEDICION_POR_TIPO: Record<TipoEventoHistorialMedicion, string> = {
   csv_subido: 'Subió una medición',
   csv_duplicado_bloqueado: 'Intento de carga repetida bloqueado',
   ficha_creada_manual: 'Creó una ficha manual',
@@ -33,6 +33,16 @@ const TEXTO_POR_TIPO: Record<TipoEventoHistorialMedicion, string> = {
   ficha_cancelada: 'Canceló la ficha',
   ficha_bloqueada: 'Bloqueó la tabla de mediciones',
   ficha_confirmada: 'Confirmó la ficha',
+}
+
+const TEXTO_REPERFILADO_POR_TIPO: Record<TipoEventoHistorialMedicion, string> = {
+  csv_subido: 'Subió un reperfilado',
+  csv_duplicado_bloqueado: 'Intento de carga repetida bloqueado',
+  ficha_creada_manual: 'Creó una ficha manual',
+  ficha_reiniciada: 'Reinició la ficha',
+  ficha_cancelada: 'Canceló la ficha',
+  ficha_bloqueada: 'Bloqueó la tabla de reperfilado',
+  ficha_confirmada: 'Confirmó el reperfilado',
 }
 
 // "hace 5 min" / "hace 3 h" / "hace 2 d" — sin dependencia externa de fechas,
@@ -48,13 +58,19 @@ function fechaRelativa(iso: string): string {
   return `hace ${dias} d`
 }
 
-function FilaEvento({ evento }: { evento: EventoHistorialApi }) {
+function FilaEvento({
+  evento,
+  textoPorTipo,
+}: {
+  evento: EventoHistorialApi
+  textoPorTipo: Record<TipoEventoHistorialMedicion, string>
+}) {
   return (
     <li className="flex items-start gap-2 border-b border-concreto/10 py-2.5 last:border-none">
       <span className="mt-0.5 shrink-0 text-concreto">{ICONO_POR_TIPO[evento.tipo]}</span>
       <div className="min-w-0">
         <p className="font-body text-xs font-semibold text-concreto-oscuro">
-          Tren {evento.trenNumero} — {TEXTO_POR_TIPO[evento.tipo]}
+          Tren {evento.trenNumero} — {textoPorTipo[evento.tipo]}
         </p>
         {evento.nombreArchivo && (
           <p className="truncate font-body text-[0.6875rem] text-concreto" title={evento.nombreArchivo}>
@@ -92,7 +108,13 @@ const ICONO_POR_RESULTADO: Record<Resultado, ReactNode> = {
 // Racha de 2+ eventos CONSECUTIVOS (sin otro archivo intercalado) del mismo
 // nombreArchivo — colapsa en una sola fila desplegable con el desenlace
 // (check/x) del evento más reciente. Ver agruparPorArchivo.
-function FilaGrupo({ grupo }: Readonly<{ grupo: EventoHistorialApi[] }>) {
+function FilaGrupo({
+  grupo,
+  textoPorTipo,
+}: Readonly<{
+  grupo: EventoHistorialApi[]
+  textoPorTipo: Record<TipoEventoHistorialMedicion, string>
+}>) {
   const [abierto, setAbierto] = useState(false)
   const reciente = grupo[0]
   const resultado = RESULTADO_POR_TIPO[reciente.tipo]
@@ -128,7 +150,7 @@ function FilaGrupo({ grupo }: Readonly<{ grupo: EventoHistorialApi[] }>) {
       {abierto && (
         <ul className="mt-1 ml-5 border-l border-concreto/15 pl-3">
           {grupo.map((evento) => (
-            <FilaEvento key={evento.id} evento={evento} />
+            <FilaEvento key={evento.id} evento={evento} textoPorTipo={textoPorTipo} />
           ))}
         </ul>
       )}
@@ -169,12 +191,20 @@ function agruparPorArchivo(eventos: EventoHistorialApi[]): ItemHistorial[] {
 // ficha abierta), a diferencia del resto de la página que depende de
 // fichaId/tren. Ver NewMeasurementHistoryService (backend) para qué eventos
 // se registran.
-export function PanelHistorialMediciones() {
-  const historial = useHistorialMediciones()
+export function PanelHistorialMediciones({
+  motivo = 'Medición',
+}: {
+  motivo?: MotivoFicha
+}) {
+  const historial = useHistorialMediciones(undefined, motivo)
+  const esReperfilado = motivo === 'Reperfilado'
+  const textoPorTipo = esReperfilado ? TEXTO_REPERFILADO_POR_TIPO : TEXTO_MEDICION_POR_TIPO
 
   return (
     <GlassSurface fuerte className="rounded-glass p-4">
-      <h2 className="mb-3 font-display text-sm font-semibold text-concreto-oscuro">Historial de mediciones</h2>
+      <h2 className="mb-3 font-display text-sm font-semibold text-concreto-oscuro">
+        {esReperfilado ? 'Historial de reperfilados' : 'Historial de mediciones'}
+      </h2>
 
       {historial.isLoading ? (
         <p className="font-body text-xs text-concreto">Cargando…</p>
@@ -183,15 +213,19 @@ export function PanelHistorialMediciones() {
           {extraerMensajeError(historial.error)}
         </p>
       ) : !historial.data || historial.data.length === 0 ? (
-        <p className="font-body text-xs text-concreto">Todavía no hay eventos registrados.</p>
+        <p className="font-body text-xs text-concreto">
+          {esReperfilado
+            ? 'Todavía no hay reperfilados registrados.'
+            : 'Todavía no hay eventos registrados.'}
+        </p>
       ) : (
         <ScrollArea viewportClassName="max-h-[32rem]">
           <ul>
             {agruparPorArchivo(historial.data).map((item) =>
               item.tipo === 'grupo' ? (
-                <FilaGrupo key={item.eventos[0].id} grupo={item.eventos} />
+                <FilaGrupo key={item.eventos[0].id} grupo={item.eventos} textoPorTipo={textoPorTipo} />
               ) : (
-                <FilaEvento key={item.evento.id} evento={item.evento} />
+                <FilaEvento key={item.evento.id} evento={item.evento} textoPorTipo={textoPorTipo} />
               ),
             )}
           </ul>

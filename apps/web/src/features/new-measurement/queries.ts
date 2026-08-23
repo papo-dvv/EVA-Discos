@@ -21,6 +21,7 @@ import type {
   AgregarFilaFicha,
   CambiosFicha,
   EditarFilaFicha,
+  MotivoFicha,
   PreviewParams,
   TipoReferencia,
 } from './types'
@@ -41,10 +42,10 @@ const claveCatalogoBogies = ['new-measurement', 'bogie-catalog'] as const
 // PanelHistorialMediciones. Se invalida desde las mutaciones que generan un
 // evento (reiniciar/cancelar/bloquear/confirmar acá, subir CSV/crear manual
 // en CargaInicialFicha.tsx) en vez de depender de polling.
-export function useHistorialMediciones(limit?: number) {
+export function useHistorialMediciones(limit?: number, motivo?: MotivoFicha) {
   return useQuery({
-    queryKey: [...claveHistorial, limit] as const,
-    queryFn: () => obtenerHistorialMediciones(limit),
+    queryKey: [...claveHistorial, limit, motivo] as const,
+    queryFn: () => obtenerHistorialMediciones(limit, motivo),
   })
 }
 

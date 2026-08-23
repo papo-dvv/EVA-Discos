@@ -1,6 +1,8 @@
-import { useCallback, useMemo, useState, type ReactNode } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { apiClient } from '../lib/apiClient'
 import { AuthContext, type SesionAuth } from './AuthContext'
+import { EVENTO_SESION_NO_AUTORIZADA } from './sessionEvents'
 
 const STORAGE_KEY = 'eva.sesion'
 
@@ -14,6 +16,7 @@ function leerSesionGuardada(): SesionAuth | null {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient()
   const [sesion, setSesion] = useState<SesionAuth | null>(() => leerSesionGuardada())
 
   const guardar = useCallback((nuevaSesion: SesionAuth | null) => {
@@ -46,7 +49,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [sesion, guardar],
   )
 
-  const logout = useCallback(() => guardar(null), [guardar])
+  const logout = useCallback(() => {
+    queryClient.clear()
+    guardar(null)
+  }, [guardar, queryClient])
+
+  useEffect(() => {
+    window.addEventListener(EVENTO_SESION_NO_AUTORIZADA, logout)
+    return () => window.removeEventListener(EVENTO_SESION_NO_AUTORIZADA, logout)
+  }, [logout])
 
   const value = useMemo(
     () => ({ sesion, login, cambiarPasswordObligatorio, logout }),

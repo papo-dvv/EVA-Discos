@@ -3,8 +3,20 @@ import { GlassSurface } from '../../../components/GlassSurface'
 import { WarningTooltip } from '../../../components/WarningTooltip'
 import { useSyncedState } from '../../../hooks/useSyncedState'
 import { useAgregarFilaFicha, useEditarFilaFicha } from '../queries'
-import { construirFilasEspejo, type FilaEspejo, type LadoFilaEspejo } from '../filaEspejo'
-import type { CampoInvalido, CodigosBogie, EstadoDisco, MotivoInvalido, PosicionEsqueleto, PreviewRow } from '../types'
+import {
+  construirFilasEspejo,
+  type FilaEspejo,
+  type LadoFilaEspejo,
+} from '../filaEspejo'
+import type {
+  CampoInvalido,
+  CodigosBogie,
+  EstadoDisco,
+  FilaExcluidaVerificacion,
+  MotivoInvalido,
+  PosicionEsqueleto,
+  PreviewRow,
+} from '../types'
 
 type Lado = 'izquierdo' | 'derecho'
 
@@ -23,6 +35,21 @@ type Props = {
   // por defecto: nunca se activa en la tabla de solo-lectura de "Medición
   // Anterior" (esa nunca pasa por /validate).
   resaltarInvalidos?: boolean
+  filasExcluidasVerificacion?: FilaExcluidaVerificacion[]
+}
+
+type LadoMotivo = LadoFilaEspejo & {
+  motivosVisibles: MotivoInvalido[]
+}
+
+type FilaEspejoVisible = Omit<FilaEspejo, 'izquierdo' | 'derecho'> & {
+  izquierdo: LadoMotivo
+  derecho: LadoMotivo
+}
+
+type FilaRender = FilaEspejoVisible & {
+  mostrarCoche: boolean
+  cocheRowSpan: number
 }
 
 // Tabla espejo de la ficha (punto 2c): 24 filas, una por eje, con el bloque
@@ -41,22 +68,64 @@ export function TablaFichaEspejo({
   codigosBogie = null,
   deshabilitada = false,
   resaltarInvalidos = false,
+  filasExcluidasVerificacion = [],
 }: Props) {
-  const filasBase = useMemo(() => construirFilasEspejo(esqueleto, rows), [esqueleto, rows])
+  const filasBase = useMemo(
+    () => construirFilasEspejo(esqueleto, rows),
+    [esqueleto, rows],
+  )
+  const motivosVerificadosPorRecord = useMemo(() => {
+    const mapa = new Map<string, MotivoInvalido[]>()
+    for (const fila of filasExcluidasVerificacion) {
+      mapa.set(fila.recordId, fila.motivos)
+    }
+    return mapa
+  }, [filasExcluidasVerificacion])
+
+  const filasConMotivos = useMemo(
+    () =>
+      filasBase.map((fila): FilaEspejoVisible => ({
+        ...fila,
+        izquierdo: {
+          ...fila.izquierdo,
+          motivosVisibles:
+            (fila.izquierdo.recordId
+              ? motivosVerificadosPorRecord.get(fila.izquierdo.recordId)
+              : undefined) ?? fila.izquierdo.motivos,
+        },
+        derecho: {
+          ...fila.derecho,
+          motivosVisibles:
+            (fila.derecho.recordId
+              ? motivosVerificadosPorRecord.get(fila.derecho.recordId)
+              : undefined) ?? fila.derecho.motivos,
+        },
+      })),
+    [filasBase, motivosVerificadosPorRecord],
+  )
 
   // Invalidas primero (mismo orden eje ASC ya usado en filasBase, solo
   // particionado), válidas después en su orden habitual — ver punto 3 del
   // enunciado. Partición estable: filasBase ya viene eje ASC, así que cada
   // mitad conserva ese orden.
   const filas = useMemo(() => {
-    if (!resaltarInvalidos) return filasBase
-    const invalidas = filasBase.filter((f) => hayMotivo(f.izquierdo) || hayMotivo(f.derecho))
-    const validas = filasBase.filter((f) => !hayMotivo(f.izquierdo) && !hayMotivo(f.derecho))
+    if (!resaltarInvalidos) return filasConMotivos
+    const invalidas = filasConMotivos.filter(
+      (f) => hayMotivoVisible(f.izquierdo) || hayMotivoVisible(f.derecho),
+    )
+    const validas = filasConMotivos.filter(
+      (f) => !hayMotivoVisible(f.izquierdo) && !hayMotivoVisible(f.derecho),
+    )
     return [...invalidas, ...validas]
-  }, [filasBase, resaltarInvalidos])
+  }, [filasConMotivos, resaltarInvalidos])
+
+  const filasRender = useMemo(() => calcularRowSpanCoche(filas), [filas])
 
   const mostrarColumnaMotivo =
-    resaltarInvalidos && filas.some((f) => hayMotivo(f.izquierdo) || hayMotivo(f.derecho))
+    resaltarInvalidos &&
+    filas.some(
+      (f) => hayMotivoVisible(f.izquierdo) || hayMotivoVisible(f.derecho),
+    )
 
   return (
     <GlassSurface fuerte className="mt-4 overflow-hidden rounded-glass">
@@ -109,7 +178,7 @@ export function TablaFichaEspejo({
             </tr>
           </thead>
           <tbody>
-            {filas.map((fila) => (
+            {filasRender.map((fila) => (
               <FilaEspejoRow
                 key={fila.ejeNumero}
                 fichaId={fichaId}
@@ -127,29 +196,98 @@ export function TablaFichaEspejo({
   )
 }
 
-function hayMotivo(lado: LadoFilaEspejo): boolean {
-  return lado.motivos.length > 0
+function hayMotivoVisible(lado: LadoMotivo): boolean {
+  return lado.motivosVisibles.length > 0
 }
 
 function tieneMotivo(motivos: MotivoInvalido[], campo: CampoInvalido): boolean {
   return motivos.some((m) => m.campo === campo)
 }
 
+function motivoCorregido(datos: LadoMotivo, campo: CampoInvalido): boolean {
+  if (campo === 't') return !datos.tInvalido
+  if (campo === 'rd') return !datos.rdInvalido
+  return false
+}
+
+function MotivosLado({
+  lado,
+  datos,
+}: {
+  lado: 'Izq' | 'Der'
+  datos: LadoMotivo
+}) {
+  if (datos.motivosVisibles.length === 0) return null
+
+  return (
+    <span className="block">
+      <span className="font-semibold">{lado}: </span>
+      {datos.motivosVisibles.map((motivo, indice) => {
+        const corregido = motivoCorregido(datos, motivo.campo)
+        return (
+          <span
+            key={`${motivo.campo}-${indice}`}
+            className={
+              corregido
+                ? 'motivo-invalido--corregido font-medium italic text-concreto'
+                : 'font-semibold text-[color:var(--color-estado-critico)]'
+            }
+          >
+            {indice > 0 ? '; ' : ''}
+            {motivo.motivo}
+          </span>
+        )
+      })}
+    </span>
+  )
+}
+
 // Combina los motivos de ambos lados de un eje en un solo texto para la
 // columna "Motivo/Inválido" (una fila de esta tabla = un eje, con 2 discos
 // independientes) — prefijado por lado solo cuando hace falta desambiguar.
-function textoMotivosFila(fila: FilaEspejo): string {
+function textoMotivosFila(fila: FilaEspejoVisible): string {
   const partes: string[] = []
-  if (fila.izquierdo.motivos.length > 0) {
-    partes.push(`Izq: ${fila.izquierdo.motivos.map((m) => m.motivo).join('; ')}`)
+  if (fila.izquierdo.motivosVisibles.length > 0) {
+    partes.push(
+      `Izq: ${fila.izquierdo.motivosVisibles.map((m) => m.motivo).join('; ')}`,
+    )
   }
-  if (fila.derecho.motivos.length > 0) {
-    partes.push(`Der: ${fila.derecho.motivos.map((m) => m.motivo).join('; ')}`)
+  if (fila.derecho.motivosVisibles.length > 0) {
+    partes.push(
+      `Der: ${fila.derecho.motivosVisibles.map((m) => m.motivo).join('; ')}`,
+    )
   }
   return partes.join(' — ')
 }
 
-function Encabezado({ children, mono = false }: { children: React.ReactNode; mono?: boolean }) {
+function claveCoche(fila: FilaEspejoVisible): string {
+  return `${fila.tipoCoche}|${fila.numeroCoche ?? ''}`
+}
+
+function calcularRowSpanCoche(filas: FilaEspejoVisible[]): FilaRender[] {
+  return filas.map((fila, indice) => {
+    const clave = claveCoche(fila)
+    const anterior = filas[indice - 1]
+    if (anterior && claveCoche(anterior) === clave) {
+      return { ...fila, mostrarCoche: false, cocheRowSpan: 0 }
+    }
+
+    let rowSpan = 1
+    for (let i = indice + 1; i < filas.length; i += 1) {
+      if (claveCoche(filas[i]) !== clave) break
+      rowSpan += 1
+    }
+    return { ...fila, mostrarCoche: true, cocheRowSpan: rowSpan }
+  })
+}
+
+function Encabezado({
+  children,
+  mono = false,
+}: {
+  children: React.ReactNode
+  mono?: boolean
+}) {
   return (
     <th
       className={`sticky top-[1.9375rem] z-[1] break-words bg-[color:var(--color-arena-suave)] px-1 py-2 text-[0.6875rem] font-semibold uppercase leading-tight tracking-wide text-concreto ${
@@ -165,13 +303,16 @@ function Celda({
   children,
   mono = false,
   className = '',
+  rowSpan,
 }: {
   children: React.ReactNode
   mono?: boolean
   className?: string
+  rowSpan?: number
 }) {
   return (
     <td
+      rowSpan={rowSpan}
       className={`overflow-hidden px-1 py-1 text-concreto-oscuro ${mono ? 'text-right font-data' : ''} ${className}`.trim()}
     >
       {children}
@@ -187,7 +328,12 @@ function Celda({
 // (llamado desde FilaEspejoRow, no desde cada celda) — así las 2 celdas
 // editables de ese lado comparten el mismo borrador en vez de 2 copias
 // aisladas que nunca se enterarían la una de la otra.
-function useLadoEditable(fichaId: string, eje: number, lado: Lado, datos: LadoFilaEspejo) {
+function useLadoEditable(
+  fichaId: string,
+  eje: number,
+  lado: Lado,
+  datos: LadoFilaEspejo,
+) {
   const agregar = useAgregarFilaFicha(fichaId)
   const editar = useEditarFilaFicha(fichaId)
 
@@ -201,16 +347,21 @@ function useLadoEditable(fichaId: string, eje: number, lado: Lado, datos: LadoFi
 
   function guardarT(n: number) {
     setTValue(n)
-    if (datos.recordId) editar.mutate({ recordId: datos.recordId, cambios: { tValue: n } })
+    if (datos.recordId)
+      editar.mutate({ recordId: datos.recordId, cambios: { tValue: n } })
     else intentarCrear(n, hValue)
   }
   function guardarH(n: number) {
     setHValue(n)
-    if (datos.recordId) editar.mutate({ recordId: datos.recordId, cambios: { hValue: n } })
+    if (datos.recordId)
+      editar.mutate({ recordId: datos.recordId, cambios: { hValue: n } })
     else intentarCrear(tValue, n)
   }
 
-  const pendiente = !datos.recordId && (tValue !== null || hValue !== null) && (tValue === null || hValue === null)
+  const pendiente =
+    !datos.recordId &&
+    (tValue !== null || hValue !== null) &&
+    (tValue === null || hValue === null)
 
   return { tValue, hValue, guardarT, guardarH, pendiente }
 }
@@ -222,7 +373,20 @@ const CLASE_RESALTADO =
   'ring-1 ring-inset ring-[color:var(--color-estado-seguimiento)] bg-[color:var(--color-estado-seguimiento)]/10 rounded-lg'
 
 function serieBogie(codigo: string): string {
-  return codigo.includes('/') ? codigo.split('/').at(-1)?.trim() || codigo : codigo
+  return codigo.includes('/')
+    ? codigo.split('/').at(-1)?.trim() || codigo
+    : codigo
+}
+
+function partesBogieCodigo(
+  fila: FilaEspejo,
+  codigosBogie: CodigosBogie | null,
+): { bogie: string; serie: string | null } {
+  const codigo = codigosBogie?.[`${fila.tipoCoche}:${fila.bogieCodigo}`]
+  return {
+    bogie: fila.bogieCodigo,
+    serie: codigo ? serieBogie(codigo) : null,
+  }
 }
 
 function FilaEspejoRow({
@@ -234,27 +398,39 @@ function FilaEspejoRow({
   codigosBogie,
 }: {
   fichaId: string
-  fila: FilaEspejo
+  fila: FilaRender
   deshabilitada: boolean
   resaltarInvalidos: boolean
   mostrarColumnaMotivo: boolean
   codigosBogie: CodigosBogie | null
 }) {
-  const izq = useLadoEditable(fichaId, fila.ejeNumero, 'izquierdo', fila.izquierdo)
+  const izq = useLadoEditable(
+    fichaId,
+    fila.ejeNumero,
+    'izquierdo',
+    fila.izquierdo,
+  )
   const der = useLadoEditable(fichaId, fila.ejeNumero, 'derecho', fila.derecho)
-  const resaltarTIzq = resaltarInvalidos && tieneMotivo(fila.izquierdo.motivos, 't')
-  const resaltarRdIzq = resaltarInvalidos && tieneMotivo(fila.izquierdo.motivos, 'rd')
-  const resaltarTDer = resaltarInvalidos && tieneMotivo(fila.derecho.motivos, 't')
-  const resaltarRdDer = resaltarInvalidos && tieneMotivo(fila.derecho.motivos, 'rd')
+  const resaltarTIzq =
+    resaltarInvalidos && tieneMotivo(fila.izquierdo.motivos, 't')
+  const resaltarRdIzq =
+    resaltarInvalidos && tieneMotivo(fila.izquierdo.motivos, 'rd')
+  const resaltarTDer =
+    resaltarInvalidos && tieneMotivo(fila.derecho.motivos, 't')
+  const resaltarRdDer =
+    resaltarInvalidos && tieneMotivo(fila.derecho.motivos, 'rd')
+  const bogieCodigo = partesBogieCodigo(fila, codigosBogie)
 
   return (
     <tr className="tabla-fila--glass border-b border-concreto/10">
       {mostrarColumnaMotivo && (
         <td className="w-[12rem] break-words px-2 py-1.5 align-top">
-          {hayMotivo(fila.izquierdo) || hayMotivo(fila.derecho) ? (
+          {hayMotivoVisible(fila.izquierdo) ||
+          hayMotivoVisible(fila.derecho) ? (
             <WarningTooltip texto={textoMotivosFila(fila)} className="block">
-              <span className="block cursor-help whitespace-normal text-pretty font-body text-xs font-semibold leading-snug text-[color:var(--color-estado-critico)]">
-                ⚠ {textoMotivosFila(fila)}
+              <span className="block cursor-help space-y-1 whitespace-normal text-pretty font-body text-xs leading-snug">
+                <MotivosLado lado="Izq" datos={fila.izquierdo} />
+                <MotivosLado lado="Der" datos={fila.derecho} />
               </span>
             </WarningTooltip>
           ) : (
@@ -264,16 +440,18 @@ function FilaEspejoRow({
       )}
 
       <Celda>
-        <span className="block font-semibold">{fila.bogieCodigo}</span>
-        {codigosBogie?.[`${fila.tipoCoche}:${fila.bogieCodigo}`] && (
-          <span className="mt-0.5 block font-data text-[0.6875rem] leading-none text-concreto">
-            {serieBogie(codigosBogie[`${fila.tipoCoche}:${fila.bogieCodigo}`] ?? '')}
-          </span>
-        )}
+        <span className="block whitespace-nowrap font-semibold">
+          {bogieCodigo.bogie}
+          {bogieCodigo.serie !== null && (
+            <span className="text-concreto"> · {bogieCodigo.serie}</span>
+          )}
+        </span>
       </Celda>
       <CeldaEstado estado={fila.izquierdo.estadoCalculado} />
       <Celda mono className={resaltarRdIzq ? CLASE_RESALTADO : ''}>
-        {fila.izquierdo.rdValue !== null ? fila.izquierdo.rdValue.toFixed(2) : '—'}
+        {fila.izquierdo.rdValue !== null
+          ? fila.izquierdo.rdValue.toFixed(2)
+          : '—'}
       </Celda>
       <CampoNumero
         valor={izq.tValue}
@@ -281,17 +459,37 @@ function FilaEspejoRow({
         deshabilitada={deshabilitada}
         resaltado={resaltarTIzq}
       />
-      <CampoNumero valor={izq.hValue} onGuardar={izq.guardarH} deshabilitada={deshabilitada} pendiente={izq.pendiente} />
-      <Celda mono className="w-9">{fila.ejeNumero}</Celda>
-      <Celda mono className="w-9">{fila.izquierdo.ruedaNumero}</Celda>
-
-      <Celda className="bg-white/40 text-center font-semibold">
-        {fila.tipoCoche}
-        {fila.numeroCoche !== null && <span className="text-concreto"> · {fila.numeroCoche}</span>}
+      <CampoNumero
+        valor={izq.hValue}
+        onGuardar={izq.guardarH}
+        deshabilitada={deshabilitada}
+        pendiente={izq.pendiente}
+      />
+      <Celda mono className="w-9">
+        {fila.ejeNumero}
+      </Celda>
+      <Celda mono className="w-9">
+        {fila.izquierdo.ruedaNumero}
       </Celda>
 
-      <Celda mono className="w-9">{fila.derecho.ruedaNumero}</Celda>
-      <Celda mono className="w-9">{fila.ejeNumero}</Celda>
+      {fila.mostrarCoche && (
+        <Celda
+          rowSpan={fila.cocheRowSpan}
+          className="bg-white/40 text-center align-middle font-semibold"
+        >
+          {fila.tipoCoche}
+          {fila.numeroCoche !== null && (
+            <span className="text-concreto"> · {fila.numeroCoche}</span>
+          )}
+        </Celda>
+      )}
+
+      <Celda mono className="w-9">
+        {fila.derecho.ruedaNumero}
+      </Celda>
+      <Celda mono className="w-9">
+        {fila.ejeNumero}
+      </Celda>
       <CampoNumero
         valor={der.hValue}
         onGuardar={der.guardarH}
@@ -333,7 +531,9 @@ function CeldaEstado({ estado }: { estado: EstadoDisco | null }) {
   return (
     <td className="whitespace-nowrap px-2 py-1">
       {estado ? (
-        <span className={`tabla-chip ${CLASE_CHIP_ESTADO[estado]}`}>{estado}</span>
+        <span className={`tabla-chip ${CLASE_CHIP_ESTADO[estado]}`}>
+          {estado}
+        </span>
       ) : (
         // +2pt (mismo criterio que .tabla-chip) para que el "sin dato" combine con el chip de estado
         <span className="font-body text-[0.9167rem] text-concreto">—</span>
@@ -355,7 +555,9 @@ function CampoNumero({
   pendiente?: boolean
   resaltado?: boolean
 }) {
-  const [borrador, setBorrador] = useSyncedState(valor === null ? '' : String(valor))
+  const [borrador, setBorrador] = useSyncedState(
+    valor === null ? '' : String(valor),
+  )
 
   return (
     <td className="whitespace-nowrap px-1 py-1 text-right">
@@ -368,16 +570,21 @@ function CampoNumero({
           onChange={(e) => setBorrador(e.target.value)}
           onBlur={() => {
             const n = Number(borrador)
-            if (borrador.trim() !== '' && Number.isFinite(n) && n !== valor) onGuardar(n)
+            if (borrador.trim() !== '' && Number.isFinite(n) && n !== valor)
+              onGuardar(n)
           }}
           placeholder="—"
           // +2pt sobre los 12px (9pt) originales — mismo ajuste que el resto de la tabla de datos
           className={`w-full min-w-0 border px-1 py-1 text-right font-data text-[0.9167rem] text-concreto-oscuro transition-colors hover:border-concreto/25 focus:border-verde-institucional focus:bg-white/70 focus:outline-none disabled:opacity-50 ${
-            resaltado ? CLASE_RESALTADO : 'rounded-lg border-transparent bg-transparent'
+            resaltado
+              ? CLASE_RESALTADO
+              : 'rounded-lg border-transparent bg-transparent'
           }`.trim()}
         />
         {pendiente && (
-          <WarningTooltip texto="Completa Espesor (T) y Desgaste (H) para guardar esta fila.">⚠️</WarningTooltip>
+          <WarningTooltip texto="Completa Espesor (T) y Desgaste (H) para guardar esta fila.">
+            ⚠️
+          </WarningTooltip>
         )}
       </span>
     </td>

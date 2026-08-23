@@ -249,6 +249,7 @@ export interface ReferenciaUltimaFicha {
   // P.T. de ESA ficha histórica — exclusivo de 'ultima_ficha' (no existe en
   // ReferenciaUltimaMedicion, que no proviene de ninguna ficha real).
   ptCodigo: string | null
+  comentariosActividad: string | null
   esqueleto: PosicionEsqueleto[]
   rows: import('../scan-records/types').PreviewRow[]
   responsableMantenimientoFirma: string | null

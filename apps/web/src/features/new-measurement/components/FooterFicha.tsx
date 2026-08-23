@@ -3,7 +3,12 @@ import { GlassSurface } from '../../../components/GlassSurface'
 import { WarningTooltip } from '../../../components/WarningTooltip'
 import { useSyncedState } from '../../../hooks/useSyncedState'
 import { aFechaCorta, fechaHoyCorta } from '../fecha'
-import type { CambiosFicha, FichaInstrumento, FichaMedicion, FichaTecnico } from '../types'
+import type {
+  CambiosFicha,
+  FichaInstrumento,
+  FichaMedicion,
+  FichaTecnico,
+} from '../types'
 import { BotonFechaHoy } from './BotonFechaHoy'
 import { FirmaDigital } from './FirmaDigital'
 
@@ -13,9 +18,25 @@ type Props = {
   limiteTecnicos?: number
 }
 
-const CLASE_INPUT =
-  'glass-field w-full min-w-0 px-2.5 py-1.5 text-xs'
+const CLASE_INPUT = 'glass-field w-full min-w-0 px-2.5 py-1.5 text-xs'
 const MAX_CARACTERES_COMENTARIOS_ACTIVIDAD = 612
+
+function firmaVacia(firma: string | null | undefined): boolean {
+  return !firma?.startsWith('data:image/')
+}
+
+function bloquePersonaIncompleto(persona: {
+  nombre: string
+  firma: string
+  fecha: string
+}): boolean {
+  const valores = [
+    persona.nombre.trim(),
+    firmaVacia(persona.firma) ? '' : persona.firma,
+    persona.fecha,
+  ]
+  return valores.some(Boolean) && valores.some((valor) => !valor)
+}
 
 // Footer completo de la ficha (punto 3 del enunciado): instrumentos (3 filas
 // fijas), comentarios, técnicos (4 fijos, 2x2) y el bloque Ing. MR/Responsable
@@ -28,19 +49,30 @@ export function FooterFicha({ ficha, onGuardar, limiteTecnicos }: Props) {
   return (
     <div className="mt-6 space-y-5">
       <GlassSurface fuerte className="rounded-glass p-5">
-        <h2 className="mb-3 font-display text-base font-semibold text-concreto-oscuro">Lista de instrumentos</h2>
-        <TablaInstrumentos instrumentos={ficha.instrumentos} fechaVerificacion={ficha.fechaFicha} onGuardar={onGuardar} />
+        <h2 className="mb-3 font-display text-base font-semibold text-concreto-oscuro">
+          Lista de instrumentos
+        </h2>
+        <TablaInstrumentos
+          instrumentos={ficha.instrumentos}
+          fechaVerificacion={ficha.fechaFicha}
+          onGuardar={onGuardar}
+        />
       </GlassSurface>
 
       <GlassSurface fuerte className="rounded-glass p-5">
         <h2 className="mb-3 font-display text-base font-semibold text-concreto-oscuro">
           Comentarios respecto de la actividad
         </h2>
-        <ComentariosActividad valor={ficha.comentariosActividad ?? ''} onGuardar={onGuardar} />
+        <ComentariosActividad
+          valor={ficha.comentariosActividad ?? ''}
+          onGuardar={onGuardar}
+        />
       </GlassSurface>
 
       <GlassSurface fuerte className="rounded-glass p-5">
-        <h2 className="mb-3 font-display text-base font-semibold text-concreto-oscuro">Realizado por</h2>
+        <h2 className="mb-3 font-display text-base font-semibold text-concreto-oscuro">
+          Realizado por
+        </h2>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {ficha.tecnicos.slice(0, limiteTecnicos).map((t) => (
             <FilaTecnico key={t.posicion} tecnico={t} onGuardar={onGuardar} />
@@ -107,7 +139,12 @@ function TablaInstrumentos({
         </thead>
         <tbody>
           {instrumentos.map((inst) => (
-            <FilaInstrumento key={inst.posicion} instrumento={inst} fechaVerificacion={fechaVerificacion} onGuardar={onGuardar} />
+            <FilaInstrumento
+              key={inst.posicion}
+              instrumento={inst}
+              fechaVerificacion={fechaVerificacion}
+              onGuardar={onGuardar}
+            />
           ))}
         </tbody>
       </table>
@@ -129,50 +166,109 @@ function FilaInstrumento({
     descripcion: instrumento.descripcion ?? '',
     modeloMarca: instrumento.modeloMarca ?? '',
     fechaCalibracion: aFechaCorta(instrumento.fechaCalibracion),
-    fechaVencimientoCalibracion: aFechaCorta(instrumento.fechaVencimientoCalibracion),
+    fechaVencimientoCalibracion: aFechaCorta(
+      instrumento.fechaVencimientoCalibracion,
+    ),
     observaciones: instrumento.observaciones ?? '',
   })
 
   function guardarCampo(campo: keyof typeof form, valor: string) {
     setForm((f) => ({ ...f, [campo]: valor }))
-    onGuardar({ instrumentos: [{ posicion: instrumento.posicion, [campo]: valor }] })
+    onGuardar({
+      instrumentos: [{ posicion: instrumento.posicion, [campo]: valor }],
+    })
   }
 
   const valores = Object.values(form).map((valor) => valor.trim())
-  const filaIncompleta = valores.some(Boolean) && valores.some((valor) => !valor)
+  const filaIncompleta =
+    valores.some(Boolean) && valores.some((valor) => !valor)
   const vencimientoInvalido =
     Boolean(form.fechaVencimientoCalibracion) &&
     (form.fechaVencimientoCalibracion < fechaVerificacion.slice(0, 10) ||
       (Boolean(form.fechaCalibracion) &&
         form.fechaVencimientoCalibracion < form.fechaCalibracion))
   const fechaMinimaVencimiento =
-    [fechaVerificacion.slice(0, 10), form.fechaCalibracion].filter(Boolean).sort().at(-1) ?? ''
+    [fechaVerificacion.slice(0, 10), form.fechaCalibracion]
+      .filter(Boolean)
+      .sort()
+      .at(-1) ?? ''
 
   return (
     <>
       <tr className="border-b border-concreto/10">
-      <td className="px-2 py-1.5">
-        <input className={CLASE_INPUT} value={form.codigo} onChange={(e) => setForm((f) => ({ ...f, codigo: e.target.value }))} onBlur={(e) => guardarCampo('codigo', e.target.value)} />
-      </td>
-      <td className="px-2 py-1.5">
-        <input className={CLASE_INPUT} value={form.descripcion} onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))} onBlur={(e) => guardarCampo('descripcion', e.target.value)} />
-      </td>
-      <td className="px-2 py-1.5">
-        <input className={CLASE_INPUT} value={form.modeloMarca} onChange={(e) => setForm((f) => ({ ...f, modeloMarca: e.target.value }))} onBlur={(e) => guardarCampo('modeloMarca', e.target.value)} />
-      </td>
-      <td className="px-2 py-1.5">
-        <input type="date" className={CLASE_INPUT} value={form.fechaCalibracion} onChange={(e) => setForm((f) => ({ ...f, fechaCalibracion: e.target.value }))} onBlur={(e) => guardarCampo('fechaCalibracion', e.target.value)} />
-      </td>
-      <td className="px-2 py-1.5">
-        <input type="date" min={fechaMinimaVencimiento} className={CLASE_INPUT} value={form.fechaVencimientoCalibracion} onChange={(e) => setForm((f) => ({ ...f, fechaVencimientoCalibracion: e.target.value }))} onBlur={(e) => guardarCampo('fechaVencimientoCalibracion', e.target.value)} />
-      </td>
-      <td className="px-2 py-1.5">
-        <input className={CLASE_INPUT} value={form.observaciones} onChange={(e) => setForm((f) => ({ ...f, observaciones: e.target.value }))} onBlur={(e) => guardarCampo('observaciones', e.target.value)} />
-      </td>
+        <td className="px-2 py-1.5">
+          <input
+            className={CLASE_INPUT}
+            value={form.codigo}
+            onChange={(e) => setForm((f) => ({ ...f, codigo: e.target.value }))}
+            onBlur={(e) => guardarCampo('codigo', e.target.value)}
+          />
+        </td>
+        <td className="px-2 py-1.5">
+          <input
+            className={CLASE_INPUT}
+            value={form.descripcion}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, descripcion: e.target.value }))
+            }
+            onBlur={(e) => guardarCampo('descripcion', e.target.value)}
+          />
+        </td>
+        <td className="px-2 py-1.5">
+          <input
+            className={CLASE_INPUT}
+            value={form.modeloMarca}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, modeloMarca: e.target.value }))
+            }
+            onBlur={(e) => guardarCampo('modeloMarca', e.target.value)}
+          />
+        </td>
+        <td className="px-2 py-1.5">
+          <input
+            type="date"
+            className={CLASE_INPUT}
+            value={form.fechaCalibracion}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, fechaCalibracion: e.target.value }))
+            }
+            onBlur={(e) => guardarCampo('fechaCalibracion', e.target.value)}
+          />
+        </td>
+        <td className="px-2 py-1.5">
+          <input
+            type="date"
+            min={fechaMinimaVencimiento}
+            className={CLASE_INPUT}
+            value={form.fechaVencimientoCalibracion}
+            onChange={(e) =>
+              setForm((f) => ({
+                ...f,
+                fechaVencimientoCalibracion: e.target.value,
+              }))
+            }
+            onBlur={(e) =>
+              guardarCampo('fechaVencimientoCalibracion', e.target.value)
+            }
+          />
+        </td>
+        <td className="px-2 py-1.5">
+          <input
+            className={CLASE_INPUT}
+            value={form.observaciones}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, observaciones: e.target.value }))
+            }
+            onBlur={(e) => guardarCampo('observaciones', e.target.value)}
+          />
+        </td>
       </tr>
       {(filaIncompleta || vencimientoInvalido) && (
         <tr className="border-b border-concreto/10">
-          <td colSpan={6} className="px-2 pb-2 text-xs text-[color:var(--color-estado-critico)]">
+          <td
+            colSpan={6}
+            className="px-2 pb-2 text-xs text-[color:var(--color-estado-critico)]"
+          >
             {filaIncompleta
               ? 'Completa todos los campos de esta fila o déjala vacía.'
               : 'La fecha de vencimiento no puede ser anterior a la fecha de verificación ni a la de calibración.'}
@@ -193,17 +289,22 @@ function ComentariosActividad({
   const [borrador, setBorrador] = useSyncedState(valor)
 
   return (
-    <textarea
-      rows={3}
-      maxLength={MAX_CARACTERES_COMENTARIOS_ACTIVIDAD}
-      value={borrador}
-      onChange={(e) => setBorrador(e.target.value)}
-      onBlur={() => {
-        if (borrador !== valor) onGuardar({ comentariosActividad: borrador })
-      }}
-      className="glass-field resize-y px-3 py-2.5 text-sm"
-      placeholder="Observaciones generales de la actividad…"
-    />
+    <div className="space-y-1.5">
+      <textarea
+        rows={3}
+        maxLength={MAX_CARACTERES_COMENTARIOS_ACTIVIDAD}
+        value={borrador}
+        onChange={(e) => setBorrador(e.target.value)}
+        onBlur={() => {
+          if (borrador !== valor) onGuardar({ comentariosActividad: borrador })
+        }}
+        className="glass-field resize-y px-3 py-2.5 text-sm"
+        placeholder="Observaciones generales de la actividad…"
+      />
+      <p className="text-right font-body text-[0.6875rem] text-concreto">
+        {borrador.length}/{MAX_CARACTERES_COMENTARIOS_ACTIVIDAD}
+      </p>
+    </div>
   )
 }
 
@@ -224,6 +325,8 @@ function FilaTecnico({
     setForm((f) => ({ ...f, [campo]: valor }))
     onGuardar({ tecnicos: [{ posicion: tecnico.posicion, [campo]: valor }] })
   }
+
+  const incompleto = bloquePersonaIncompleto(form)
 
   return (
     <div className="rounded-2xl border border-[color:var(--glass-border)] bg-white/40 p-3.5">
@@ -252,9 +355,16 @@ function FilaTecnico({
             value={form.fecha}
             onChange={(e) => guardarCampo('fecha', e.target.value)}
           />
-          <BotonFechaHoy onClick={() => guardarCampo('fecha', fechaHoyCorta())} />
+          <BotonFechaHoy
+            onClick={() => guardarCampo('fecha', fechaHoyCorta())}
+          />
         </div>
       </div>
+      {incompleto && (
+        <p className="mt-2 font-body text-xs text-[color:var(--color-estado-critico)]">
+          Completa nombre, firma y fecha, o deja los 3 campos vacíos.
+        </p>
+      )}
     </div>
   )
 }
@@ -272,12 +382,21 @@ function BloqueResponsable({
   firma: string
   fecha: string
   nombreObligatorio?: boolean
-  onGuardar: (cambios: { nombre?: string; firma?: string; fecha?: string }) => void
+  onGuardar: (cambios: {
+    nombre?: string
+    firma?: string
+    fecha?: string
+  }) => void
 }) {
   const [borradorNombre, setBorradorNombre] = useSyncedState(nombre)
   const [borradorFirma, setBorradorFirma] = useSyncedState(firma)
   const [borradorFecha, setBorradorFecha] = useSyncedState(fecha)
 
+  const incompleto = bloquePersonaIncompleto({
+    nombre: borradorNombre,
+    firma: borradorFirma,
+    fecha: borradorFecha,
+  })
   const vacio = nombreObligatorio && borradorNombre.trim() === ''
 
   return (
@@ -285,7 +404,7 @@ function BloqueResponsable({
       <div className="mb-2 flex items-center gap-1.5 font-body text-sm font-semibold text-concreto-oscuro">
         {titulo}
         {nombreObligatorio && (
-          <WarningTooltip texto="El nombre del Responsable de Mantenimiento es obligatorio para poder confirmar la ficha.">
+          <WarningTooltip texto="Responsable de Mantenimiento debe tener nombre, firma y fecha para poder confirmar la ficha.">
             <span className="text-[color:var(--color-estado-critico)]">*</span>
           </WarningTooltip>
         )}
@@ -327,6 +446,11 @@ function BloqueResponsable({
           />
         </div>
       </div>
+      {incompleto && (
+        <p className="mt-2 font-body text-xs text-[color:var(--color-estado-critico)]">
+          Completa nombre, firma y fecha, o deja los 3 campos vacíos.
+        </p>
+      )}
     </div>
   )
 }

@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes, useParams } from 'react-router-dom'
 import { PublicOnlyRoute } from './auth/PublicOnlyRoute'
 import { RequireAuth } from './auth/RequireAuth'
 import { MainLayout } from './components/MainLayout'
@@ -15,9 +15,19 @@ import { MigracionUpload } from './pages/MigracionUpload'
 import { NuevasMediciones } from './pages/NuevasMediciones'
 import { Proyeccion } from './pages/Proyeccion'
 import { RelacionBogies } from './pages/RelacionBogies'
-import { Reperfilado } from './pages/Reperfilado'
 import { TasaDesgaste } from './pages/TasaDesgaste'
 import { Trazabilidad } from './pages/Trazabilidad'
+
+function RedirigirReperfilado() {
+  const { fichaId } = useParams<{ fichaId?: string }>()
+  return (
+    <Navigate
+      to={fichaId ? `/nuevas-mediciones/${fichaId}` : '/nuevas-mediciones'}
+      state={{ motivo: 'Reperfilado' }}
+      replace
+    />
+  )
+}
 
 function App() {
   return (
@@ -86,8 +96,8 @@ function App() {
         <Route path="/migracion/:fileId" element={<MigracionPreview />} />
         <Route path="/nuevas-mediciones" element={<NuevasMediciones />} />
         <Route path="/nuevas-mediciones/:fichaId" element={<NuevasMediciones />} />
-        <Route path="/reperfilado" element={<Reperfilado />} />
-        <Route path="/reperfilado/:fichaId" element={<Reperfilado />} />
+        <Route path="/reperfilado" element={<RedirigirReperfilado />} />
+        <Route path="/reperfilado/:fichaId" element={<RedirigirReperfilado />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

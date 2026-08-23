@@ -6,6 +6,7 @@ import { SECCIONES_SIDEBAR } from './sidebarItems'
 import { Marca } from './Marca'
 
 const CLAVE_COLAPSADA = 'eva.sidebar.colapsada'
+export const EVENTO_COLAPSAR_SIDEBAR = 'eva:sidebar-colapsar'
 
 // Sidebar persistente del shell (MainLayout) — styles.md §4: columna fija,
 // siempre oscura (mismo fondo cinemático con o sin sesión), colapso
@@ -18,6 +19,15 @@ export function Sidebar() {
   useEffect(() => {
     localStorage.setItem(CLAVE_COLAPSADA, String(colapsada))
   }, [colapsada])
+
+  useEffect(() => {
+    function colapsar() {
+      setColapsada(true)
+    }
+
+    window.addEventListener(EVENTO_COLAPSAR_SIDEBAR, colapsar)
+    return () => window.removeEventListener(EVENTO_COLAPSAR_SIDEBAR, colapsar)
+  }, [])
 
   const rol = sesion?.usuario.rol
 

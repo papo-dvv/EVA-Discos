@@ -1,5 +1,6 @@
 import axios from 'axios'
 import qs from 'qs'
+import { EVENTO_SESION_NO_AUTORIZADA } from '../auth/sessionEvents'
 
 export const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_URL ?? 'http://localhost:3000',
@@ -28,3 +29,16 @@ apiClient.interceptors.request.use((config) => {
   }
   return config
 })
+
+// Cualquier 401 con una sesión persistida indica que el JWT ya no puede
+// utilizarse. AuthProvider escucha este evento, limpia la sesión y los guards
+// de rutas llevan inmediatamente al usuario a /login.
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (axios.isAxiosError(error) && error.response?.status === 401 && localStorage.getItem('eva.sesion')) {
+      window.dispatchEvent(new Event(EVENTO_SESION_NO_AUTORIZADA))
+    }
+    return Promise.reject(error)
+  },
+)

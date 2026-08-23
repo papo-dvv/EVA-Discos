@@ -292,6 +292,7 @@ describe('NewMeasurementPreviewService.editarFila — bloqueo y reseteo de verif
         findFirst: jest.fn(({ where }: { where: { id?: string } }) =>
           Promise.resolve(where.id === fila.id ? { ...fila } : null),
         ),
+        findUniqueOrThrow: jest.fn(() => Promise.resolve({ ...fila })),
         update: jest.fn(({ data }: { data: Partial<typeof fila> }) => {
           Object.assign(fila, data);
           return Promise.resolve({ ...fila });
@@ -316,7 +317,7 @@ describe('NewMeasurementPreviewService.editarFila — bloqueo y reseteo de verif
   it('editar una fila DESPUÉS de un /validate exitoso resetea verificado a false', async () => {
     const { prisma, fichaRef } = crearEntornoFila({ verificado: true });
     const brakeDiscRules = {};
-    const validationService = {};
+    const validationService = { recalcularFlags: jest.fn() };
     const service = new NewMeasurementPreviewService(
       prisma as never,
       brakeDiscRules as never,
@@ -338,7 +339,7 @@ describe('NewMeasurementPreviewService.editarFila — bloqueo y reseteo de verif
   it('editar una fila con la tabla bloqueada rechaza con 423', async () => {
     const { prisma } = crearEntornoFila({ tablaBloqueada: true });
     const brakeDiscRules = {};
-    const validationService = {};
+    const validationService = { recalcularFlags: jest.fn() };
     const service = new NewMeasurementPreviewService(
       prisma as never,
       brakeDiscRules as never,
@@ -370,7 +371,7 @@ describe('NewMeasurementPreviewService.editarFila — bloqueo y reseteo de verif
         .fn()
         .mockResolvedValue(new BrakeDiscRulesEngine(UMBRALES_POR_DEFECTO)),
     };
-    const validationService = {};
+    const validationService = { recalcularFlags: jest.fn() };
     const service = new NewMeasurementPreviewService(
       prisma as never,
       brakeDiscRules as never,

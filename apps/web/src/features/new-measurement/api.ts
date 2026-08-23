@@ -88,12 +88,21 @@ export interface ResultadoOcrReperfilado {
 
 export async function leerFotoReperfilado(
   file: File,
+  onProgreso?: (porcentaje: number) => void,
 ): Promise<ResultadoOcrReperfilado> {
   const form = new FormData()
   form.append('file', file)
   const { data } = await apiClient.post<ResultadoOcrReperfilado>(
     '/new-measurement/reprofiling/photo',
     form,
+    {
+      onUploadProgress: (evento) => {
+        if (!evento.total) return
+        // La API procesa el OCR después de recibir el archivo. Reservamos el
+        // último tramo para esa lectura, que no expone progreso desde servidor.
+        onProgreso?.(Math.min(90, Math.round((evento.loaded / evento.total) * 90)))
+      },
+    },
   )
   return data
 }
@@ -280,9 +289,9 @@ export async function reiniciarFicha(fichaId: string): Promise<ResumenReset> {
   return data
 }
 
-export async function obtenerHistorialMediciones(limit = 50): Promise<EventoHistorialApi[]> {
+export async function obtenerHistorialMediciones(limit = 50, motivo?: MotivoFicha): Promise<EventoHistorialApi[]> {
   const { data } = await apiClient.get<EventoHistorialApi[]>('/new-measurement/historial', {
-    params: { limit },
+    params: { limit, motivo },
   })
   return data
 }

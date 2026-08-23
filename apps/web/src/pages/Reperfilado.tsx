@@ -1,11 +1,15 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { ClipboardPenLine, Download, RefreshCcw, Ruler } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { GlassButton } from '../components/GlassButton'
 import { GlassSurface } from '../components/GlassSurface'
 import { SegmentedControl } from '../components/SegmentedControl'
+import { EVENTO_COLAPSAR_SIDEBAR } from '../components/Sidebar'
 import { WarningTooltip } from '../components/WarningTooltip'
+import { ConteoEstadosFicha } from '../features/new-measurement/components/ConteoEstadosFicha'
 import { FooterFicha } from '../features/new-measurement/components/FooterFicha'
+import { PanelHistorialMediciones } from '../features/new-measurement/components/PanelHistorialMediciones'
 import { TablaFichaReperfilado } from '../features/new-measurement/components/TablaFichaReperfilado'
 import {
   useBloquearFicha,
@@ -29,6 +33,34 @@ import type {
 import { CargaInicialReperfilado } from '../features/reprofiling/CargaInicialReperfilado'
 import { HeaderReperfilado } from '../features/reprofiling/HeaderReperfilado'
 import { extraerMensajeError } from '../lib/extraerMensajeError'
+
+const MOTIVO_OPCIONES: {
+  valor: MotivoFicha
+  etiqueta: string
+  icono: React.ReactNode
+  deshabilitada?: boolean
+  tooltip?: string
+  tooltipPosicion?: 'arriba' | 'abajo'
+}[] = [
+  {
+    valor: 'Medición',
+    etiqueta: 'Medición',
+    icono: <Ruler size={15} aria-hidden />,
+  },
+  {
+    valor: 'Reperfilado',
+    etiqueta: 'Reperfilado',
+    icono: <RefreshCcw size={15} aria-hidden />,
+  },
+  {
+    valor: 'Cambio',
+    etiqueta: 'Cambio',
+    icono: <ClipboardPenLine size={15} aria-hidden />,
+    deshabilitada: true,
+    tooltip: 'Próximamente',
+    tooltipPosicion: 'abajo',
+  },
+]
 
 function valorConformidad(todasConformes: boolean | null): 'si' | 'no' | undefined {
   if (todasConformes === null) return undefined
@@ -82,7 +114,37 @@ function mensajeConfirmarBloqueado(
   return `Falta ${juntarConY(faltantes)} para poder confirmar la ficha.`
 }
 
-export function Reperfilado() {
+function mensajeEstadoVerificacion(
+  tablaBloqueada: boolean,
+  verificado: boolean,
+  resultadoVerificacion: ResumenVerificacion | null,
+): string {
+  if (tablaBloqueada) return '🔒 Tabla de reperfilado bloqueada.'
+  if (resultadoVerificacion && !resultadoVerificacion.todoValido) {
+    const n = resultadoVerificacion.filasExcluidas.length
+    return n > 0
+      ? `⚠ Ficha con ${n} fila(s) con problemas — corregí antes de continuar.`
+      : '⚠ Corregí los datos de cabecera antes de continuar.'
+  }
+  if (verificado) return '✅ Ficha verificada — lista para bloquear.'
+  return 'Verifica los límites antes de bloquear la tabla de reperfilado.'
+}
+
+function esErrorNoEncontrado(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'response' in error &&
+    typeof (error as { response?: { status?: unknown } }).response?.status === 'number' &&
+    (error as { response: { status: number } }).response.status === 404
+  )
+}
+
+export function Reperfilado({
+  onCambiarMotivo,
+}: {
+  onCambiarMotivo?: (motivo: MotivoFicha) => void
+}) {
   const { fichaId } = useParams<{ fichaId?: string }>()
   const navigate = useNavigate()
   const [cancelando, setCancelando] = useState(false)
@@ -91,6 +153,9 @@ export function Reperfilado() {
   const [descargandoPdf, setDescargandoPdf] = useState(false)
   const [nombrePdf, setNombrePdf] = useState('')
   const [errorAccion, setErrorAccion] = useState<string | null>(null)
+  const verificarCardRef = useRef<HTMLDivElement>(null)
+  const [verificarFlotante, setVerificarFlotante] = useState(false)
+  const [verificarRect, setVerificarRect] = useState({ left: 0, width: 0 })
   const preview = useFichaPreview(fichaId ?? '', { page: 1, pageSize: 100 })
   const editar = useEditarFicha(fichaId ?? '')
   const verificar = useVerificarFicha(fichaId ?? '')
@@ -123,14 +188,53 @@ export function Reperfilado() {
       return
     }
     const activa = obtenerFichaActiva('reperfilado')
-    if (activa) navigate(`/reperfilado/${activa}`, { replace: true })
+    if (activa) navigate(`/nuevas-mediciones/${activa}`, { replace: true })
   }, [fichaId, navigate])
+
+  useEffect(() => {
+    if (!fichaId || !preview.isError || !esErrorNoEncontrado(preview.error)) return
+    limpiarFichaActiva('reperfilado')
+    navigate('/nuevas-mediciones', { replace: true })
+  }, [fichaId, navigate, preview.error, preview.isError])
 
   useEffect(() => {
     if (ficha && !nombrePdf) {
       setNombrePdf(`UT-UF-MTO-FR-414 - Tren ${ficha.trenNumero}`)
     }
   }, [ficha, nombrePdf])
+
+  useEffect(() => {
+    const card = verificarCardRef.current
+    const scroller = card?.closest('main')
+    if (!card || !scroller) return
+    const cardEl = card
+    const scrollerEl = scroller
+
+    function actualizarBarraFlotante() {
+      const cardRect = cardEl.getBoundingClientRect()
+      const scrollerRect = scrollerEl.getBoundingClientRect()
+      const margenSuperior = scrollerRect.top + 12
+      setVerificarFlotante(cardRect.bottom < margenSuperior)
+      setVerificarRect({
+        left: cardRect.left,
+        width: cardRect.width,
+      })
+    }
+
+    actualizarBarraFlotante()
+    scrollerEl.addEventListener('scroll', actualizarBarraFlotante, {
+      passive: true,
+    })
+    window.addEventListener('resize', actualizarBarraFlotante)
+    return () => {
+      scrollerEl.removeEventListener('scroll', actualizarBarraFlotante)
+      window.removeEventListener('resize', actualizarBarraFlotante)
+    }
+  }, [fichaId, preview.data, resultado, tablaBloqueada])
+
+  useEffect(() => {
+    if (fichaId) window.dispatchEvent(new Event(EVENTO_COLAPSAR_SIDEBAR))
+  }, [fichaId])
 
   function irAlPrimerError() {
     setResultado(null)
@@ -142,33 +246,95 @@ export function Reperfilado() {
     })
   }
 
-  return (
-    <div className="px-2 py-4 sm:px-3">
-      <div className="w-full">
-        <GlassSurface className="rounded-glass px-6 py-4">
-          <h1 className="font-display text-2xl font-semibold tracking-tight text-concreto-oscuro">
-            Reperfilado
-          </h1>
-          <p className="mt-0.5 font-body text-sm text-concreto">
-            Control de trabajos en torno fosa - discos de freno Tren Alstom
+  function cardVerificacion(flotante = false) {
+    return (
+      <GlassSurface
+        fuerte
+        className={`flex flex-wrap items-center justify-between gap-3 rounded-glass p-4 ${
+          flotante ? 'shadow-[0_18px_45px_rgba(15,23,42,0.16)]' : ''
+        }`}
+      >
+        <p className="font-body text-sm text-concreto-oscuro">
+          {mensajeEstadoVerificacion(tablaBloqueada, ficha?.verificado ?? false, resultado)}
+        </p>
+        {errorAccion && (
+          <p role="alert" className="w-full text-sm text-[color:var(--color-estado-critico)]">
+            ⚠ {errorAccion}
           </p>
-        </GlassSurface>
+        )}
+        {resultado?.todoValido && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="w-full rounded-2xl border border-emerald-700/20 bg-emerald-50/70 px-4 py-3 font-body text-sm font-semibold text-emerald-800"
+          >
+            ✓ Validación correcta: los valores nuevos presentan la reducción esperada y la rugosidad final R.A. cumple el estándar de 2,5 µm.
+          </div>
+        )}
+        {!tablaBloqueada && (
+          <GlassButton
+            type="button"
+            variante="secundario"
+            cargando={verificar.isPending || bloquear.isPending}
+            onClick={async () => {
+              setErrorAccion(null)
+              try {
+                const validacion = await verificar.mutateAsync()
+                if (!validacion.todoValido) {
+                  setResultado(validacion)
+                  return
+                }
+                await bloquear.mutateAsync()
+                setResultado(validacion)
+              } catch (error) {
+                setErrorAccion(extraerMensajeError(error, 'No se pudo validar y bloquear la ficha.'))
+              }
+            }}
+            className="text-xs"
+          >
+            Verificar
+          </GlassButton>
+        )}
+      </GlassSurface>
+    )
+  }
+
+  return (
+    <div className={fichaId ? 'px-2 py-4 sm:px-3' : 'px-3 py-6 sm:px-5'}>
+      <div className={fichaId ? 'w-full' : 'mx-auto flex max-w-[75rem] flex-col gap-4 xl:max-w-[96rem] xl:flex-row xl:items-start'}>
+        <div className={fichaId ? 'min-w-0' : 'min-w-0 flex-1'}>
+          <GlassSurface className="flex flex-wrap items-center justify-between gap-4 rounded-glass px-6 py-4">
+            <div>
+              <h1 className="font-display text-2xl font-semibold tracking-tight text-concreto-oscuro">
+                Reperfilado
+              </h1>
+              <p className="mt-0.5 font-body text-sm text-concreto">
+                Control de trabajos en torno fosa - discos de freno Tren Alstom
+              </p>
+            </div>
+          </GlassSurface>
 
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <p className="font-body text-xs font-semibold uppercase tracking-[0.1em] text-concreto">
             Motivo
           </p>
-          <SegmentedControl<MotivoFicha>
+          <SegmentedControl
             ariaLabel="Motivo de la ficha"
-            opciones={[
-              { valor: 'Medición', etiqueta: 'Medición' },
-              { valor: 'Reperfilado', etiqueta: 'Reperfilado' },
-              { valor: 'Cambio', etiqueta: 'Cambio', deshabilitada: true },
-            ]}
+            opciones={MOTIVO_OPCIONES.map((opcion) =>
+              fichaId && opcion.valor !== 'Reperfilado'
+                ? {
+                    ...opcion,
+                    deshabilitada: true,
+                    tooltip: 'Cancela o confirma la ficha actual para cambiar de motivo.',
+                    tooltipPosicion: 'abajo' as const,
+                  }
+                : opcion,
+            )}
             valor="Reperfilado"
             onCambiar={(valor) => {
               if (valor === 'Medición') {
                 const activa = obtenerFichaActiva('medicion')
+                onCambiarMotivo?.('Medición')
                 navigate(
                   activa
                     ? `/nuevas-mediciones/${activa}`
@@ -184,7 +350,7 @@ export function Reperfilado() {
             <CargaInicialReperfilado
               onCreada={(id) => {
                 guardarFichaActiva('reperfilado', id)
-                navigate(`/reperfilado/${id}`)
+                navigate(`/nuevas-mediciones/${id}`)
               }}
             />
           </GlassSurface>
@@ -202,7 +368,7 @@ export function Reperfilado() {
             </p>
           ) : ficha && preview.data ? (
             <>
-              <div className="mt-4 flex flex-wrap items-end justify-end gap-2">
+              <div className="mt-4 flex flex-wrap justify-end gap-2">
                 <label className="min-w-64 font-body text-xs text-concreto">
                   Nombre del PDF
                   <input
@@ -214,8 +380,10 @@ export function Reperfilado() {
                   />
                 </label>
                 <GlassButton
+                  type="button"
                   variante="secundario"
                   cargando={descargandoPdf}
+                  className="text-xs"
                   onClick={async () => {
                     setDescargandoPdf(true)
                     try {
@@ -225,16 +393,35 @@ export function Reperfilado() {
                     }
                   }}
                 >
+                  <Download size={16} aria-hidden />
                   Descargar PDF
                 </GlassButton>
                 <GlassButton
+                  type="button"
                   variante="secundario"
                   onClick={() => setCancelando(true)}
+                  disabled={cancelar.isPending}
+                  className="text-xs"
                   style={{ color: 'var(--color-estado-critico)' }}
                 >
                   Cancelar ficha
                 </GlassButton>
               </div>
+              <div ref={verificarCardRef} className="mt-3">
+                {cardVerificacion()}
+              </div>
+              {verificarFlotante && (
+                <div
+                  className="pointer-events-auto fixed top-[4.75rem] z-50"
+                  style={{
+                    left: verificarRect.left,
+                    width: verificarRect.width,
+                  }}
+                >
+                  {cardVerificacion(true)}
+                </div>
+              )}
+              <ConteoEstadosFicha rows={rows} />
               <GlassSurface fuerte className="mt-3 rounded-glass-lg p-5 sm:p-6">
                 <HeaderReperfilado
                   ficha={ficha}
@@ -261,49 +448,6 @@ export function Reperfilado() {
                 onGuardarCodigos={(cambios) => editar.mutate(cambios)}
                 deshabilitada={tablaBloqueada}
               />
-              <GlassSurface
-                fuerte
-                className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-glass p-4"
-              >
-                <p className="text-sm text-concreto-oscuro">
-                  {tablaBloqueada
-                    ? '🔒 Tabla de perfilado bloqueada.'
-                    : ficha.verificado
-                      ? '✅ Ficha verificada — lista para bloquear.'
-                      : 'Verifica los límites antes de bloquear la tabla.'}
-                </p>
-                {errorAccion && <p role="alert" className="w-full text-sm text-[color:var(--color-estado-critico)]">⚠ {errorAccion}</p>}
-                {resultado?.todoValido && (
-                  <div
-                    role="status"
-                    aria-live="polite"
-                    className="w-full rounded-2xl border border-emerald-700/20 bg-emerald-50/70 px-4 py-3 font-body text-sm font-semibold text-emerald-800"
-                  >
-                    ✓ Validación correcta: los valores nuevos presentan la reducción esperada y la rugosidad final R.A. cumple el estándar de 2,5 µm.
-                  </div>
-                )}
-                {!tablaBloqueada && (
-                  <GlassButton
-                    cargando={verificar.isPending || bloquear.isPending}
-                    onClick={async () => {
-                      setErrorAccion(null)
-                      try {
-                        const validacion = await verificar.mutateAsync()
-                        if (!validacion.todoValido) {
-                          setResultado(validacion)
-                          return
-                        }
-                        await bloquear.mutateAsync()
-                        setResultado(validacion)
-                      } catch (error) {
-                        setErrorAccion(extraerMensajeError(error, 'No se pudo validar y bloquear la ficha.'))
-                      }
-                    }}
-                  >
-                    Validar la información y bloquear
-                  </GlassButton>
-                )}
-              </GlassSurface>
               <GlassSurface
                 fuerte
                 className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-glass p-4"
@@ -353,6 +497,20 @@ export function Reperfilado() {
               </div>
             </>
           ) : null)}
+          {!fichaId && (
+            <div className="mt-4 xl:hidden">
+              <PanelHistorialMediciones motivo="Reperfilado" />
+            </div>
+          )}
+        </div>
+
+        {!fichaId && (
+          <aside className="hidden xl:block xl:w-80 xl:shrink-0">
+            <div className="sticky top-6">
+              <PanelHistorialMediciones motivo="Reperfilado" />
+            </div>
+          </aside>
+        )}
       </div>
 
       {cancelando && (
@@ -363,7 +521,7 @@ export function Reperfilado() {
           onConfirm={async () => {
             await cancelar.mutateAsync()
             limpiarFichaActiva('reperfilado')
-            navigate('/reperfilado', { replace: true })
+            navigate('/nuevas-mediciones', { replace: true })
           }}
           onCerrar={() => setCancelando(false)}
           mensaje="Se eliminará esta ficha en borrador."

@@ -411,7 +411,15 @@ export class NewMeasurementPreviewService {
       return upd;
     });
 
-    return aPreviewRow(actualizada);
+    // Igual que estadoCalculado, los flags que alimentan Motivo/Inválido
+    // deben reflejar la medición recién editada antes de devolver el preview.
+    await this.validationService.recalcularFlags(fichaId);
+    const actualizadaConFlags =
+      await this.prisma.scanRecord.findUniqueOrThrow({
+        where: { id: actualizada.id },
+      });
+
+    return aPreviewRow(actualizadaConFlags);
   }
 
   // Agrega una fila nueva a una ficha en borrador — usado tanto por el modo
