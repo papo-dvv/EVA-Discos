@@ -48,7 +48,7 @@ const CAMPO_ORDEN: Record<ColumnaOrdenable, keyof ScanRecord> = {
 
 // Campo cuyo flag de validación cruzada automática (NewMeasurementModule)
 // quedó en true — ver motivosInvalidosDeFila más abajo.
-export type CampoInvalido = 't' | 'rd' | 'kilometraje' | 'fecha';
+export type CampoInvalido = 't' | 'rd' | 'kilometraje' | 'fecha' | 'antes';
 
 export interface MotivoInvalido {
   campo: CampoInvalido;
@@ -65,6 +65,8 @@ export const TEXTO_MOTIVO_INVALIDO: Record<CampoInvalido, string> = {
   fecha: 'Fecha anterior a la última medición registrada para este tren',
   t: 'Espesor medido (T) debe ser menor al último valor registrado para este disco',
   rd: 'Vida útil (Rd) debe ser menor al último valor registrado para este disco',
+  antes:
+    'Los valores antes del reperfilado no pueden reflejar menos desgaste que la última medición registrada de este disco',
 };
 
 // Traduce los 2 flags booleanos POR FILA (tInvalido/rdInvalido, ver
@@ -79,10 +81,12 @@ export const TEXTO_MOTIVO_INVALIDO: Record<CampoInvalido, string> = {
 export function motivosInvalidosDeFila(f: {
   tInvalido: boolean;
   rdInvalido: boolean;
+  antesInvalido?: boolean;
 }): MotivoInvalido[] {
   const campos: CampoInvalido[] = [];
   if (f.tInvalido) campos.push('t');
   if (f.rdInvalido) campos.push('rd');
+  if (f.antesInvalido) campos.push('antes');
   return campos.map((campo) => ({
     campo,
     motivo: TEXTO_MOTIVO_INVALIDO[campo],
@@ -131,7 +135,10 @@ export interface PreviewRow {
   // más abajo y ResumenVerificacion.kmInvalido/fechaInvalido (a nivel raíz).
   tInvalido: boolean;
   rdInvalido: boolean;
-  // Espejo legible de los 2 flags de arriba (ver motivosInvalidosDeFila) —
+  // Exclusivo de Reperfilado (ver ScanRecord.antesInvalido) — false en
+  // filas de Medición/migración/confirmados normales.
+  antesInvalido: boolean;
+  // Espejo legible de los 3 flags de arriba (ver motivosInvalidosDeFila) —
   // así el frontend puede repintar el motivo de cada fila desde /preview sin
   // tener que volver a llamar a POST .../validate. Vacío cuando los 2 flags
   // están en false (el caso normal fuera de NewMeasurementModule).
@@ -643,6 +650,7 @@ export function aPreviewRow(r: ScanRecord): PreviewRow {
     observacion: r.observacion,
     tInvalido: r.tInvalido,
     rdInvalido: r.rdInvalido,
+    antesInvalido: r.antesInvalido,
     motivos: motivosInvalidosDeFila(r),
   };
 }

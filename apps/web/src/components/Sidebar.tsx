@@ -1,9 +1,8 @@
 import { LogOut, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { NavLink } from 'react-router-dom'
+import { NavLink, Link } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import { SECCIONES_SIDEBAR } from './sidebarItems'
-import { Marca } from './Marca'
 
 const CLAVE_COLAPSADA = 'eva.sidebar.colapsada'
 export const EVENTO_COLAPSAR_SIDEBAR = 'eva:sidebar-colapsar'
@@ -53,11 +52,16 @@ export function Sidebar() {
           los estáticos. */}
       <div className="relative flex h-full flex-col">
         <div className="flex h-16 items-center gap-2 px-5">
-          {colapsada ? (
-            <span className="font-display text-xl font-bold tracking-tight text-white">E</span>
-          ) : (
-            <Marca tono="claro" tamano="condensado" />
-          )}
+          {/* linea1logo reemplaza el wordmark "EVA / de Línea 1 de Lima" solo
+              acá (ver Marca.tsx, que sigue usándose tal cual en Login y otras
+              pantallas) — clic navega a "/" (Inicio), el dashboard. */}
+          <Link to="/" className="flex items-center" title="Ir a Inicio">
+            <img
+              src="/images/linea1logo.png"
+              alt="EVA — Línea 1 de Lima"
+              className={colapsada ? 'h-8 w-8 object-contain' : 'h-9 w-auto object-contain'}
+            />
+          </Link>
         </div>
 
         <nav className="flex-1 overflow-y-auto px-3 py-2">

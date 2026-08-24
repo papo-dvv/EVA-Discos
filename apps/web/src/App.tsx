@@ -8,11 +8,13 @@ import { Galeria } from './pages/Galeria'
 import { Flota } from './pages/Flota'
 import { FlotaDetalle } from './pages/FlotaDetalle'
 import { Inicio } from './pages/Inicio'
+import { Inventario } from './pages/Inventario'
 import { Login } from './pages/Login'
 import { MedicionesConfirmadas } from './pages/MedicionesConfirmadas'
 import { MigracionPreview } from './pages/MigracionPreview'
 import { MigracionUpload } from './pages/MigracionUpload'
 import { NuevasMediciones } from './pages/NuevasMediciones'
+import { Operaciones } from './pages/Operaciones'
 import { Proyeccion } from './pages/Proyeccion'
 import { RelacionBogies } from './pages/RelacionBogies'
 import { TasaDesgaste } from './pages/TasaDesgaste'
@@ -92,6 +94,8 @@ function App() {
         <Route path="/trazabilidad" element={<Trazabilidad />} />
         <Route path="/proyeccion" element={<Proyeccion />} />
         <Route path="/relacion-bogies" element={<RelacionBogies />} />
+        <Route path="/operaciones" element={<Operaciones />} />
+        <Route path="/inventario" element={<Inventario />} />
         <Route path="/migracion" element={<MigracionUpload />} />
         <Route path="/migracion/:fileId" element={<MigracionPreview />} />
         <Route path="/nuevas-mediciones" element={<NuevasMediciones />} />

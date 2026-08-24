@@ -54,6 +54,11 @@ export class FleetService {
     const discos = await this.prisma.brakeDisc.findMany({
       where: {
         activo: true,
+        // stage: 'en_servicio' es la condición de negocio real ("montado
+        // ahora mismo"); el filtro por wagonUnit.tren de abajo ya la implica
+        // a nivel de runtime (una relación null nunca matchea), pero se deja
+        // explícita para no depender de ese efecto colateral.
+        stage: 'en_servicio',
         wagonUnit: { tren: { numero: { in: TRENES_ALSTOM } } },
       },
       select: {
@@ -85,7 +90,9 @@ export class FleetService {
     for (const disco of discos) {
       const ultima = disco.scanRecords[0];
       if (!ultima) continue;
-      const tren = disco.wagonUnit.tren.numero;
+      // wagonUnit no-null garantizado por el where (stage: 'en_servicio' +
+      // filtro de relación wagonUnit.tren) — Prisma no lo refleja en el tipo.
+      const tren = disco.wagonUnit!.tren.numero;
       const fila = porTren.get(tren);
       if (!fila) continue;
 
@@ -120,7 +127,9 @@ export class FleetService {
             tipoCoche: true,
             numeroCoche: true,
             brakeDiscs: {
-              where: { activo: true },
+              // stage: 'en_servicio' — solo piezas montadas ahora mismo
+              // (bogieCodigo/ejeNumero/lado garantizados no-null, ver abajo).
+              where: { activo: true, stage: 'en_servicio' },
               select: {
                 id: true,
                 bogieCodigo: true,
@@ -139,8 +148,21 @@ export class FleetService {
       coche.brakeDiscs.map((disco) => disco.id),
     );
     const ultimas = await this.buscarUltimasPorDisco(discIds);
+    // bogieCodigo/ejeNumero/lado no-null garantizados por el where de arriba
+    // (stage: 'en_servicio') — Prisma no lo refleja en el tipo generado.
     const wagonPorTipo = new Map(
-      tren.wagonUnits.map((wagon) => [wagon.tipoCoche, wagon]),
+      tren.wagonUnits.map((wagon) => [
+        wagon.tipoCoche,
+        {
+          ...wagon,
+          brakeDiscs: wagon.brakeDiscs.map((disco) => ({
+            ...disco,
+            bogieCodigo: disco.bogieCodigo!,
+            ejeNumero: disco.ejeNumero!,
+            lado: disco.lado!,
+          })),
+        },
+      ]),
     );
 
     return {

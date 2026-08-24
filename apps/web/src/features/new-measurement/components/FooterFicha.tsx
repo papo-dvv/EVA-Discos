@@ -16,6 +16,12 @@ type Props = {
   ficha: FichaMedicion
   onGuardar: (cambios: CambiosFicha) => void
   limiteTecnicos?: number
+  // 'reperfilado': reemplaza los bloques "Realizado por" + "Ing. MR /
+  // Técnico Especialista" + "Responsable de Mantenimiento" por una única
+  // tabla CARGO | NOMBRES Y APELLIDOS | FIRMA (cargo editable por fila) con
+  // una 4ta fila fija "SUPERVISOR / COORDINADOR / TÉCNICO ESPECIALISTA" —
+  // ver Reperfilado.tsx. Instrumentos y Comentarios no cambian.
+  variante?: 'medicion' | 'reperfilado'
 }
 
 const CLASE_INPUT = 'glass-field w-full min-w-0 px-2.5 py-1.5 text-xs'
@@ -45,7 +51,7 @@ function bloquePersonaIncompleto(persona: {
 // Ya no se renderiza deshabilitado-pero-visible: NuevasMediciones.tsx directamente
 // no monta este componente hasta que tabla_bloqueada=true, así que acá adentro
 // todo está siempre habilitado — no hace falta ningún estado "bloqueada".
-export function FooterFicha({ ficha, onGuardar, limiteTecnicos }: Props) {
+export function FooterFicha({ ficha, onGuardar, limiteTecnicos, variante = 'medicion' }: Props) {
   return (
     <div className="mt-6 space-y-5">
       <GlassSurface fuerte className="rounded-glass p-5">
@@ -69,49 +75,256 @@ export function FooterFicha({ ficha, onGuardar, limiteTecnicos }: Props) {
         />
       </GlassSurface>
 
-      <GlassSurface fuerte className="rounded-glass p-5">
-        <h2 className="mb-3 font-display text-base font-semibold text-concreto-oscuro">
-          Realizado por
-        </h2>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {ficha.tecnicos.slice(0, limiteTecnicos).map((t) => (
-            <FilaTecnico key={t.posicion} tecnico={t} onGuardar={onGuardar} />
-          ))}
-        </div>
-      </GlassSurface>
+      {variante === 'reperfilado' ? (
+        <TablaFirmasReperfilado
+          tecnicos={ficha.tecnicos.slice(0, limiteTecnicos)}
+          responsableNombre={ficha.responsableMantenimientoNombre ?? ''}
+          responsableFirma={ficha.responsableMantenimientoFirma ?? ''}
+          responsableFecha={aFechaCorta(ficha.responsableMantenimientoFecha)}
+          onGuardar={onGuardar}
+        />
+      ) : (
+        <>
+          <GlassSurface fuerte className="rounded-glass p-5">
+            <h2 className="mb-3 font-display text-base font-semibold text-concreto-oscuro">
+              Realizado por
+            </h2>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {ficha.tecnicos.slice(0, limiteTecnicos).map((t) => (
+                <FilaTecnico key={t.posicion} tecnico={t} onGuardar={onGuardar} />
+              ))}
+            </div>
+          </GlassSurface>
 
-      <GlassSurface fuerte className="rounded-glass p-5">
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-          <BloqueResponsable
-            titulo="Ing. MR / Técnico Especialista"
-            nombre={ficha.ingMrNombre ?? ''}
-            firma={ficha.ingMrFirma ?? ''}
-            fecha={aFechaCorta(ficha.ingMrFecha)}
-            onGuardar={(cambios) =>
-              onGuardar({
-                ingMrNombre: cambios.nombre,
-                ingMrFirma: cambios.firma,
-                ingMrFecha: cambios.fecha,
-              })
-            }
-          />
-          <BloqueResponsable
-            titulo="Responsable de Mantenimiento"
-            nombre={ficha.responsableMantenimientoNombre ?? ''}
-            firma={ficha.responsableMantenimientoFirma ?? ''}
-            fecha={aFechaCorta(ficha.responsableMantenimientoFecha)}
-            nombreObligatorio
-            onGuardar={(cambios) =>
-              onGuardar({
-                responsableMantenimientoNombre: cambios.nombre,
-                responsableMantenimientoFirma: cambios.firma,
-                responsableMantenimientoFecha: cambios.fecha,
-              })
-            }
-          />
-        </div>
-      </GlassSurface>
+          <GlassSurface fuerte className="rounded-glass p-5">
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+              <BloqueResponsable
+                titulo="Ing. MR / Técnico Especialista"
+                nombre={ficha.ingMrNombre ?? ''}
+                firma={ficha.ingMrFirma ?? ''}
+                fecha={aFechaCorta(ficha.ingMrFecha)}
+                onGuardar={(cambios) =>
+                  onGuardar({
+                    ingMrNombre: cambios.nombre,
+                    ingMrFirma: cambios.firma,
+                    ingMrFecha: cambios.fecha,
+                  })
+                }
+              />
+              <BloqueResponsable
+                titulo="Responsable de Mantenimiento"
+                nombre={ficha.responsableMantenimientoNombre ?? ''}
+                firma={ficha.responsableMantenimientoFirma ?? ''}
+                fecha={aFechaCorta(ficha.responsableMantenimientoFecha)}
+                nombreObligatorio
+                onGuardar={(cambios) =>
+                  onGuardar({
+                    responsableMantenimientoNombre: cambios.nombre,
+                    responsableMantenimientoFirma: cambios.firma,
+                    responsableMantenimientoFecha: cambios.fecha,
+                  })
+                }
+              />
+            </div>
+          </GlassSurface>
+        </>
+      )}
     </div>
+  )
+}
+
+// Tabla CARGO | NOMBRES Y APELLIDOS | FIRMA de Reperfilado: 3 filas de
+// técnico (cargo editable, ej. "Ing. MR", "Técnico Especialista") + una 4ta
+// fila fija "SUPERVISOR / COORDINADOR / TÉCNICO ESPECIALISTA" que reutiliza
+// los campos responsableMantenimiento* (único dato obligatorio para poder
+// confirmar la ficha — ver NewMeasurementCommitService.confirmar).
+function TablaFirmasReperfilado({
+  tecnicos,
+  responsableNombre,
+  responsableFirma,
+  responsableFecha,
+  onGuardar,
+}: {
+  tecnicos: FichaTecnico[]
+  responsableNombre: string
+  responsableFirma: string
+  responsableFecha: string
+  onGuardar: (cambios: CambiosFicha) => void
+}) {
+  return (
+    <GlassSurface fuerte className="rounded-glass p-5">
+      <div className="w-full overflow-x-auto">
+        <table className="w-full min-w-[42rem] border-collapse text-left font-body text-xs">
+          <thead>
+            <tr className="border-b border-concreto/20 text-[0.6875rem] font-semibold uppercase tracking-wide text-concreto">
+              <th className="w-1/4 px-2 py-2">Cargo</th>
+              <th className="w-2/5 px-2 py-2">Nombres y apellidos</th>
+              <th className="px-2 py-2">Firma</th>
+            </tr>
+          </thead>
+          <tbody>
+            {tecnicos.map((t) => (
+              <FilaFirmaTecnico key={t.posicion} tecnico={t} onGuardar={onGuardar} />
+            ))}
+            <FilaFirmaFija
+              cargo="SUPERVISOR / COORDINADOR / TÉCNICO ESPECIALISTA:"
+              nombre={responsableNombre}
+              firma={responsableFirma}
+              fecha={responsableFecha}
+              nombreObligatorio
+              onGuardar={(cambios) =>
+                onGuardar({
+                  responsableMantenimientoNombre: cambios.nombre,
+                  responsableMantenimientoFirma: cambios.firma,
+                  responsableMantenimientoFecha: cambios.fecha,
+                })
+              }
+            />
+          </tbody>
+        </table>
+      </div>
+    </GlassSurface>
+  )
+}
+
+function FilaFirmaTecnico({
+  tecnico,
+  onGuardar,
+}: {
+  tecnico: FichaTecnico
+  onGuardar: (cambios: CambiosFicha) => void
+}) {
+  const [cargo, setCargo] = useSyncedState(tecnico.cargo ?? '')
+  const [nombre, setNombre] = useSyncedState(tecnico.nombre ?? '')
+  const [fecha, setFecha] = useSyncedState(aFechaCorta(tecnico.fecha))
+
+  function guardarCampo(campo: 'cargo' | 'nombre' | 'firma' | 'fecha', valor: string) {
+    onGuardar({ tecnicos: [{ posicion: tecnico.posicion, [campo]: valor }] })
+  }
+
+  return (
+    <tr className="border-b border-concreto/10 align-top">
+      <td className="px-2 py-1.5">
+        <input
+          className={CLASE_INPUT}
+          placeholder="Cargo"
+          aria-label={`Cargo fila ${tecnico.posicion}`}
+          value={cargo}
+          onChange={(e) => setCargo(e.target.value)}
+          onBlur={(e) => guardarCampo('cargo', e.target.value)}
+        />
+      </td>
+      <td className="px-2 py-1.5">
+        <input
+          className={CLASE_INPUT}
+          placeholder="Nombre"
+          aria-label={`Nombre fila ${tecnico.posicion}`}
+          value={nombre}
+          onChange={(e) => setNombre(e.target.value)}
+          onBlur={(e) => guardarCampo('nombre', e.target.value)}
+        />
+      </td>
+      <td className="px-2 py-1.5">
+        <div className="flex items-center gap-2">
+          <FirmaDigital
+            etiqueta={`Fila ${tecnico.posicion}`}
+            valor={tecnico.firma ?? ''}
+            onGuardar={(firma) => guardarCampo('firma', firma)}
+          />
+          <div className="flex items-center gap-1">
+            <input
+              type="date"
+              className={`${CLASE_INPUT} w-32`}
+              aria-label={`Fecha fila ${tecnico.posicion}`}
+              value={fecha}
+              onChange={(e) => {
+                setFecha(e.target.value)
+                guardarCampo('fecha', e.target.value)
+              }}
+            />
+            <BotonFechaHoy
+              onClick={() => {
+                setFecha(fechaHoyCorta())
+                guardarCampo('fecha', fechaHoyCorta())
+              }}
+            />
+          </div>
+        </div>
+      </td>
+    </tr>
+  )
+}
+
+function FilaFirmaFija({
+  cargo,
+  nombre,
+  firma,
+  fecha,
+  nombreObligatorio = false,
+  onGuardar,
+}: {
+  cargo: string
+  nombre: string
+  firma: string
+  fecha: string
+  nombreObligatorio?: boolean
+  onGuardar: (cambios: { nombre?: string; firma?: string; fecha?: string }) => void
+}) {
+  const [borradorNombre, setBorradorNombre] = useSyncedState(nombre)
+  const [borradorFecha, setBorradorFecha] = useSyncedState(fecha)
+  const vacio = nombreObligatorio && borradorNombre.trim() === ''
+
+  return (
+    <tr className="border-t-2 border-concreto/25 align-top">
+      <td className="px-2 py-1.5 font-semibold text-concreto-oscuro">
+        <span className="inline-flex items-center gap-1.5">
+          {cargo}
+          {nombreObligatorio && (
+            <WarningTooltip texto="Debe tener nombre, firma y fecha para poder confirmar la ficha.">
+              <span className="text-[color:var(--color-estado-critico)]">*</span>
+            </WarningTooltip>
+          )}
+        </span>
+      </td>
+      <td className="px-2 py-1.5">
+        <input
+          className={`${CLASE_INPUT} ${vacio ? 'ring-1 ring-[color:var(--color-estado-critico)]/50' : ''}`.trim()}
+          placeholder="Nombre"
+          aria-label={`Nombre ${cargo}`}
+          aria-required={nombreObligatorio}
+          value={borradorNombre}
+          onChange={(e) => setBorradorNombre(e.target.value)}
+          onBlur={(e) => onGuardar({ nombre: e.target.value })}
+        />
+      </td>
+      <td className="px-2 py-1.5">
+        <div className="flex items-center gap-2">
+          <FirmaDigital
+            etiqueta={cargo}
+            valor={firma}
+            onGuardar={(valor) => onGuardar({ firma: valor })}
+          />
+          <div className="flex items-center gap-1">
+            <input
+              type="date"
+              className={`${CLASE_INPUT} w-32`}
+              aria-label={`Fecha ${cargo}`}
+              value={borradorFecha}
+              onChange={(e) => {
+                setBorradorFecha(e.target.value)
+                onGuardar({ fecha: e.target.value })
+              }}
+            />
+            <BotonFechaHoy
+              onClick={() => {
+                setBorradorFecha(fechaHoyCorta())
+                onGuardar({ fecha: fechaHoyCorta() })
+              }}
+            />
+          </div>
+        </div>
+      </td>
+    </tr>
   )
 }
 

@@ -20,7 +20,15 @@ const TARJETAS: { estado: EstadoTarjeta; etiqueta: string; clave: EstadoDisco }[
 // app) — se recalcula solo con re-renderizar, así que cualquier edición de
 // H/T que invalide la query de la ficha (ver useEditarFilaFicha/
 // useAgregarFilaFicha) refresca estos conteos sin ningún código extra acá.
-export function ConteoEstadosFicha({ rows }: { rows: PreviewRow[] }) {
+export function ConteoEstadosFicha({
+  rows,
+  ocultarReperfilado = false,
+}: {
+  rows: PreviewRow[]
+  // true en la pantalla de Reperfilado: no tiene sentido sugerir reperfilar
+  // un disco dentro de la propia ficha de reperfilado — ver Reperfilado.tsx.
+  ocultarReperfilado?: boolean
+}) {
   const conteo = useMemo(() => {
     const c: Record<EstadoDisco, number> = { OK: 0, SEGUIMIENTO: 0, CAMBIO: 0, CRITICO: 0, REPERFILADO: 0 }
     for (const fila of rows) {
@@ -29,9 +37,13 @@ export function ConteoEstadosFicha({ rows }: { rows: PreviewRow[] }) {
     return c
   }, [rows])
 
+  const tarjetas = ocultarReperfilado
+    ? TARJETAS.filter((t) => t.clave !== 'REPERFILADO')
+    : TARJETAS
+
   return (
-    <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-5">
-      {TARJETAS.map((t) => (
+    <div className={`mt-3 grid grid-cols-2 gap-3 ${ocultarReperfilado ? 'sm:grid-cols-4' : 'sm:grid-cols-5'}`}>
+      {tarjetas.map((t) => (
         <Widget key={t.estado} tamano="s" estado={t.estado} etiqueta={t.etiqueta} valor={conteo[t.clave]} />
       ))}
     </div>

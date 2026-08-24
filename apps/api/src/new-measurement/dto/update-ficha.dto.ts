@@ -26,6 +26,12 @@ export class TecnicoDto {
   @Max(4)
   posicion!: number;
 
+  // Cargo editable — exclusivo de la tabla CARGO/NOMBRES/FIRMA de Reperfilado
+  // (ver FooterFicha variante='reperfilado'); sin uso en Medición.
+  @IsOptional()
+  @IsString()
+  cargo?: string;
+
   @IsOptional()
   @IsString()
   nombre?: string;

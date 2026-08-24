@@ -71,3 +71,13 @@ export type TipoNotificacion = (typeof TIPO_NOTIFICACION)[number]
 
 export const FORMATO_REPORTE = ['pdf', 'excel'] as const
 export type FormatoReporte = (typeof FORMATO_REPORTE)[number]
+
+// Ciclo de vida de una pieza física de disco de freno (Inventario/Operaciones).
+export const INVENTORY_STAGE = ['almacen', 'taller', 'en_servicio'] as const
+export type InventoryStage = (typeof INVENTORY_STAGE)[number]
+
+export const FASE_DISCO = ['nueva', 'usada'] as const
+export type FaseDisco = (typeof FASE_DISCO)[number]
+
+export const TIPO_MOVIMIENTO_INVENTARIO = ['retiro_masivo', 'cambio_disco'] as const
+export type TipoMovimientoInventario = (typeof TIPO_MOVIMIENTO_INVENTARIO)[number]

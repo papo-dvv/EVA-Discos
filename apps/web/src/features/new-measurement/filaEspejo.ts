@@ -28,7 +28,10 @@ export interface LadoFilaEspejo {
   // una fila de una tabla de solo-lectura (comparativa histórica).
   tInvalido: boolean
   rdInvalido: boolean
-  // Espejo legible de tInvalido/rdInvalido — alimenta la columna
+  // Exclusivo de Reperfilado (ver ScanRecord.antesInvalido) — false en filas
+  // de Medición.
+  antesInvalido: boolean
+  // Espejo legible de tInvalido/rdInvalido/antesInvalido — alimenta la columna
   // "Motivo/Inválido" y el resaltado por celda de TablaFichaEspejo. Vacío en
   // una fila vacía o de solo lectura. kmInvalido/fechaInvalido (a nivel
   // ficha, no de esta fila) viajan aparte — ver PreviewFichaResult.
@@ -58,6 +61,7 @@ function ladoVacio(pos: PosicionEsqueleto): LadoFilaEspejo {
     estadoCalculado: null,
     tInvalido: false,
     rdInvalido: false,
+    antesInvalido: false,
     motivos: [],
   }
 }
@@ -76,6 +80,7 @@ function ladoDeFila(pos: PosicionEsqueleto, fila: PreviewRow): LadoFilaEspejo {
     estadoCalculado: fila.estadoCalculado,
     tInvalido: fila.tInvalido,
     rdInvalido: fila.rdInvalido,
+    antesInvalido: fila.antesInvalido,
     motivos: fila.motivos,
   }
 }

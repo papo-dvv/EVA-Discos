@@ -32,6 +32,9 @@ export interface PosicionEsqueleto {
 
 export interface FichaTecnico {
   posicion: number
+  // Cargo editable — exclusivo de la tabla CARGO/NOMBRES/FIRMA de Reperfilado
+  // (ver FooterFicha variante='reperfilado'); sin uso en Medición.
+  cargo: string | null
   nombre: string | null
   firma: string | null
   fecha: string | null
@@ -288,6 +291,7 @@ export interface CambiosFicha {
   ptCodigo?: string
   tecnicos?: {
     posicion: number
+    cargo?: string
     nombre?: string
     firma?: string
     fecha?: string

@@ -179,8 +179,16 @@ export class NewMeasurementPreviewService {
       cambios.puestoTrabajo = dto.puestoTrabajo;
     if (dto.fechaHoraInicio !== undefined)
       cambios.fechaHoraInicio = new Date(dto.fechaHoraInicio);
-    if (dto.fechaHoraFin !== undefined)
+    if (dto.fechaHoraFin !== undefined) {
       cambios.fechaHoraFin = new Date(dto.fechaHoraFin);
+      // Reperfilado no tiene un campo de Fecha propio (ver HeaderReperfilado):
+      // la fecha con la que se registra el dato en Mediciones es la fecha
+      // (sin hora) de Fecha/Hora Fin — se deriva acá para que quede la única
+      // fuente de verdad, sin depender de que el frontend la calcule/envíe.
+      if (ficha.motivo === 'Reperfilado' && dto.fechaFicha === undefined) {
+        cambios.fechaFicha = new Date(dto.fechaHoraFin.slice(0, 10));
+      }
+    }
     if (dto.responsableMantenimientoFirma !== undefined)
       cambios.responsableMantenimientoFirma = dto.responsableMantenimientoFirma;
     if (dto.responsableMantenimientoFecha !== undefined)
@@ -208,6 +216,7 @@ export class NewMeasurementPreviewService {
             },
           },
           data: {
+            cargo: t.cargo,
             nombre: t.nombre,
             firma: t.firma,
             fecha: t.fecha !== undefined ? new Date(t.fecha) : undefined,
@@ -414,10 +423,9 @@ export class NewMeasurementPreviewService {
     // Igual que estadoCalculado, los flags que alimentan Motivo/Inválido
     // deben reflejar la medición recién editada antes de devolver el preview.
     await this.validationService.recalcularFlags(fichaId);
-    const actualizadaConFlags =
-      await this.prisma.scanRecord.findUniqueOrThrow({
-        where: { id: actualizada.id },
-      });
+    const actualizadaConFlags = await this.prisma.scanRecord.findUniqueOrThrow({
+      where: { id: actualizada.id },
+    });
 
     return aPreviewRow(actualizadaConFlags);
   }

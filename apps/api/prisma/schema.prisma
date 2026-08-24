@@ -41,6 +41,27 @@ enum LadoDisco {
   derecho
 }
 
+// Ciclo de vida de una pieza física de disco de freno (Inventario/Operaciones).
+// almacen = suelta, sin montar; taller = retirada de almacén, lista para un
+// Cambio de Disco; en_servicio = montada en un tren (wagonUnitId/bogieCodigo/
+// ejeNumero/lado resueltos). Ver BrakeDisc.stage.
+enum InventoryStage {
+  almacen
+  taller
+  en_servicio
+}
+
+enum FaseDisco {
+  nueva
+  usada
+}
+
+// Tipo de operación que originó una fila de InventoryMovement.
+enum TipoMovimientoInventario {
+  retiro_masivo
+  cambio_disco
+}
+
 enum RolUsuario {
   administrador
   supervisor
@@ -188,6 +209,7 @@ model User {
   moduleSnapshotsGenerados      ModuleSnapshot[]
   measurementHistoryEvents      MeasurementHistoryEvent[]
   migrationHistoryEvents        MigrationHistoryEvent[]
+  inventoryMovements            InventoryMovement[]
 
   @@index([rol], map: "idx_users_rol")
   @@index([estadoCuenta], map: "idx_users_estado_cuenta")
@@ -288,36 +310,105 @@ model WagonUnit {
   @@map("wagon_units")
 }
 
-// Discos de freno físicos, identificados por coche + bogie + eje + lado.
+// Discos de freno físicos, identificados por coche + bogie + eje + lado
+// MIENTRAS están en_servicio (ver stage). Una pieza recorre un ciclo de vida
+// completo (Inventario/Operaciones): almacen (suelta) -> taller (retirada
+// para un cambio) -> en_servicio (montada) -> almacen (al ser reemplazada),
+// conservando siempre la misma fila/id — nunca se duplica. wagonUnitId/
+// bogieCodigo/ejeNumero/lado quedan en null mientras la pieza no está
+// en_servicio; al desmontarla, wagonUnitId se libera a null pero
+// bogieCodigo/ejeNumero/lado NO se limpian (quedan como "última posición
+// conocida" para trazabilidad/Inventario).
 // "ruedaNumero" es la rueda asignada a ese disco (impar = izquierda, par =
 // derecha, según la convención de numeración de ruedas de la flota). Se
 // guarda como dato informativo/de referencia, no como llave: la llave física
 // real es (wagonUnitId, bogieCodigo, ejeNumero, lado).
 model BrakeDisc {
-  id               String    @id @default(uuid()) @db.Uuid
-  wagonUnitId      String    @map("wagon_unit_id") @db.Uuid
-  bogieCodigo      String    @map("bogie_codigo") @db.VarChar(10)
-  ejeNumero        Int       @map("eje_numero")
-  lado             LadoDisco
-  ruedaNumero      Int?      @map("rueda_numero")
-  proveedorId      String?   @map("proveedor_id") @db.Uuid
-  fechaInstalacion DateTime? @map("fecha_instalacion") @db.Date
-  activo           Boolean   @default(true)
-  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  id               String          @id @default(uuid()) @db.Uuid
+  wagonUnitId      String?         @map("wagon_unit_id") @db.Uuid
+  bogieCodigo      String?         @map("bogie_codigo") @db.VarChar(10)
+  ejeNumero        Int?            @map("eje_numero")
+  lado             LadoDisco?
+  ruedaNumero      Int?            @map("rueda_numero")
+  proveedorId      String?         @map("proveedor_id") @db.Uuid
+  fechaInstalacion DateTime?       @map("fecha_instalacion") @db.Date
+  activo           Boolean         @default(true)
+  createdAt        DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  wagonUnit WagonUnit    @relation(fields: [wagonUnitId], references: [id])
-  bogie     BogieCatalog @relation(fields: [bogieCodigo], references: [codigo])
-  proveedor Provider?    @relation(fields: [proveedorId], references: [id])
+  // Inventario (ver Operaciones: Retiro Masivo mueve almacen->taller, Cambio
+  // de Disco mueve taller->en_servicio y en_servicio->almacen). serie es
+  // texto libre ingresado a mano al dar de alta la pieza — nullable a nivel
+  // de columna por compatibilidad con filas ya existentes (montadas antes de
+  // que Inventario existiera), obligatorio a nivel de DTO para altas nuevas.
+  stage      InventoryStage
+  fase       FaseDisco
+  serie      String?        @unique @db.VarChar(100)
+  marcaRueda String?        @map("marca_rueda") @db.VarChar(100)
 
-  scanRecords    ScanRecord[]
-  discComments   DiscComment[]
-  calendarEvents CalendarEvent[]
-  wearRatePairs  WearRatePair[]
+  // onDelete explícito: al volverse relación opcional, Prisma cambiaría el
+  // default de RESTRICT a SetNull — se preserva RESTRICT a propósito, mismo
+  // comportamiento que ya tenía la FK antes de este cambio (WagonUnit/
+  // BogieCatalog no tienen endpoint de borrado, así que es más una garantía
+  // de integridad que un caso real).
+  wagonUnit WagonUnit?    @relation(fields: [wagonUnitId], references: [id], onDelete: Restrict)
+  bogie     BogieCatalog? @relation(fields: [bogieCodigo], references: [codigo], onDelete: Restrict)
+  proveedor Provider?     @relation(fields: [proveedorId], references: [id])
+
+  scanRecords        ScanRecord[]
+  discComments       DiscComment[]
+  calendarEvents     CalendarEvent[]
+  wearRatePairs      WearRatePair[]
+  inventoryMovements InventoryMovement[]
 
   @@unique([wagonUnitId, bogieCodigo, ejeNumero, lado])
   @@index([wagonUnitId], map: "idx_brake_discs_wagon")
   @@index([proveedorId], map: "idx_brake_discs_proveedor")
+  @@index([stage], map: "idx_brake_discs_stage")
   @@map("brake_discs")
+}
+
+// Historial de movimientos de una pieza de disco de freno entre etapas de
+// inventario. Una fila por PIEZA por movimiento (no por operación de
+// usuario): operacionId agrupa todas las filas generadas por una misma
+// acción (ej. un Retiro Masivo de 12 discos = 12 filas con el mismo
+// operacionId; un Cambio de Disco = 4 filas —2 bajas + 2 altas— con el mismo
+// operacionId). Campos de auditoría denormalizados a propósito (repetidos
+// por fila de una misma operacionId): evita una tabla cabecera/detalle extra
+// para un futuro módulo Historial que todavía no existe — si ese módulo
+// necesita agrupar, usa operacionId.
+model InventoryMovement {
+  id           String                   @id @default(uuid()) @db.Uuid
+  brakeDiscId  String                   @map("brake_disc_id") @db.Uuid
+  operacionId  String                   @map("operacion_id") @db.Uuid
+  tipo         TipoMovimientoInventario
+  etapaOrigen  InventoryStage           @map("etapa_origen")
+  etapaDestino InventoryStage           @map("etapa_destino")
+
+  // Solo se llena en las filas de ALTA de un cambio_disco (etapaDestino =
+  // en_servicio): referencia al ScanRecord "supuesto" sintetizado para esa
+  // pieza. Null en retiro_masivo y en las filas de BAJA.
+  scanRecordId String? @map("scan_record_id") @db.Uuid
+
+  // Encargado/firma/fecha (Retiro Masivo) + supervisor/PT/justificación
+  // (Cambio de Disco, todos opcionales salvo encargado). Un mismo esquema
+  // sirve para ambas operaciones sin crear 2 tablas paralelas.
+  encargadoNombre  String   @map("encargado_nombre") @db.VarChar(200)
+  encargadoFirma   String?  @map("encargado_firma") @db.Text
+  fecha            DateTime @default(now()) @db.Date
+  supervisorNombre String?  @map("supervisor_nombre") @db.VarChar(200)
+  numeroPt         String?  @map("numero_pt") @db.VarChar(50)
+  justificacion    String?  @db.VarChar(500)
+
+  realizadoPor String   @map("realizado_por") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  brakeDisc         BrakeDisc   @relation(fields: [brakeDiscId], references: [id])
+  scanRecord        ScanRecord? @relation(fields: [scanRecordId], references: [id])
+  realizadoPorUser  User        @relation(fields: [realizadoPor], references: [id])
+
+  @@index([brakeDiscId], map: "idx_inventory_movements_disc")
+  @@index([operacionId], map: "idx_inventory_movements_operacion")
+  @@map("inventory_movements")
 }
 
 // ============================================================================
@@ -456,6 +547,19 @@ model ScanRecord {
   fechaInvalido Boolean @default(false) @map("fecha_invalido")
   tInvalido     Boolean @default(false) @map("t_invalido")
   rdInvalido    Boolean @default(false) @map("rd_invalido")
+  // Exclusivo de Reperfilado: true cuando reperfiladoTAntes/HAntes reflejan
+  // MENOS desgaste que la última medición confirmada de ese disco (espesor
+  // mayor o cóncavo menor) — ver NewMeasurementValidationService.recalcularFlags.
+  antesInvalido Boolean @default(false) @map("antes_invalido")
+  // Exclusivo de Operaciones (Cambio de Disco): true cuando la fila fue
+  // SINTETIZADA por el sistema (tValue=7.00, hValue=0.00) al montar una
+  // pieza nueva, porque todavía no existe una medición real que respalde su
+  // estado. Reusa el mecanismo de "motivo legible por fila" de
+  // tInvalido/rdInvalido/antesInvalido (ver motivosInvalidosDeFila en
+  // scan-record-query.ts) aunque no es un dato inválido sino uno asumido —
+  // se decidió no crear un mecanismo paralelo para no duplicar
+  // PreviewRow.motivos ni el contrato de GET .../preview.
+  esSupuesto    Boolean @default(false) @map("es_supuesto")
 
   // Orden FÍSICO real de coche+bogie+eje+lado (nunca alfabético) — precalculado
   // por calcularOrdenFisico (ver common/orden-fisico.ts) al insertar la fila
@@ -473,6 +577,7 @@ model ScanRecord {
   // disco (ver WearRateModule).
   wearRatePairsComoAnterior WearRatePair[] @relation("WearRatePairScanRecord1")
   wearRatePairsComoNuevo    WearRatePair[] @relation("WearRatePairScanRecord2")
+  inventoryMovements        InventoryMovement[]
 
   @@index([fileId], map: "idx_scan_records_file")
   @@index([discId], map: "idx_scan_records_disc")
@@ -711,6 +816,9 @@ model MeasurementSheetTecnico {
   id                 String    @id @default(uuid()) @db.Uuid
   measurementSheetId String    @map("measurement_sheet_id") @db.Uuid
   posicion           Int
+  // Cargo editable de la fila — exclusivo de la tabla CARGO/NOMBRES/FIRMA de
+  // Reperfilado (ver FooterFicha variante='reperfilado'); sin uso en Medición.
+  cargo              String?   @db.VarChar(200)
   nombre             String?   @db.VarChar(200)
   firma              String?   @db.Text
   fecha              DateTime? @db.Date

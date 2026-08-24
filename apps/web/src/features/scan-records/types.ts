@@ -30,7 +30,7 @@ export type CampoValoresDistintos = (typeof CAMPOS_VALORES_DISTINTOS)[number]
 export type AccionRecomendada = 'CRITICO' | 'CAMBIO' | 'REPERFILADO' | 'NINGUNA'
 
 // Espejo de CampoInvalido/MotivoInvalido (apps/api/src/scan-records/scan-record-query.ts).
-export type CampoInvalido = 't' | 'rd' | 'kilometraje' | 'fecha'
+export type CampoInvalido = 't' | 'rd' | 'kilometraje' | 'fecha' | 'antes'
 
 export interface MotivoInvalido {
   campo: CampoInvalido
@@ -75,6 +75,7 @@ export interface PreviewRow {
   // en features/new-measurement/types.ts) — nunca replicados por fila.
   tInvalido: boolean
   rdInvalido: boolean
+  antesInvalido: boolean
   // Espejo legible de los 2 flags de arriba — permite repintar el motivo de
   // cada fila desde /preview sin volver a llamar a POST .../validate. Vacío
   // cuando ambos están en false.

@@ -140,20 +140,25 @@ export class WearRateService {
       where: { id: discId },
       include: { wagonUnit: true },
     });
+    // tipoCoche/numeroCoche se resuelven vía wagonUnit, que solo existe
+    // mientras la pieza está en_servicio (ver Operaciones/Inventario) — una
+    // pieza retirada a almacén/taller no tiene mediciones nuevas que
+    // emparejar de todos modos, así que no hay nada que recalcular.
+    if (!disco.wagonUnit) return;
     const identidadDisco = {
       tipoCoche: disco.wagonUnit.tipoCoche,
       numeroCoche: disco.wagonUnit.numeroCoche,
-      bogieCodigo: disco.bogieCodigo,
-      ejeNumero: disco.ejeNumero,
-      lado: disco.lado,
+      bogieCodigo: disco.bogieCodigo!,
+      ejeNumero: disco.ejeNumero!,
+      lado: disco.lado!,
       // Mismo cálculo que ScanRecord.ordenFisico (ver common/orden-fisico.ts)
       // — acá siempre resuelve limpio: tipoCoche/bogieCodigo/ejeNumero de un
-      // BrakeDisc ya confirmado nunca son texto libre ni nulos. ruedaNumero sí
+      // BrakeDisc en_servicio nunca son texto libre ni nulos. ruedaNumero sí
       // puede ser null (no todos los discos históricos lo tienen cargado).
       ordenFisico: calcularOrdenFisico({
         tipoCoche: disco.wagonUnit.tipoCoche,
-        bogieCodigo: disco.bogieCodigo,
-        ejeNumero: disco.ejeNumero,
+        bogieCodigo: disco.bogieCodigo!,
+        ejeNumero: disco.ejeNumero!,
         ruedaNumero: disco.ruedaNumero,
       }),
     };

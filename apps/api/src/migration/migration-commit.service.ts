@@ -412,7 +412,16 @@ export class MigrationCommitService {
 
     try {
       const creado = await this.prisma.brakeDisc.create({
-        data: { ...clave, ruedaNumero: disco.ruedaNumero },
+        // Un BrakeDisc resuelto/creado por la migración masiva SIEMPRE
+        // representa una pieza ya montada (viene del histórico físico real
+        // de la flota), nunca stock nuevo de Inventario — de ahí
+        // en_servicio/usada explícitos (no hay @default en el schema).
+        data: {
+          ...clave,
+          ruedaNumero: disco.ruedaNumero,
+          stage: 'en_servicio',
+          fase: 'usada',
+        },
       });
       return { id: creado.id, creado: true };
     } catch (err) {

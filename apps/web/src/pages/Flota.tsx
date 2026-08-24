@@ -1,4 +1,4 @@
-import { ArrowRight, TrainFront } from 'lucide-react'
+import { ArrowRight } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { GlassSurface } from '../components/GlassSurface'
 import { BadgeEstadoFlota } from '../features/fleet/components/BadgeEstadoFlota'
@@ -46,8 +46,17 @@ export function Flota() {
                         <p className="font-body text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-concreto">Tren</p>
                         <p className="mt-1 font-display text-5xl font-semibold leading-none text-concreto-oscuro">{tren.tren}</p>
                       </div>
-                      <span className="flex h-10 w-10 items-center justify-center rounded-full border border-concreto/15 bg-white/45 text-concreto-oscuro">
-                        <TrainFront size={19} aria-hidden />
+                      <span className="flex h-10 w-10 items-center justify-center rounded-full border border-concreto/15 bg-white/45 p-1.5">
+                        {/* Alstom (6-44) / Ansaldo (1-5) — hoy la flota Ansaldo
+                            no tiene catálogo sembrado (useFleetSummary nunca
+                            devuelve esos trenes), así que en la práctica
+                            siempre pinta alstomicon; queda listo para cuando
+                            exista. */}
+                        <img
+                          src={tren.tren <= 5 ? '/images/ansaldoicon.png' : '/images/alstomicon.png'}
+                          alt=""
+                          className="h-full w-full object-contain"
+                        />
                       </span>
                     </div>
 

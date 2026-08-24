@@ -9,6 +9,7 @@ import { EVENTO_COLAPSAR_SIDEBAR } from '../components/Sidebar'
 import { WarningTooltip } from '../components/WarningTooltip'
 import { ConteoEstadosFicha } from '../features/new-measurement/components/ConteoEstadosFicha'
 import { FooterFicha } from '../features/new-measurement/components/FooterFicha'
+import { ModalMedicionAnterior } from '../features/new-measurement/components/ModalMedicionAnterior'
 import { PanelHistorialMediciones } from '../features/new-measurement/components/PanelHistorialMediciones'
 import { TablaFichaReperfilado } from '../features/new-measurement/components/TablaFichaReperfilado'
 import {
@@ -109,7 +110,7 @@ function mensajeConfirmarBloqueado(
   const faltantes: string[] = []
   if (!tablaBloqueada) faltantes.push('bloquear la tabla de reperfilado')
   if (responsableVacio) faltantes.push('completar el Responsable de Mantenimiento')
-  if (cabeceraIncompleta) faltantes.push('completar el P.T. y la fecha/hora de inicio')
+  if (cabeceraIncompleta) faltantes.push('completar el P.T. y la fecha/hora de inicio y fin')
   if (problemaInstrumentosFicha) faltantes.push(problemaInstrumentosFicha)
   return `Falta ${juntarConY(faltantes)} para poder confirmar la ficha.`
 }
@@ -149,7 +150,14 @@ export function Reperfilado({
   const navigate = useNavigate()
   const [cancelando, setCancelando] = useState(false)
   const [confirmando, setConfirmando] = useState(false)
+  const [medicionAnteriorAbierta, setMedicionAnteriorAbierta] = useState(false)
+  // Última respuesta de /validate — alimenta el modal de resultado Y
+  // resaltarInvalidos de la tabla. NO se limpia al cerrar el modal (ver
+  // modalAbierto, mismo patrón que NuevasMedicionesMedicion): solo la
+  // reemplaza una nueva verificación, así la columna Motivo/Inválido de la
+  // tabla no desaparece apenas el usuario cierra el diálogo para ir a corregir.
   const [resultado, setResultado] = useState<ResumenVerificacion | null>(null)
+  const [modalAbierto, setModalAbierto] = useState(false)
   const [descargandoPdf, setDescargandoPdf] = useState(false)
   const [nombrePdf, setNombrePdf] = useState('')
   const [errorAccion, setErrorAccion] = useState<string | null>(null)
@@ -168,9 +176,14 @@ export function Reperfilado({
   const responsableVacio = !ficha?.responsableMantenimientoNombre?.trim()
   const cabeceraIncompleta =
     !ficha?.puestoTrabajo?.trim() ||
-    !ficha?.fechaHoraInicio
+    !ficha?.fechaHoraInicio ||
+    !ficha?.fechaHoraFin
   const problemaInstrumentosFicha = ficha ? problemaInstrumentos(ficha.instrumentos, ficha.fechaFicha) : null
   const puedeConfirmar = tablaBloqueada && !responsableVacio && !cabeceraIncompleta && !problemaInstrumentosFicha
+  // Descargar PDF solo tiene sentido con la tabla ya bloqueada (Verificar) y
+  // el Supervisor/Coordinador/Técnico Especialista (última fila de la tabla
+  // de firmas) completo — antes de eso el PDF saldría con datos a medio llenar.
+  const puedeDescargarPdf = tablaBloqueada && !responsableVacio
   const motivosValidacion = resultado
     ? [
         resultado.kmInvalido?.motivo,
@@ -237,7 +250,7 @@ export function Reperfilado({
   }, [fichaId])
 
   function irAlPrimerError() {
-    setResultado(null)
+    setModalAbierto(false)
     window.requestAnimationFrame(() => {
       const campo = document.querySelector<HTMLElement>('[data-reperfilado-invalido="true"]')
       const destino = campo ?? document.querySelector<HTMLElement>('table')
@@ -282,6 +295,7 @@ export function Reperfilado({
                 const validacion = await verificar.mutateAsync()
                 if (!validacion.todoValido) {
                   setResultado(validacion)
+                  setModalAbierto(true)
                   return
                 }
                 await bloquear.mutateAsync()
@@ -369,32 +383,13 @@ export function Reperfilado({
           ) : ficha && preview.data ? (
             <>
               <div className="mt-4 flex flex-wrap justify-end gap-2">
-                <label className="min-w-64 font-body text-xs text-concreto">
-                  Nombre del PDF
-                  <input
-                    className="glass-field mt-1 block w-full px-3 py-2 text-sm text-concreto-oscuro"
-                    value={nombrePdf}
-                    onChange={(event) => setNombrePdf(event.target.value)}
-                    placeholder="Nombre de la ficha"
-                    aria-label="Nombre del archivo PDF"
-                  />
-                </label>
                 <GlassButton
                   type="button"
                   variante="secundario"
-                  cargando={descargandoPdf}
+                  onClick={() => setMedicionAnteriorAbierta(true)}
                   className="text-xs"
-                  onClick={async () => {
-                    setDescargandoPdf(true)
-                    try {
-                      await descargarPdfReperfilado(fichaId, nombrePdf)
-                    } finally {
-                      setDescargandoPdf(false)
-                    }
-                  }}
                 >
-                  <Download size={16} aria-hidden />
-                  Descargar PDF
+                  Medición anterior
                 </GlassButton>
                 <GlassButton
                   type="button"
@@ -402,7 +397,10 @@ export function Reperfilado({
                   onClick={() => setCancelando(true)}
                   disabled={cancelar.isPending}
                   className="text-xs"
-                  style={{ color: 'var(--color-estado-critico)' }}
+                  style={{
+                    borderColor: 'var(--color-estado-critico)',
+                    color: 'var(--color-estado-critico)',
+                  }}
                 >
                   Cancelar ficha
                 </GlassButton>
@@ -421,7 +419,7 @@ export function Reperfilado({
                   {cardVerificacion(true)}
                 </div>
               )}
-              <ConteoEstadosFicha rows={rows} />
+              <ConteoEstadosFicha rows={rows} ocultarReperfilado />
               <GlassSurface fuerte className="mt-3 rounded-glass-lg p-5 sm:p-6">
                 <HeaderReperfilado
                   ficha={ficha}
@@ -443,10 +441,10 @@ export function Reperfilado({
                 fichaId={fichaId}
                 esqueleto={preview.data.esqueleto}
                 rows={rows}
-                codigosCoche={ficha.codigosCoche}
                 codigosBogie={ficha.codigosBogie}
-                onGuardarCodigos={(cambios) => editar.mutate(cambios)}
                 deshabilitada={tablaBloqueada}
+                resaltarInvalidos={resultado !== null}
+                filasExcluidasVerificacion={resultado?.filasExcluidas}
               />
               <GlassSurface
                 fuerte
@@ -473,10 +471,52 @@ export function Reperfilado({
                 <FooterFicha
                   ficha={ficha}
                   onGuardar={(c) => editar.mutate(c)}
-                  limiteTecnicos={2}
+                  limiteTecnicos={3}
+                  variante="reperfilado"
                 />
               )}
-              <div className="mt-5 flex justify-end">
+              <div className="mt-5 flex flex-wrap items-center justify-end gap-2">
+                <label className="min-w-64 font-body text-xs text-concreto">
+                  Nombre del PDF
+                  <input
+                    className="glass-field mt-1 block w-full px-3 py-2 text-sm text-concreto-oscuro"
+                    value={nombrePdf}
+                    onChange={(event) => setNombrePdf(event.target.value)}
+                    placeholder="Nombre de la ficha"
+                    aria-label="Nombre del archivo PDF"
+                  />
+                </label>
+                {puedeDescargarPdf ? (
+                  <GlassButton
+                    type="button"
+                    variante="secundario"
+                    cargando={descargandoPdf}
+                    className="text-xs"
+                    onClick={async () => {
+                      setDescargandoPdf(true)
+                      try {
+                        await descargarPdfReperfilado(fichaId, nombrePdf)
+                      } finally {
+                        setDescargandoPdf(false)
+                      }
+                    }}
+                  >
+                    <Download size={16} aria-hidden />
+                    Descargar PDF
+                  </GlassButton>
+                ) : (
+                  <WarningTooltip texto="Bloquea la tabla con Verificar y completa el Supervisor / Coordinador / Técnico Especialista para poder descargar el PDF.">
+                    <GlassButton
+                      type="button"
+                      variante="secundario"
+                      aria-disabled="true"
+                      className="cursor-not-allowed text-xs opacity-60"
+                    >
+                      <Download size={16} aria-hidden />
+                      Descargar PDF
+                    </GlassButton>
+                  </WarningTooltip>
+                )}
                 {puedeConfirmar ? (
                   <GlassButton
                     cargando={confirmar.isPending}
@@ -513,6 +553,13 @@ export function Reperfilado({
         )}
       </div>
 
+      {medicionAnteriorAbierta && fichaId && ficha && (
+        <ModalMedicionAnterior
+          fichaId={fichaId}
+          trenNumero={ficha.trenNumero}
+          onCerrar={() => setMedicionAnteriorAbierta(false)}
+        />
+      )}
       {cancelando && (
         <ConfirmDialog
           titulo="Cancelar ficha de reperfilado"
@@ -540,14 +587,14 @@ export function Reperfilado({
           mensaje="Los valores posteriores al torno se guardarán como una nueva intervención confirmada."
         />
       )}
-      {resultado && !resultado.todoValido && (
+      {modalAbierto && resultado && !resultado.todoValido && (
         <ConfirmDialog
           titulo="No se puede bloquear todavía"
           mensaje="Corrige la información indicada y vuelve a validar. La tabla seguirá editable."
           textoConfirmar="Seguir editando"
           textoCancelar="Cerrar"
           onConfirm={irAlPrimerError}
-          onCerrar={() => setResultado(null)}
+          onCerrar={() => setModalAbierto(false)}
         >
           <ul className="mt-3 space-y-1.5 rounded-2xl border border-amber-600/15 bg-amber-50/45 px-4 py-3 font-body text-sm text-concreto-oscuro">
             {motivosValidacion.map((motivo) => (

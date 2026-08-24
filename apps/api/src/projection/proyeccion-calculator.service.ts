@@ -99,6 +99,10 @@ export class ProyeccionCalculatorService {
     if (!disco) {
       throw new NotFoundException('El disco no existe.');
     }
+    // Una pieza que ya no está montada (retirada a almacén/taller vía
+    // Operaciones) no tiene una posición física que proyectar — mismo
+    // criterio de "nada que proyectar todavía" que el caso sin medición.
+    if (disco.stage !== 'en_servicio' || !disco.wagonUnit) return null;
 
     const ultimaMedicion = await this.prisma.scanRecord.findFirst({
       where: { discId },
@@ -117,9 +121,9 @@ export class ProyeccionCalculatorService {
     const posicion: PosicionDisco = {
       tipoCoche: disco.wagonUnit.tipoCoche,
       numeroCoche: disco.wagonUnit.numeroCoche,
-      bogieCodigo: disco.bogieCodigo,
-      ejeNumero: disco.ejeNumero,
-      lado: disco.lado,
+      bogieCodigo: disco.bogieCodigo!,
+      ejeNumero: disco.ejeNumero!,
+      lado: disco.lado!,
     };
 
     const h = Number(ultimaMedicion.hValue);

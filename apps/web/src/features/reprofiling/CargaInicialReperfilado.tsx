@@ -16,10 +16,11 @@ import { useInvalidarHistorialMediciones } from '../new-measurement/queries'
 
 type TipoTren = 'ALSTOM' | 'ANSALDO'
 
-const OPCIONES_TIPO_TREN = [
-  { valor: 'ALSTOM', etiqueta: 'ALSTOM' },
-  { valor: 'ANSALDO', etiqueta: 'ANSALDO' },
-]
+// ANSALDO (trenes 1-5) todavía no tiene catálogo de coches/bogies sembrado
+// (ver apps/api/prisma/seed.ts) — el backend rechaza cualquier tren fuera de
+// 6-44 (ver validarTrenAlstom). Se deja el tipo declarado para cuando se
+// habilite, pero por ahora el selector solo ofrece ALSTOM.
+const OPCIONES_TIPO_TREN = [{ valor: 'ALSTOM', etiqueta: 'ALSTOM' }]
 
 function opcionesNumeroTren(tipo: TipoTren) {
   const inicio = tipo === 'ALSTOM' ? 6 : 1

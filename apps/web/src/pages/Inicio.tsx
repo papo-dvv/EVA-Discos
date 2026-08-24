@@ -144,6 +144,38 @@ export function Inicio() {
             />
           </Link>
 
+          {/* Módulo funcional: operaciones (retiro masivo y cambio de disco) */}
+          <Link to="/operaciones" className="block">
+            <Widget
+              tamano="m"
+              estado="ok"
+              etiqueta="Módulo disponible"
+              glifo="⇄"
+              valor="Operaciones"
+              pie={
+                <span className="font-body text-sm font-semibold text-verde-oscuro">
+                  Retiro masivo y cambio de disco →
+                </span>
+              }
+            />
+          </Link>
+
+          {/* Módulo funcional: inventario de discos por etapa */}
+          <Link to="/inventario" className="block">
+            <Widget
+              tamano="m"
+              estado="ok"
+              etiqueta="Módulo disponible"
+              glifo="▥"
+              valor="Inventario"
+              pie={
+                <span className="font-body text-sm font-semibold text-verde-oscuro">
+                  Piezas por etapa →
+                </span>
+              }
+            />
+          </Link>
+
           {/* Módulos planificados — honestos: "Próximamente", sin link */}
           {MODULOS_PROXIMOS.map((m) => (
             <Widget
