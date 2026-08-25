@@ -16,9 +16,9 @@ export function FlotaDetalle() {
   if (!Number.isInteger(tren)) return <Navigate to="/fleet" replace />
 
   return (
-    <div className="mx-auto w-full max-w-[1320px] px-4 py-8 sm:px-6 lg:px-8">
+    <div className="mx-auto w-full max-w-[1500px] px-4 py-6 sm:px-6 lg:px-8">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-        <Link to="/fleet" className="glass-chip inline-flex items-center gap-2 text-concreto-oscuro">
+        <Link to="/fleet" className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-emerald-300 hover:text-emerald-700">
           <ArrowLeft size={15} aria-hidden />
           Flota
         </Link>
@@ -27,8 +27,8 @@ export function FlotaDetalle() {
       <GlassSurface fuerte className="mb-6 rounded-glass p-5">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <p className="font-body text-xs font-semibold uppercase tracking-[0.18em] text-concreto">Detalle de tren</p>
-            <h1 className="mt-1 flex items-center gap-3 font-display text-3xl font-semibold text-concreto-oscuro">
+            <p className="font-body text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">Vista técnica de la unidad</p>
+            <h1 className="mt-1 flex items-center gap-3 font-display text-3xl font-bold text-slate-800">
               <TrainFront size={28} aria-hidden />
               Tren {tren}
             </h1>
@@ -56,14 +56,20 @@ export function FlotaDetalle() {
 
       {detalle.data && (
         <div className="space-y-5">
-          {detalle.data.coches.map((coche) => (
-            <section key={coche.coche} className="space-y-3">
-              <div className="flex items-center justify-between border-b border-concreto/15 pb-2">
-                <h2 className="font-display text-xl font-semibold text-concreto-oscuro">
-                  {coche.coche} · {coche.numeroCoche ?? 'Sin N°'}
-                </h2>
+          {detalle.data.coches.map((coche, indice) => (
+            <section key={coche.coche} className="eva-panel overflow-hidden">
+              <div className="grid min-h-40 border-b border-slate-200 bg-gradient-to-r from-white via-white to-emerald-50/40 lg:grid-cols-[minmax(280px,0.8fr)_1.2fr]">
+                <div className="relative flex items-center justify-center overflow-hidden p-4">
+                  <div className="absolute h-28 w-64 rounded-full bg-emerald-300/20 blur-3xl" />
+                  <img src={`/images/cardcochealstom${Math.min(indice + 1, 6)}.png`} alt={`Coche ${coche.coche}`} className="relative max-h-32 w-full object-contain drop-shadow-xl" />
+                </div>
+                <div className="flex flex-col justify-center border-t border-slate-100 p-5 lg:border-l lg:border-t-0">
+                  <p className="text-[0.65rem] font-bold uppercase tracking-[0.16em] text-emerald-700">Coche {indice + 1} de {detalle.data.coches.length}</p>
+                  <h2 className="mt-1 font-display text-2xl font-bold text-slate-800">{coche.coche} · {coche.numeroCoche ?? 'Sin N°'}</h2>
+                  <p className="mt-2 text-sm text-slate-500">Selecciona un disco para consultar sus mediciones e historial.</p>
+                </div>
               </div>
-              <div className="grid gap-3 lg:grid-cols-2">
+              <div className="grid gap-3 p-4 lg:grid-cols-2">
                 {coche.bogies.map((bogie) => (
                   <BogieVisualizer key={`${coche.coche}-${bogie.bogie}`} bogie={bogie} onSeleccionarDisco={setDiscoSeleccionado} />
                 ))}

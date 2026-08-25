@@ -1,5 +1,4 @@
 import { Outlet, useLocation } from 'react-router-dom'
-import { FondoEngranajes } from './FondoEngranajes'
 import { Sidebar } from './Sidebar'
 import { TopBar } from './TopBar'
 
@@ -13,12 +12,11 @@ export function MainLayout() {
   const { pathname } = useLocation()
 
   return (
-    <div className="flex h-svh overflow-hidden bg-arena-suave">
+    <div className="flex h-svh overflow-hidden bg-[#f3f6f8]">
       <Sidebar />
       <div className="flex flex-1 flex-col overflow-hidden">
         <TopBar />
-        <main className="relative flex-1 overflow-y-auto">
-          <FondoEngranajes className="min-h-full">
+        <main className="relative flex-1 overflow-y-auto bg-[#f3f6f8]">
             {/* key=pathname: remonta en cada navegación para repetir la
                 entrada fade+slide (§4) sin depender de framer-motion. Vive
                 en un wrapper aparte de FondoEngranajes para que los
@@ -27,7 +25,6 @@ export function MainLayout() {
             <div key={pathname} className="eva-entrada-ruta">
               <Outlet />
             </div>
-          </FondoEngranajes>
         </main>
       </div>
     </div>

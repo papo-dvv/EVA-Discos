@@ -19,7 +19,7 @@ export function BogieVisualizer({ bogie, onSeleccionarDisco }: Props) {
   const ejes = bogie.ejes.slice(0, 2)
 
   return (
-    <div className="rounded-glass border border-concreto/15 bg-white/35 p-3">
+    <div className="rounded-2xl border border-slate-200 bg-gradient-to-b from-slate-50 to-white p-3 shadow-[inset_0_1px_0_white]">
       <div className="mb-2 flex items-center justify-between gap-3">
         <h3 className="font-display text-sm font-semibold text-concreto-oscuro">{bogie.bogie}</h3>
         <div className="flex flex-wrap justify-end gap-1.5">
@@ -41,6 +41,12 @@ export function BogieVisualizer({ bogie, onSeleccionarDisco }: Props) {
           <filter id={`shadow-${bogie.bogie}`} x="-20%" y="-20%" width="140%" height="140%">
             <feDropShadow dx="0" dy="8" stdDeviation="8" floodOpacity="0.12" />
           </filter>
+          <radialGradient id={`metal-${bogie.bogie}`} cx="38%" cy="28%" r="70%">
+            <stop offset="0%" stopColor="#f8fafc" />
+            <stop offset="35%" stopColor="#94a3b8" />
+            <stop offset="72%" stopColor="#334155" />
+            <stop offset="100%" stopColor="#0f172a" />
+          </radialGradient>
         </defs>
 
         {ejes.map((eje, idx) => {
@@ -50,10 +56,10 @@ export function BogieVisualizer({ bogie, onSeleccionarDisco }: Props) {
           return (
             <g key={eje.eje}>
               <line x1="78" y1={y + 38} x2="482" y2={y + 38} stroke="rgba(31,41,55,0.18)" strokeWidth="8" strokeLinecap="round" />
-              <circle cx="58" cy={y + 18} r="22" fill="rgba(15,23,42,0.16)" stroke="rgba(15,23,42,0.22)" strokeWidth="2" />
-              <circle cx="58" cy={y + 58} r="22" fill="rgba(15,23,42,0.16)" stroke="rgba(15,23,42,0.22)" strokeWidth="2" />
-              <circle cx="502" cy={y + 18} r="22" fill="rgba(15,23,42,0.16)" stroke="rgba(15,23,42,0.22)" strokeWidth="2" />
-              <circle cx="502" cy={y + 58} r="22" fill="rgba(15,23,42,0.16)" stroke="rgba(15,23,42,0.22)" strokeWidth="2" />
+              <circle cx="58" cy={y + 18} r="22" fill={`url(#metal-${bogie.bogie})`} stroke="#cbd5e1" strokeWidth="2" />
+              <circle cx="58" cy={y + 58} r="22" fill={`url(#metal-${bogie.bogie})`} stroke="#cbd5e1" strokeWidth="2" />
+              <circle cx="502" cy={y + 18} r="22" fill={`url(#metal-${bogie.bogie})`} stroke="#cbd5e1" strokeWidth="2" />
+              <circle cx="502" cy={y + 58} r="22" fill={`url(#metal-${bogie.bogie})`} stroke="#cbd5e1" strokeWidth="2" />
               <text x="280" y={y - 8} textAnchor="middle" className="fill-concreto font-body text-[12px] font-semibold">
                 {izquierdo?.codigoDisco ?? derecho?.codigoDisco ? `Disco ${izquierdo?.codigoDisco ?? derecho?.codigoDisco}` : 'Disco sin código'}
               </text>

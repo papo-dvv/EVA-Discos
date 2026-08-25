@@ -39,22 +39,22 @@
   --duracion-lenta: 520ms;
 
   /* Liquid glass (§4) — burbuja MARCADA con textura, no panel opaco */
-  --glass-bg: rgba(255, 255, 255, 0.20);
-  --glass-bg-strong: rgba(255, 255, 255, 0.36);
-  --glass-border: rgba(255, 255, 255, 0.60);
+  --glass-bg: rgba(255, 255, 255, 0.88);
+  --glass-bg-strong: rgba(255, 255, 255, 0.96);
+  --glass-border: rgba(203, 213, 225, 0.72);
   --glass-border-inner: rgba(5, 150, 105, 0.12);
-  --glass-blur: 34px;
-  --glass-blur-strong: 48px;
+  --glass-blur: 16px;
+  --glass-blur-strong: 20px;
   --glass-saturate: 200%;
   --glass-brightness: 1.07;
-  --glass-shadow-ambient: 0 44px 96px -26px rgba(4, 120, 87, 0.18);
-  --glass-shadow-contact: 0 12px 28px rgba(30, 41, 59, 0.12);
+  --glass-shadow-ambient: 0 18px 45px -30px rgba(15, 23, 42, 0.28);
+  --glass-shadow-contact: 0 5px 16px rgba(15, 23, 42, 0.045);
   --glass-highlight-top: rgba(255, 255, 255, 0.95);
   --glass-highlight-bottom: rgba(255, 255, 255, 0.42);
   /* Radios squircle — esquinas continuas, más generosas (widgets Apple) */
-  --glass-radius: 34px;
-  --glass-radius-lg: 44px;
-  --glass-radius-sm: 26px;
+  --glass-radius: 18px;
+  --glass-radius-lg: 22px;
+  --glass-radius-sm: 14px;
 
   /* Textura de vidrio esmerilado (grano). Tileado, se mezcla con soft-light
      sobre el fondo translúcido para dar la textura de burbuja "marcada". */
@@ -104,9 +104,7 @@ body {
   overflow: hidden;
   /* Fondo translúcido + grano esmerilado mezclado con soft-light = textura */
   background-color: var(--glass-bg);
-  background-image: var(--glass-grano);
-  background-size: var(--glass-grano-size) var(--glass-grano-size);
-  background-blend-mode: var(--glass-grano-blend);
+  background-image: none;
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
   border: 1px solid var(--glass-border);
@@ -114,9 +112,7 @@ body {
   box-shadow:
     var(--glass-shadow-ambient),
     var(--glass-shadow-contact),
-    var(--glass-menisco),
-    inset 0 1px 0 var(--glass-highlight-top),
-    inset 0 -1px 0 var(--glass-highlight-bottom);
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
   transition: transform var(--duracion-base) var(--ease-apple), box-shadow var(--duracion-base) var(--ease-apple);
 }
 
@@ -129,9 +125,29 @@ body {
   border-radius: inherit;
   pointer-events: none;
   z-index: 0;
-  background:
-    radial-gradient(135% 100% at 14% -8%, rgba(255, 255, 255, 0.80) 0%, rgba(255, 255, 255, 0) 46%),
-    radial-gradient(95% 75% at 90% 112%, rgba(255, 255, 255, 0.42) 0%, rgba(255, 255, 255, 0) 52%);
+  background: linear-gradient(180deg, rgba(255,255,255,0.5), transparent 28%);
+}
+
+.eva-panel {
+  border: 1px solid rgba(203, 213, 225, 0.72);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 10px 30px -22px rgba(15, 23, 42, 0.3);
+}
+
+.eva-control {
+  min-height: 38px;
+  border: 1px solid #dbe3e8;
+  border-radius: 10px;
+  background: #fff;
+  color: #1e293b;
+  outline: none;
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.eva-control:focus {
+  border-color: #10b981;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.12);
 }
 
 /* El contenido va por encima de los brillos/grano */
