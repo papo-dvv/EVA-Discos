@@ -1,4 +1,6 @@
 import { GlassModal } from '../../../components/GlassModal'
+import { RotateCcw } from 'lucide-react'
+import { useRef, useState } from 'react'
 import { ScrollArea } from '../../../components/ScrollArea'
 import { useFleetHistorico } from '../queries'
 import type { FleetDiscoDetalle, FleetHistoricoPunto } from '../types'
@@ -34,28 +36,22 @@ export function ModalHistoricoDisco({ disco, onCerrar }: Props) {
             {/* La pieza se abre primero como objeto técnico 3D; debajo se
                 separan lectura actual, evolución y registro para no mezclar
                 toda la información de mantenimiento en una sola vista. */}
-            <div className="flex flex-col items-center gap-4 rounded-glass border border-concreto/15 bg-[radial-gradient(circle_at_50%_0%,rgba(63,169,95,0.18),transparent_58%)] p-4 sm:flex-row">
-              <div
-                aria-hidden
-                className="h-28 w-28 shrink-0 rounded-full border-[10px] border-slate-700 shadow-[inset_10px_10px_14px_rgba(255,255,255,0.65),inset_-11px_-11px_16px_rgba(15,23,42,0.68),0_16px_24px_rgba(15,92,57,0.25)]"
-                style={{
-                  background: 'repeating-conic-gradient(#dbe4dc 0 7deg, #637267 7deg 12deg)',
-                  transform: 'perspective(260px) rotateX(52deg) rotateZ(-18deg)',
-                }}
-              >
-                <span className="m-auto block h-8 w-8 rounded-full bg-slate-200 shadow-[inset_4px_4px_6px_rgba(71,85,105,0.55),inset_-3px_-3px_5px_white]" />
-              </div>
-              <div className="text-center sm:text-left">
-                <p className="font-body text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-verde-oscuro">Vista 3D del disco</p>
-                <p className="mt-1 font-body text-sm text-concreto">Seleccionaste el lado {disco.lado}. Revisa primero su condición actual y luego su evolución.</p>
-              </div>
-            </div>
-            <section aria-label="Lectura actual">
-              <p className="mb-2 font-body text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-concreto">1. Lectura actual</p>
-              <div className="grid gap-3 sm:grid-cols-3">
-              <DatoActual etiqueta="Rd actual" valor={historico.data.actual.rd} />
-              <DatoActual etiqueta="H actual" valor={historico.data.actual.h} />
-              <DatoActual etiqueta="T actual" valor={historico.data.actual.t} />
+            <section aria-label="Ficha técnica y vista 3D" className="overflow-hidden rounded-glass border border-concreto/15 bg-white/35">
+              <div className="grid lg:grid-cols-2">
+                <div className="flex min-h-[20rem] items-center justify-center border-b border-concreto/10 bg-[radial-gradient(circle_at_50%_40%,rgba(63,169,95,0.3),transparent_58%)] p-5 lg:border-b-0 lg:border-r">
+                  <Disco3DInteractivo />
+                </div>
+                <div className="flex flex-col justify-center p-5 sm:p-6">
+                  <p className="font-body text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-verde-oscuro">Vista 3D del disco</p>
+                  <h2 className="mt-1 font-display text-xl font-bold text-concreto-oscuro">Disco {disco.codigoDisco ?? 'sin código'} · {disco.lado}</h2>
+                  <p className="mt-2 font-body text-sm leading-relaxed text-concreto">Arrastra el disco para revisarlo desde cualquier ángulo. La ficha conserva las mismas lecturas técnicas del historial de mediciones.</p>
+                  <div className="mt-5 grid gap-2 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
+                    <DatoActual etiqueta="Rd actual" valor={historico.data.actual.rd} />
+                    <DatoActual etiqueta="H actual" valor={historico.data.actual.h} />
+                    <DatoActual etiqueta="T actual" valor={historico.data.actual.t} />
+                  </div>
+                  <p className="mt-4 border-t border-concreto/10 pt-3 font-body text-xs text-concreto">Los valores corresponden a la última medición confirmada del disco seleccionado.</p>
+                </div>
               </div>
             </section>
 
@@ -77,11 +73,71 @@ export function ModalHistoricoDisco({ disco, onCerrar }: Props) {
   )
 }
 
+function Disco3DInteractivo() {
+  const [rotacion, setRotacion] = useState({ x: 52, y: -18 })
+  const inicio = useRef<{ x: number; y: number; rotacionX: number; rotacionY: number } | null>(null)
+
+  function iniciarArrastre(evento: React.PointerEvent<HTMLButtonElement>) {
+    inicio.current = {
+      x: evento.clientX,
+      y: evento.clientY,
+      rotacionX: rotacion.x,
+      rotacionY: rotacion.y,
+    }
+    evento.currentTarget.setPointerCapture(evento.pointerId)
+  }
+
+  function moverArrastre(evento: React.PointerEvent<HTMLButtonElement>) {
+    if (!inicio.current) return
+    setRotacion({
+      x: Math.max(-75, Math.min(75, inicio.current.rotacionX - (evento.clientY - inicio.current.y) * 0.55)),
+      y: inicio.current.rotacionY + (evento.clientX - inicio.current.x) * 0.55,
+    })
+  }
+
+  function terminarArrastre() {
+    inicio.current = null
+  }
+
+  return (
+    <div className="flex w-full max-w-[19rem] shrink-0 flex-col items-center gap-2">
+      <button
+        type="button"
+        aria-label="Vista 3D interactiva del disco. Arrastra para rotar"
+        className="touch-none cursor-grab rounded-full p-1 outline-none transition hover:bg-white/55 focus-visible:ring-2 focus-visible:ring-emerald-500 active:cursor-grabbing"
+        onPointerDown={iniciarArrastre}
+        onPointerMove={moverArrastre}
+        onPointerUp={terminarArrastre}
+        onPointerCancel={terminarArrastre}
+      >
+        <span
+          aria-hidden
+          className="block h-60 w-60 rounded-full border-[18px] border-slate-700 shadow-[inset_15px_15px_20px_rgba(255,255,255,0.7),inset_-17px_-17px_24px_rgba(15,23,42,0.7),0_22px_36px_rgba(15,92,57,0.28)] transition-transform duration-75 sm:h-64 sm:w-64"
+          style={{
+            background: 'repeating-conic-gradient(#dbe4dc 0 7deg, #637267 7deg 12deg)',
+            transform: `perspective(260px) rotateX(${rotacion.x}deg) rotateY(${rotacion.y}deg)`,
+          }}
+        >
+          <span className="m-auto block h-16 w-16 rounded-full bg-slate-200 shadow-[inset_6px_6px_9px_rgba(71,85,105,0.55),inset_-5px_-5px_8px_white]" />
+        </span>
+      </button>
+      <button
+        type="button"
+        onClick={() => setRotacion({ x: 52, y: -18 })}
+        className="inline-flex items-center gap-1 rounded-full px-2 py-1 font-body text-[0.62rem] font-semibold text-concreto transition hover:bg-white/65 hover:text-verde-oscuro focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+      >
+        <RotateCcw size={11} aria-hidden />
+        Reiniciar vista
+      </button>
+    </div>
+  )
+}
+
 function DatoActual({ etiqueta, valor }: { etiqueta: string; valor: number | null | undefined }) {
   return (
-    <div className="rounded-glass border border-concreto/15 bg-white/40 px-4 py-3">
+    <div className="rounded-xl border border-concreto/15 bg-white/55 px-3 py-2.5">
       <p className="font-body text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-concreto">{etiqueta}</p>
-      <p className="mt-1 font-data text-2xl font-semibold text-concreto-oscuro">{formato(valor)}</p>
+      <p className="mt-1 font-data text-xl font-semibold text-concreto-oscuro">{formato(valor)}</p>
     </div>
   )
 }

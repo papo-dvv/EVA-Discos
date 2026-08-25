@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { FleetBogieDetalle, FleetDiscoDetalle } from '../types'
 import { colorEstado, ESTADO_META } from './estadoVisual'
 
@@ -17,6 +18,7 @@ function textoEstado(disco: FleetDiscoDetalle): string {
 
 export function BogieVisualizer({ bogie, onSeleccionarDisco }: Props) {
   const ejes = bogie.ejes.slice(0, 2)
+  const [discoEnHover, setDiscoEnHover] = useState<string | null>(null)
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-gradient-to-b from-slate-50 to-white p-3 shadow-[inset_0_1px_0_white]">
@@ -56,16 +58,14 @@ export function BogieVisualizer({ bogie, onSeleccionarDisco }: Props) {
           return (
             <g key={eje.eje}>
               <line x1="78" y1={y + 38} x2="482" y2={y + 38} stroke="rgba(31,41,55,0.18)" strokeWidth="8" strokeLinecap="round" />
-              <circle cx="58" cy={y + 18} r="22" fill={`url(#metal-${bogie.bogie})`} stroke="#cbd5e1" strokeWidth="2" />
-              <circle cx="58" cy={y + 58} r="22" fill={`url(#metal-${bogie.bogie})`} stroke="#cbd5e1" strokeWidth="2" />
-              <circle cx="502" cy={y + 18} r="22" fill={`url(#metal-${bogie.bogie})`} stroke="#cbd5e1" strokeWidth="2" />
-              <circle cx="502" cy={y + 58} r="22" fill={`url(#metal-${bogie.bogie})`} stroke="#cbd5e1" strokeWidth="2" />
+              <circle cx="58" cy={y + 38} r="22" fill={`url(#metal-${bogie.bogie})`} stroke="#cbd5e1" strokeWidth="2" />
+              <circle cx="502" cy={y + 38} r="22" fill={`url(#metal-${bogie.bogie})`} stroke="#cbd5e1" strokeWidth="2" />
               <text x="280" y={y - 8} textAnchor="middle" className="fill-concreto font-body text-[12px] font-semibold">
                 {izquierdo?.codigoDisco ?? derecho?.codigoDisco ? `Disco ${izquierdo?.codigoDisco ?? derecho?.codigoDisco}` : 'Disco sin código'}
               </text>
 
-              <MitadDisco x={190} y={y} disco={izquierdo} lado="izquierdo" onSeleccionarDisco={onSeleccionarDisco} />
-              <MitadDisco x={280} y={y} disco={derecho} lado="derecho" onSeleccionarDisco={onSeleccionarDisco} />
+              <MitadDisco x={190} y={y} disco={izquierdo} lado="izquierdo" onSeleccionarDisco={onSeleccionarDisco} enHover={discoEnHover === `${eje.eje}-izquierdo`} onHoverChange={(activo) => setDiscoEnHover(activo ? `${eje.eje}-izquierdo` : null)} />
+              <MitadDisco x={280} y={y} disco={derecho} lado="derecho" onSeleccionarDisco={onSeleccionarDisco} enHover={discoEnHover === `${eje.eje}-derecho`} onHoverChange={(activo) => setDiscoEnHover(activo ? `${eje.eje}-derecho` : null)} />
 
               <line x1="280" y1={y + 4} x2="280" y2={y + 72} stroke="rgba(255,255,255,0.8)" strokeWidth="2" />
               <text x="144" y={y + 42} textAnchor="end" className="fill-concreto-oscuro font-data text-[14px]">
@@ -88,9 +88,11 @@ type MitadDiscoProps = {
   lado: 'izquierdo' | 'derecho'
   disco: FleetDiscoDetalle | null
   onSeleccionarDisco: (disco: FleetDiscoDetalle) => void
+  enHover: boolean
+  onHoverChange: (activo: boolean) => void
 }
 
-function MitadDisco({ x, y, lado, disco, onSeleccionarDisco }: MitadDiscoProps) {
+function MitadDisco({ x, y, lado, disco, onSeleccionarDisco, enHover, onHoverChange }: MitadDiscoProps) {
   const disponible = Boolean(disco?.codigoDisco && disco.estadoCalculado)
   const etiqueta = disco ? `${lado}: ${textoEstado(disco)} · ${formatoRd(disco.rd)}` : `${lado}: Sin datos`
   const rx = lado === 'izquierdo' ? 32 : 0
@@ -104,6 +106,8 @@ function MitadDisco({ x, y, lado, disco, onSeleccionarDisco }: MitadDiscoProps) 
       role={disponible ? 'button' : 'img'}
       tabIndex={disponible ? 0 : undefined}
       aria-label={etiqueta}
+      onPointerEnter={() => disponible && onHoverChange(true)}
+      onPointerLeave={() => onHoverChange(false)}
       onClick={() => {
         if (disponible && disco) onSeleccionarDisco(disco)
       }}
@@ -122,8 +126,13 @@ function MitadDisco({ x, y, lado, disco, onSeleccionarDisco }: MitadDiscoProps) 
         fill={colorEstado(disco?.estadoCalculado ?? null)}
         opacity={disco?.estadoCalculado ? 0.92 : 0.32}
         stroke="rgba(255,255,255,0.82)"
-        strokeWidth="2"
-        style={{ filter: 'drop-shadow(0 8px 8px rgba(15,23,42,0.12))' }}
+        strokeWidth={enHover ? 3 : 2}
+        style={{
+          filter: enHover
+            ? 'brightness(0.72) saturate(1.12) drop-shadow(0 8px 8px rgba(15,23,42,0.22))'
+            : 'drop-shadow(0 8px 8px rgba(15,23,42,0.12))',
+          transition: 'filter 160ms ease, stroke-width 160ms ease',
+        }}
       />
       <rect x={lado === 'izquierdo' ? x + 76 : x} y={y + 4} width="14" height="68" rx={rx} fill="rgba(255,255,255,0.12)" />
     </g>
