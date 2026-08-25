@@ -107,7 +107,17 @@ export function GlassModal({
     <div
       ref={overlayRef}
       role="presentation"
-      onClick={onCerrar}
+      onClick={(e) => {
+        // stopPropagation: sin esto, un modal anidado dentro de otro (ej.
+        // FirmaDigital abierto sobre Cambio de Disco) hace que el clic en SU
+        // PROPIO backdrop también cierre el modal de afuera — React reenvía
+        // los eventos sintéticos por el árbol de React, no por el DOM real,
+        // así que un clic en un overlay portado igual burbujea hasta el
+        // overlay del modal ancestro que lo contiene lógicamente (confirmado
+        // en vivo: "la ventana modal se destruye" al usar Firma digital).
+        e.stopPropagation()
+        onCerrar()
+      }}
       className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4"
       style={{
         background: 'rgba(35, 40, 33, 0.28)',

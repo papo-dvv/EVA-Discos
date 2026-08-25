@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma, TipoCoche } from '../../generated/prisma';
+import { Prisma, type TipoCoche } from '../../generated/prisma';
+import { ORDEN_COCHE_FLOTA } from '../fleet/fleet.constants';
 import { ConsensoConfigService } from '../traceability/consenso-config.service';
 import { CONTEO_MINIMO } from '../traceability/traceability.service';
 import { TraceabilityStatsService } from '../traceability/traceability-stats.service';
@@ -47,12 +48,13 @@ export class ProyeccionRateService {
     return this.promedioLimpio(pares);
   }
 
-  // Los 6 tipos de coche a la vez (uno por cada valor del enum TipoCoche) —
-  // usado por GET /projection/promedio-por-vagon y, para no repetir la misma
-  // consulta por cada disco, por ProyeccionService al armar el listado y el
-  // pronóstico de 12 meses.
+  // Los 6 tipos de coche Alstom a la vez (ORDEN_COCHE_FLOTA) — usado por GET
+  // /projection/promedio-por-vagon y, para no repetir la misma consulta por
+  // cada disco, por ProyeccionService al armar el listado y el pronóstico de
+  // 12 meses. Ansaldo (M20/M21/M22) queda fuera a propósito — ver
+  // ProyeccionService.resolverDiscosEnScope.
   async calcularTasasPorTipoCoche(): Promise<Record<TipoCoche, number | null>> {
-    const tipos = Object.values(TipoCoche);
+    const tipos: readonly TipoCoche[] = ORDEN_COCHE_FLOTA;
     const tasas = await Promise.all(
       tipos.map((t) => this.calcularTasaPromedioPorTipoCoche(t)),
     );

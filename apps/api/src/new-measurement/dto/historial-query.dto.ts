@@ -1,6 +1,9 @@
 import { Type } from 'class-transformer';
 import { IsIn, IsInt, IsOptional, Max, Min } from 'class-validator';
-import { MOTIVOS_RECONOCIDOS, type MotivoFicha } from '../new-measurement-csv.parser';
+import {
+  MOTIVOS_RECONOCIDOS,
+  type MotivoFicha,
+} from '../new-measurement-csv.parser';
 
 // GET /new-measurement/historial?limit= — feed global (todos los trenes) de
 // eventos de ciclo de vida de fichas de medición (ver NewMeasurementHistoryService).

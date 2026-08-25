@@ -5,7 +5,6 @@ import { GlassSurface } from '../components/GlassSurface'
 import { PaginacionNumerica } from '../features/scan-records/components/PaginacionNumerica'
 import { SidebarTrenes } from '../features/scan-records/components/SidebarTrenes'
 import { useScanRecordsOpcionesFiltro, useScanRecordsResumenPorTren } from '../features/scan-records/queries'
-import { PanelParametros } from '../features/system-params/components/PanelParametros'
 import { GraficoTasaMensual } from '../features/wear-rate/components/GraficoTasaMensual'
 import { PanelFiltrosWearRate } from '../features/wear-rate/components/PanelFiltrosWearRate'
 import { PanelResumenWearRate } from '../features/wear-rate/components/PanelResumenWearRate'
@@ -141,7 +140,6 @@ export function TasaDesgaste() {
           <div className="mt-4 space-y-4 xl:hidden">
             <PanelResumenWearRate resumen={resumen.data} cargando={resumen.isLoading} />
             <CardFormulas variante="tasaDesgaste" />
-            <PanelParametros modulo="tasa-desgaste" />
           </div>
 
           <GraficoTasaMensual puntos={chart.data ?? []} cargando={chart.isLoading} titulo={etiquetaAlcance} />
@@ -200,7 +198,6 @@ export function TasaDesgaste() {
           <div className="sticky top-6 space-y-4">
             <PanelResumenWearRate resumen={resumen.data} cargando={resumen.isLoading} />
             <CardFormulas variante="tasaDesgaste" />
-            <PanelParametros modulo="tasa-desgaste" />
           </div>
         </aside>
       </div>

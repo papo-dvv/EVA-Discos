@@ -31,7 +31,7 @@ describe('FleetService', () => {
     jest.clearAllMocks();
   });
 
-  it('summary devuelve 39 trenes ordenados 6 a 44 y cuenta alertas actuales', async () => {
+  it('summary devuelve 44 trenes ordenados 1 a 44 (Ansaldo + Alstom) y cuenta alertas actuales', async () => {
     const prisma = {
       brakeDisc: {
         findMany: jest.fn().mockResolvedValue([
@@ -60,16 +60,30 @@ describe('FleetService', () => {
 
     const summary = await service.summary();
 
-    expect(summary).toHaveLength(39);
-    expect(summary[0].tren).toBe(6);
+    expect(summary).toHaveLength(44);
+    expect(summary[0].tren).toBe(1);
     expect(summary.at(-1)?.tren).toBe(44);
-    expect(summary[0]).toMatchObject({
+    const tren6 = summary.find((s) => s.tren === 6);
+    expect(tren6).toMatchObject({
       fechaUltimaMedicion: '2026-01-02',
-      conteoAlerta: { cambio: 1, critico: 1, reperfilado: 0 },
+      conteoEstado: {
+        ok: 0,
+        seguimiento: 0,
+        cambio: 1,
+        critico: 1,
+        reperfilado: 0,
+      },
     });
-    expect(summary[1]).toMatchObject({
+    const tren7 = summary.find((s) => s.tren === 7);
+    expect(tren7).toMatchObject({
       tren: 7,
-      conteoAlerta: { cambio: 0, critico: 0, reperfilado: 1 },
+      conteoEstado: {
+        ok: 0,
+        seguimiento: 0,
+        cambio: 0,
+        critico: 0,
+        reperfilado: 1,
+      },
     });
   });
 
@@ -78,6 +92,7 @@ describe('FleetService', () => {
       train: {
         findUnique: jest.fn().mockResolvedValue({
           numero: 6,
+          modelo: 'alstom_metropolis9000',
           wagonUnits: [
             {
               id: 'wu-1',
@@ -89,6 +104,7 @@ describe('FleetService', () => {
                   bogieCodigo: 'PB3',
                   ejeNumero: 1,
                   lado: 'izquierdo',
+                  posicion: 'unica',
                   ruedaNumero: 1,
                 },
                 {
@@ -96,6 +112,7 @@ describe('FleetService', () => {
                   bogieCodigo: 'PB3',
                   ejeNumero: 1,
                   lado: 'derecho',
+                  posicion: 'unica',
                   ruedaNumero: 2,
                 },
               ],

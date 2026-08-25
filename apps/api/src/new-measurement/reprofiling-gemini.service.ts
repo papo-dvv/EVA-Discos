@@ -70,10 +70,16 @@ type RespuestaGemini = {
     codigo: string | null;
   }>;
   comentariosActividad: string | null;
-  tecnicos: Array<Omit<PersonaOcr, 'firma'> & { posicion: number; firmaCaja: CajaFirma | null }>;
+  tecnicos: Array<
+    Omit<PersonaOcr, 'firma'> & {
+      posicion: number;
+      firmaCaja: CajaFirma | null;
+    }
+  >;
   instrumentos: InstrumentoOcr[];
   ingMr: (Omit<PersonaOcr, 'firma'> & { firmaCaja: CajaFirma | null }) | null;
-  responsableMantenimiento: (Omit<PersonaOcr, 'firma'> & { firmaCaja: CajaFirma | null }) | null;
+  responsableMantenimiento:
+    (Omit<PersonaOcr, 'firma'> & { firmaCaja: CajaFirma | null }) | null;
   confianza: number;
   filas: Array<{
     ejeNumero: number;
@@ -141,8 +147,14 @@ const ESQUEMA_RESPUESTA = {
         additionalProperties: false,
         required: ['tipoCoche', 'tipoBogie', 'codigo'],
         properties: {
-          tipoCoche: { type: 'string', enum: ['MA1', 'MB1', 'MB3', 'REM', 'MB2', 'MA2'] },
-          tipoBogie: { type: 'string', enum: ['PB2', 'PB3', 'PB4', 'PB6', 'TB1', 'TB2'] },
+          tipoCoche: {
+            type: 'string',
+            enum: ['MA1', 'MB1', 'MB3', 'REM', 'MB2', 'MA2'],
+          },
+          tipoBogie: {
+            type: 'string',
+            enum: ['PB2', 'PB3', 'PB4', 'PB6', 'TB1', 'TB2'],
+          },
           codigo: { type: ['string', 'null'] },
         },
       },
@@ -151,31 +163,77 @@ const ESQUEMA_RESPUESTA = {
     tecnicos: {
       type: 'array',
       items: {
-        type: 'object', additionalProperties: false,
+        type: 'object',
+        additionalProperties: false,
         required: ['posicion', 'nombre', 'fecha', 'firmaCaja'],
         properties: {
           posicion: { type: 'integer', minimum: 1, maximum: 2 },
           nombre: { type: ['string', 'null'] },
           fecha: { type: ['string', 'null'] },
-          firmaCaja: { type: ['array', 'null'], minItems: 4, maxItems: 4, items: { type: 'integer', minimum: 0, maximum: 1000 } },
+          firmaCaja: {
+            type: ['array', 'null'],
+            minItems: 4,
+            maxItems: 4,
+            items: { type: 'integer', minimum: 0, maximum: 1000 },
+          },
         },
       },
     },
     instrumentos: {
       type: 'array',
       items: {
-        type: 'object', additionalProperties: false,
-        required: ['posicion', 'codigo', 'descripcion', 'modeloMarca', 'fechaCalibracion', 'fechaVencimientoCalibracion', 'observaciones'],
+        type: 'object',
+        additionalProperties: false,
+        required: [
+          'posicion',
+          'codigo',
+          'descripcion',
+          'modeloMarca',
+          'fechaCalibracion',
+          'fechaVencimientoCalibracion',
+          'observaciones',
+        ],
         properties: {
           posicion: { type: 'integer', minimum: 1, maximum: 3 },
-          codigo: { type: ['string', 'null'] }, descripcion: { type: ['string', 'null'] },
-          modeloMarca: { type: ['string', 'null'] }, fechaCalibracion: { type: ['string', 'null'] },
-          fechaVencimientoCalibracion: { type: ['string', 'null'] }, observaciones: { type: ['string', 'null'] },
+          codigo: { type: ['string', 'null'] },
+          descripcion: { type: ['string', 'null'] },
+          modeloMarca: { type: ['string', 'null'] },
+          fechaCalibracion: { type: ['string', 'null'] },
+          fechaVencimientoCalibracion: { type: ['string', 'null'] },
+          observaciones: { type: ['string', 'null'] },
         },
       },
     },
-    ingMr: { type: ['object', 'null'], additionalProperties: false, required: ['nombre', 'fecha', 'firmaCaja'], properties: { nombre: { type: ['string', 'null'] }, fecha: { type: ['string', 'null'] }, firmaCaja: { type: ['array', 'null'], minItems: 4, maxItems: 4, items: { type: 'integer', minimum: 0, maximum: 1000 } } } },
-    responsableMantenimiento: { type: ['object', 'null'], additionalProperties: false, required: ['nombre', 'fecha', 'firmaCaja'], properties: { nombre: { type: ['string', 'null'] }, fecha: { type: ['string', 'null'] }, firmaCaja: { type: ['array', 'null'], minItems: 4, maxItems: 4, items: { type: 'integer', minimum: 0, maximum: 1000 } } } },
+    ingMr: {
+      type: ['object', 'null'],
+      additionalProperties: false,
+      required: ['nombre', 'fecha', 'firmaCaja'],
+      properties: {
+        nombre: { type: ['string', 'null'] },
+        fecha: { type: ['string', 'null'] },
+        firmaCaja: {
+          type: ['array', 'null'],
+          minItems: 4,
+          maxItems: 4,
+          items: { type: 'integer', minimum: 0, maximum: 1000 },
+        },
+      },
+    },
+    responsableMantenimiento: {
+      type: ['object', 'null'],
+      additionalProperties: false,
+      required: ['nombre', 'fecha', 'firmaCaja'],
+      properties: {
+        nombre: { type: ['string', 'null'] },
+        fecha: { type: ['string', 'null'] },
+        firmaCaja: {
+          type: ['array', 'null'],
+          minItems: 4,
+          maxItems: 4,
+          items: { type: 'integer', minimum: 0, maximum: 1000 },
+        },
+      },
+    },
     confianza: { type: 'number', minimum: 0, maximum: 100 },
     filas: {
       type: 'array',
@@ -218,7 +276,9 @@ export class ReprofilingGeminiService {
       if (Number.isFinite(estado)) return estado;
     }
     if (error instanceof Error) {
-      const coincidencia = error.message.match(/(?:"code"\s*:\s*|\b)(429|503)\b/);
+      const coincidencia = error.message.match(
+        /(?:"code"\s*:\s*|\b)(429|503)\b/,
+      );
       if (coincidencia) return Number(coincidencia[1]);
     }
     return 0;
@@ -239,11 +299,22 @@ export class ReprofilingGeminiService {
     if (!metadata.width || !metadata.height) return null;
     const left = Math.max(0, Math.floor((xMin / 1000) * metadata.width));
     const top = Math.max(0, Math.floor((yMin / 1000) * metadata.height));
-    const width = Math.min(metadata.width - left, Math.max(1, Math.ceil(((xMax - xMin) / 1000) * metadata.width)));
-    const height = Math.min(metadata.height - top, Math.max(1, Math.ceil(((yMax - yMin) / 1000) * metadata.height)));
+    const width = Math.min(
+      metadata.width - left,
+      Math.max(1, Math.ceil(((xMax - xMin) / 1000) * metadata.width)),
+    );
+    const height = Math.min(
+      metadata.height - top,
+      Math.max(1, Math.ceil(((yMax - yMin) / 1000) * metadata.height)),
+    );
     const firma = await sharp(imagen)
       .extract({ left, top, width, height })
-      .resize({ width: 600, height: 180, fit: 'inside', withoutEnlargement: true })
+      .resize({
+        width: 600,
+        height: 180,
+        fit: 'inside',
+        withoutEnlargement: true,
+      })
       .png()
       .toBuffer();
     return `data:image/png;base64,${firma.toString('base64')}`;
@@ -338,16 +409,22 @@ El lado izquierdo está a la izquierda del bloque central EJE/RUEDA/COCHE y el d
             item.codigo!.trim().toUpperCase(),
           ]),
       );
-      const tecnicos = await Promise.all(datos.tecnicos.map(async ({ firmaCaja, ...tecnico }) => ({
-        ...tecnico,
-        firma: await this.extraerFirma(imagen, firmaCaja),
-      })));
+      const tecnicos = await Promise.all(
+        datos.tecnicos.map(async ({ firmaCaja, ...tecnico }) => ({
+          ...tecnico,
+          firma: await this.extraerFirma(imagen, firmaCaja),
+        })),
+      );
       const aPersona = async (
-        persona: (Omit<PersonaOcr, 'firma'> & { firmaCaja: CajaFirma | null }) | null,
+        persona:
+          (Omit<PersonaOcr, 'firma'> & { firmaCaja: CajaFirma | null }) | null,
       ): Promise<PersonaOcr | null> => {
         if (!persona) return null;
         const { firmaCaja, ...datosPersona } = persona;
-        return { ...datosPersona, firma: await this.extraerFirma(imagen, firmaCaja) };
+        return {
+          ...datosPersona,
+          firma: await this.extraerFirma(imagen, firmaCaja),
+        };
       };
       if (datos.tipoFormato !== 'UT-UF-MTO-FR-414') {
         advertencias.unshift(
@@ -368,7 +445,9 @@ El lado izquierdo está a la izquierda del bloque central EJE/RUEDA/COCHE y el d
         tecnicos,
         instrumentos: datos.instrumentos,
         ingMr: await aPersona(datos.ingMr),
-        responsableMantenimiento: await aPersona(datos.responsableMantenimiento),
+        responsableMantenimiento: await aPersona(
+          datos.responsableMantenimiento,
+        ),
         confianza: datos.confianza,
         filas: [...unicas.values()].map((fila) => ({
           ...fila,

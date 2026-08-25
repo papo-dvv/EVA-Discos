@@ -184,7 +184,8 @@ export class ProyeccionCalculatorService {
         tasaMensual,
         {
           hUmbralReperfilado: configuracionProyeccion.hUmbralReperfilado,
-          reperfiladoDescuentoRd: configuracionProyeccion.reperfiladoDescuentoRd,
+          reperfiladoDescuentoRd:
+            configuracionProyeccion.reperfiladoDescuentoRd,
           rdUmbralSeguimiento: configuracionProyeccion.rdUmbralCambio,
           rdUmbralCambioProyeccion: configuracionProyeccion.rdUmbralCambio,
         },

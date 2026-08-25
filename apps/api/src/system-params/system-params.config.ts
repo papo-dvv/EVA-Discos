@@ -67,6 +67,12 @@ export const PARAMS_EDITABLES: Record<string, ReglaParam> = {
   // la alerta SEVERA queda fija en 7 meses en el código, nunca lee esta
   // clave (ver measurement-gap.service.ts).
   measurement_gap_umbral_meses: { tipo: 'numero', min: 0 },
+  // Umbrales (días sin medir) del semáforo de tarjetas de Mediciones — ver
+  // MedicionesSemaforoConfigService. Normal es implícito (todo por debajo de
+  // dias_semaforo_alerta); Prioridad no tiene techo.
+  dias_semaforo_alerta: { tipo: 'numero', entero: true, min: 1 },
+  dias_semaforo_critico: { tipo: 'numero', entero: true, min: 1 },
+  dias_semaforo_prioridad: { tipo: 'numero', entero: true, min: 1 },
 };
 
 // Parámetros incorporados después de que algunas instalaciones ya tenían su
@@ -77,17 +83,35 @@ export const PARAMS_INICIALES_FALTANTES: Record<
   string,
   { valor: string; descripcion: string }
 > = {
+  dias_semaforo_alerta: {
+    valor: '16',
+    descripcion:
+      'Días sin medir a partir de los cuales el tren pasa a Alerta en la vista de tarjetas de Mediciones',
+  },
+  dias_semaforo_critico: {
+    valor: '26',
+    descripcion:
+      'Días sin medir a partir de los cuales el tren pasa a Crítico en la vista de tarjetas de Mediciones',
+  },
+  dias_semaforo_prioridad: {
+    valor: '31',
+    descripcion:
+      'Días sin medir a partir de los cuales el tren pasa a Prioridad en la vista de tarjetas de Mediciones',
+  },
   proyeccion_h_umbral_reperfilado: {
     valor: '1.6',
-    descripcion: 'Umbral H usado exclusivamente por la proyección de reperfilado (mm)',
+    descripcion:
+      'Umbral H usado exclusivamente por la proyección de reperfilado (mm)',
   },
   proyeccion_rd_umbral_cambio: {
     valor: '0.4',
-    descripcion: 'Umbral Rd para proyectar un cambio; no altera las mediciones (mm)',
+    descripcion:
+      'Umbral Rd para proyectar un cambio; no altera las mediciones (mm)',
   },
   proyeccion_reperfilado_descuento_rd: {
     valor: '0.8',
-    descripcion: 'Descuento Rd tras un reperfilado, usado exclusivamente por Proyección (mm)',
+    descripcion:
+      'Descuento Rd tras un reperfilado, usado exclusivamente por Proyección (mm)',
   },
 };
 

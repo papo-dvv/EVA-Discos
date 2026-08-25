@@ -36,6 +36,13 @@ const PAGE_SIZE = 25
 // /migration/:fileId — ver features/scan-records/types#AlcanceScanRecords.
 const ALCANCE_CONFIRMADOS: AlcanceScanRecords = {}
 
+// Pseudo-tren "Reserva" (ver schema.prisma, Train.numero=0).
+function etiquetaTrenSeleccionado(tren: number | null): string {
+  if (tren === null) return 'Todos los trenes'
+  if (tren === 0) return 'Reserva'
+  return `Tren ${tren}`
+}
+
 // Vista permanente de mediciones YA confirmadas — disponible en cualquier
 // momento (no solo justo tras subir un archivo), sin depender de ningún
 // fileId. Misma UI que la vista previa de migración (MigracionPreview),
@@ -129,7 +136,7 @@ export function MedicionesConfirmadas() {
                 Mediciones confirmadas
               </h1>
               <p className="mt-0.5 font-body text-sm text-concreto">
-                {trenSeleccionado ? `Tren ${trenSeleccionado}` : 'Todos los trenes'} ·{' '}
+                {etiquetaTrenSeleccionado(trenSeleccionado)} ·{' '}
                 <span className="font-data">{preview.data?.total ?? 0}</span> registros
               </p>
             </div>

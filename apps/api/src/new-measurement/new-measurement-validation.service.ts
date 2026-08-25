@@ -388,11 +388,12 @@ export class NewMeasurementValidationService {
 
     const disco = await this.prisma.brakeDisc.findUnique({
       where: {
-        wagonUnitId_bogieCodigo_ejeNumero_lado: {
+        wagonUnitId_bogieCodigo_ejeNumero_lado_posicion: {
           wagonUnitId: wagonId,
           bogieCodigo: fila.bogieExcel,
           ejeNumero: fila.ejeExcel,
           lado: fila.ubicacionExcel as LadoDisco,
+          posicion: 'unica',
         },
       },
     });

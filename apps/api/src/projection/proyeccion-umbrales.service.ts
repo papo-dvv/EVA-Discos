@@ -47,7 +47,11 @@ export class ProyeccionUmbralesService {
     };
   }
 
-  private leer(valores: Map<string, string>, clave: string, defecto: number): number {
+  private leer(
+    valores: Map<string, string>,
+    clave: string,
+    defecto: number,
+  ): number {
     const valor = Number(valores.get(clave));
     return Number.isFinite(valor) ? valor : defecto;
   }

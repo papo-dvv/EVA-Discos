@@ -249,6 +249,14 @@ function construirColumnas(
       enableSorting: false,
       cell: ({ row }) => ladoPorRueda(row.original.ruedaExcel),
     }),
+    // Solo trae valor en filas Ansaldo (interior/exterior) — vacía para
+    // Alstom, que no distingue posición dentro de un mismo lado.
+    columnHelper.display({
+      id: 'posicion',
+      header: 'Posición',
+      enableSorting: false,
+      cell: ({ row }) => posicionPorUbicacion(row.original.ubicacionExcel),
+    }),
     // Después de Lado, no de Kilometraje: refleja el orden jerárquico del
     // backend (tren→coche→bogie→eje→rueda→fecha, ver ORDEN_FISICO_DEFECTO en
     // scan-record-query.ts), donde fecha es el desempate final entre filas
@@ -345,4 +353,13 @@ function EstadoChip({
 function ladoPorRueda(rueda: number | null): string | null {
   if (rueda === null) return null
   return rueda % 2 === 1 ? 'Izquierdo' : 'Derecho'
+}
+
+// Ansaldo trae 2 discos por lado (interior/exterior) — se distingue por el
+// sufijo del texto crudo de Ubicación ("..._I_ext"/"..._I_int"/etc., ver
+// resolverLadoYPosicion en el backend). null para Alstom (sin esa distinción).
+function posicionPorUbicacion(ubicacion: string | null): string | null {
+  const match = /_[id]_(ext|int)$/i.exec((ubicacion ?? '').trim())
+  if (!match) return null
+  return match[1].toLowerCase() === 'ext' ? 'Exterior' : 'Interior'
 }

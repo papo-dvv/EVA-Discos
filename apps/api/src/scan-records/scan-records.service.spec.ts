@@ -4,7 +4,14 @@ import { BrakeDiscRulesEngine } from '../brake-disc-rules/brake-disc-rules.engin
 import { BrakeDiscRulesService } from '../brake-disc-rules/brake-disc-rules.service';
 import { UMBRALES_POR_DEFECTO } from '../brake-disc-rules/umbrales';
 import { PrismaService } from '../prisma/prisma.service';
+import { MedicionesSemaforoConfigService } from './mediciones-semaforo-config.service';
 import { ScanRecordsService } from './scan-records.service';
+
+const semaforoConfigStub = {
+  obtenerUmbrales: jest
+    .fn()
+    .mockResolvedValue({ alerta: 16, critico: 26, prioridad: 31 }),
+};
 
 type Registro = Record<string, unknown>;
 
@@ -206,6 +213,10 @@ describe('ScanRecordsService (post-commit)', () => {
         ScanRecordsService,
         { provide: PrismaService, useValue: prisma },
         { provide: BrakeDiscRulesService, useValue: brakeDiscRules },
+        {
+          provide: MedicionesSemaforoConfigService,
+          useValue: semaforoConfigStub,
+        },
       ],
     }).compile();
 
@@ -340,6 +351,10 @@ describe('ScanRecordsService (post-commit)', () => {
             provide: BrakeDiscRulesService,
             useValue: { obtenerEvaluador: jest.fn() },
           },
+          {
+            provide: MedicionesSemaforoConfigService,
+            useValue: semaforoConfigStub,
+          },
         ],
       }).compile();
       service = moduleRef.get(ScanRecordsService);
@@ -366,6 +381,10 @@ describe('ScanRecordsService (post-commit)', () => {
             provide: BrakeDiscRulesService,
             useValue: { obtenerEvaluador: jest.fn() },
           },
+          {
+            provide: MedicionesSemaforoConfigService,
+            useValue: semaforoConfigStub,
+          },
         ],
       }).compile();
       service = moduleRef.get(ScanRecordsService);
@@ -385,6 +404,10 @@ describe('ScanRecordsService (post-commit)', () => {
           {
             provide: BrakeDiscRulesService,
             useValue: { obtenerEvaluador: jest.fn() },
+          },
+          {
+            provide: MedicionesSemaforoConfigService,
+            useValue: semaforoConfigStub,
           },
         ],
       }).compile();
@@ -409,6 +432,10 @@ describe('ScanRecordsService (post-commit)', () => {
           {
             provide: BrakeDiscRulesService,
             useValue: { obtenerEvaluador: jest.fn() },
+          },
+          {
+            provide: MedicionesSemaforoConfigService,
+            useValue: semaforoConfigStub,
           },
         ],
       }).compile();
@@ -455,6 +482,10 @@ describe('ScanRecordsService (post-commit)', () => {
             provide: BrakeDiscRulesService,
             useValue: { obtenerEvaluador: jest.fn() },
           },
+          {
+            provide: MedicionesSemaforoConfigService,
+            useValue: semaforoConfigStub,
+          },
         ],
       }).compile();
       service = moduleRef.get(ScanRecordsService);
@@ -475,6 +506,10 @@ describe('ScanRecordsService (post-commit)', () => {
           {
             provide: BrakeDiscRulesService,
             useValue: { obtenerEvaluador: jest.fn() },
+          },
+          {
+            provide: MedicionesSemaforoConfigService,
+            useValue: semaforoConfigStub,
           },
         ],
       }).compile();
@@ -500,6 +535,10 @@ describe('ScanRecordsService (post-commit)', () => {
           {
             provide: BrakeDiscRulesService,
             useValue: { obtenerEvaluador: jest.fn() },
+          },
+          {
+            provide: MedicionesSemaforoConfigService,
+            useValue: semaforoConfigStub,
           },
         ],
       }).compile();

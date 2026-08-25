@@ -122,6 +122,19 @@ export interface ResumenTren {
   filasConAdvertencia: number
 }
 
+// Espejo de EstadoSemaforoMediciones/SemaforoTrenMediciones
+// (apps/api/src/scan-records/mediciones-semaforo-config.service.ts +
+// scan-records.service.ts) — semáforo "días sin medir" de la vista de
+// tarjetas de Mediciones. Umbrales configurables en Configuración.
+export type EstadoSemaforoMediciones = 'NORMAL' | 'ALERTA' | 'CRITICO' | 'PRIORIDAD'
+
+export interface SemaforoTrenMediciones {
+  tren: number
+  fechaUltimaMedicion: string | null
+  diasSinMedir: number | null
+  estadoSemaforo: EstadoSemaforoMediciones
+}
+
 export type ColumnaOrdenable =
   | 'responsable'
   | 'kilometraje'

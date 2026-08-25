@@ -166,11 +166,35 @@ export class ReprofilingPdfService {
       escribir(der?.observacion ?? izq?.observacion, 548, y, 5.2);
     }
 
-    // La plantilla imprime el tipo de coche y deja una línea vacía debajo.
-    // Se completa con el código físico que corresponde al tren seleccionado.
+    // Una fila del eje está "llenada" si tiene alguna medición cargada (antes
+    // o después del reperfilado) — evita imprimir el número de coche o el
+    // código de bogie de bloques que en la cartilla real quedaron en blanco.
+    const filaLlenada = (fila: (typeof filas)[number] | undefined): boolean =>
+      Boolean(
+        fila &&
+        (fila.tValue !== null ||
+          fila.hValue !== null ||
+          fila.reperfiladoTAntes !== null ||
+          fila.reperfiladoHAntes !== null),
+      );
+    const ejeTieneDatos = (eje: number): boolean =>
+      filaLlenada(porPosicion.get(`${eje}|izquierdo`)) ||
+      filaLlenada(porPosicion.get(`${eje}|derecho`));
+
+    // La plantilla imprime el tipo de coche y deja una línea en blanco debajo
+    // para el código físico — el número debe apoyarse ARRIBA de esa línea
+    // (como cualquier campo "a completar sobre la raya"), nunca cruzarla. La
+    // línea real, medida sobre la plantilla renderizada, cae en y≈538 para el
+    // primer bloque (535 - antes usado - quedaba 3pt por debajo de la línea,
+    // atravesándola).
     const coches = ['MA1', 'MB1', 'MB3', 'REM', 'MB2', 'MA2'] as const;
     coches.forEach((tipo, indice) => {
-      escribir(numerosCoche[tipo], 315, 535 - indice * 51.8, 7, true);
+      const ejeBase = indice * 4;
+      const tieneDatos = [1, 2, 3, 4].some((offset) =>
+        ejeTieneDatos(ejeBase + offset),
+      );
+      if (tieneDatos)
+        escribir(numerosCoche[tipo], 315, 546 - indice * 51.8, 7, true);
     });
     const posicionesBogie = [
       ['MA1:PB3', 1],
@@ -189,13 +213,30 @@ export class ReprofilingPdfService {
     posicionesBogie.forEach(([posicion, ejeInicio]) => {
       const y =
         561 - (ejeInicio - 1) * 12.35 - Math.floor((ejeInicio - 1) / 4) * 2.35;
-      escribir(codigosBogie[posicion], 49, y, 5.8, true);
+      if (ejeTieneDatos(ejeInicio) || ejeTieneDatos(ejeInicio + 1))
+        escribir(codigosBogie[posicion], 49, y, 5.8, true);
     });
 
-    if (ficha.todasConformes !== null)
-      escribir('X', ficha.todasConformes ? 390 : 438, 193, 8, true);
+    // Coordenadas de los corchetes "Si [ ] No [ ]" leídas directamente de la
+    // plantilla (pdftotext -bbox): centro entre "[" y "]" para cada opción.
+    if (ficha.todasConformes !== null) {
+      const tamanoX = 7.5;
+      const centroXConforme = ficha.todasConformes ? 386.7 : 436.5;
+      const centroYConforme = 199.25;
+      const anchoX = bold.widthOfTextAtSize('X', tamanoX);
+      escribir(
+        'X',
+        centroXConforme - anchoX / 2,
+        centroYConforme - tamanoX * 0.35,
+        tamanoX,
+        true,
+      );
+    }
+    // Filas de la tabla de instrumentos calibradas contra las líneas
+    // divisoras reales de la plantilla (167.7 / 157.6 / 147.5 / 137.4) — el
+    // valor previo (158 - indice*10.2) dejaba cada fila corrida hacia abajo.
     ficha.instrumentos.slice(0, 4).forEach((instrumento, indice) => {
-      const y = 158 - indice * 10.2;
+      const y = 170.2 - indice * 10.1;
       escribir(instrumento.codigo, 53, y, 5.7);
       escribir(instrumento.descripcion, 112, y, 5.7);
       escribir(instrumento.modeloMarca, 293, y, 5.7);
@@ -210,17 +251,20 @@ export class ReprofilingPdfService {
       .forEach((linea, indice) =>
         escribir(linea.trim(), 45, 115 - indice * 9, 5.7),
       );
-    for (const [indice, tecnico] of ficha.tecnicos.slice(0, 2).entries()) {
-      const y = 72 - indice * 10;
-      escribir(tecnico.cargo || 'TÉCNICO', 52, y, 5.5, true);
+    // Tabla CARGO | NOMBRES Y APELLIDOS | FIRMA: las 3 primeras filas están en
+    // blanco en la plantilla (el cargo lo escribe cada técnico a mano/en su
+    // campo, nunca lo completamos nosotros) — filas calibradas contra las
+    // líneas divisoras reales (60.5 / 50.8 / 41.0). La 4ª fila ya trae
+    // impreso "SUPERVISOR / COORDINADOR / TÉCNICO ESPECIALISTA", por lo que
+    // solo se completan nombre y firma del Responsable de Mantenimiento.
+    for (const [indice, tecnico] of ficha.tecnicos.slice(0, 3).entries()) {
+      const y = 63 - indice * 10;
+      escribir(tecnico.cargo, 52, y, 5.5, true);
       escribir(tecnico.nombre, 210, y, 6.1, true);
       await dibujarFirma(pdf, page, tecnico.firma, 505, y - 2);
     }
-    escribir('RESPONSABLE DE MANTENIMIENTO', 52, 53, 5.1, true);
-    escribir(ficha.responsableMantenimientoNombre, 210, 53, 6.1, true);
-    await dibujarFirma(pdf, page, ficha.responsableMantenimientoFirma, 505, 51);
-    escribir(ficha.ingMrNombre, 210, 34, 6.1, true);
-    await dibujarFirma(pdf, page, ficha.ingMrFirma, 505, 32);
+    escribir(ficha.responsableMantenimientoNombre, 210, 30, 6.1, true);
+    await dibujarFirma(pdf, page, ficha.responsableMantenimientoFirma, 505, 28);
 
     return pdf.save();
   }

@@ -82,12 +82,17 @@ describe('SystemParamsService', () => {
 
     const res = await service.listar();
 
-    expect(res).toHaveLength(2);
-    expect(res[0]).toMatchObject({ clave: 'rd_umbral_ok', editable: true });
-    expect(res[1]).toMatchObject({
-      clave: 'clave_no_editable',
+    // listar() también agrega los PARAMS_INICIALES_FALTANTES que no vinieron
+    // en el mock (ver system-params.config.ts) — no hardcodeamos ese conteo
+    // acá para no desalinearnos cada vez que se agrega una clave nueva ahí.
+    const porClave = new Map(res.map((p) => [p.clave, p]));
+    expect(porClave.get('rd_umbral_ok')).toMatchObject({ editable: true });
+    expect(porClave.get('clave_no_editable')).toMatchObject({
       editable: false,
     });
+    expect(res).toEqual(
+      [...res].sort((a, b) => a.clave.localeCompare(b.clave)),
+    );
   });
 
   it('actualiza un umbral numérico, refresca actualizadoPor/En y audita el cambio', async () => {

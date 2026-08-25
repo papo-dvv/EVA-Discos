@@ -54,13 +54,15 @@ export class SystemParamsService {
         actualizadoEn: null,
       }));
 
-    return [...params, ...faltantes].sort((a, b) => a.clave.localeCompare(b.clave)).map((p) => ({
-      clave: p.clave,
-      valor: p.valor,
-      descripcion: p.descripcion,
-      actualizadoEn: p.actualizadoEn,
-      editable: PARAMS_EDITABLES[p.clave] !== undefined,
-    }));
+    return [...params, ...faltantes]
+      .sort((a, b) => a.clave.localeCompare(b.clave))
+      .map((p) => ({
+        clave: p.clave,
+        valor: p.valor,
+        descripcion: p.descripcion,
+        actualizadoEn: p.actualizadoEn,
+        editable: PARAMS_EDITABLES[p.clave] !== undefined,
+      }));
   }
 
   async actualizar(

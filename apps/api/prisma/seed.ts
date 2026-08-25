@@ -2,7 +2,7 @@ import 'dotenv/config'
 import { randomBytes } from 'node:crypto'
 import bcrypt from 'bcrypt'
 import { PrismaPg } from '@prisma/adapter-pg'
-import { PrismaClient, type LadoDisco, type ModeloTren, type TipoCoche } from '../generated/prisma'
+import { PrismaClient, type LadoDisco, type ModeloTren, type PosicionDisco, type TipoCoche } from '../generated/prisma'
 
 const BCRYPT_ROUNDS = 12
 // Mismo UUID fijo que schema_eva.sql §7, para que el usuario "sistema" sea
@@ -20,6 +20,16 @@ async function seedBogieCatalog() {
     { codigo: 'PB6', descripcion: 'Bogie motor tipo 6' },
     { codigo: 'TB1', descripcion: 'Bogie remolque tipo 1' },
     { codigo: 'TB2', descripcion: 'Bogie remolque tipo 2' },
+    // Ansaldo (verificado contra el Excel real, test-data/CONTROL TOP - copia
+    // ANSALDO.xlsm): catálogo de 6 códigos reutilizados por tipo de coche
+    // dentro de cada tren (mismo patrón que PB2..TB2 para Alstom) — M20 usa
+    // C1/C2, M21 usa C3/C4, M22 usa C5/C6.
+    { codigo: 'C1', descripcion: 'Bogie Ansaldo tipo 1' },
+    { codigo: 'C2', descripcion: 'Bogie Ansaldo tipo 2' },
+    { codigo: 'C3', descripcion: 'Bogie Ansaldo tipo 3' },
+    { codigo: 'C4', descripcion: 'Bogie Ansaldo tipo 4' },
+    { codigo: 'C5', descripcion: 'Bogie Ansaldo tipo 5' },
+    { codigo: 'C6', descripcion: 'Bogie Ansaldo tipo 6' },
   ]
   for (const b of bogies) {
     await prisma.bogieCatalog.upsert({
@@ -55,6 +65,9 @@ async function seedSystemParams() {
     { clave: 'proyeccion_km_rango_min', valor: '7000', descripcion: 'Diferencia de kilometraje mínima (km) de los wear_rate_pairs que alimentan la tasa promedio de desgaste por tipo de coche usada en Proyección de Reperfilado y Cambio.' },
     { clave: 'proyeccion_km_rango_max', valor: '15000', descripcion: 'Diferencia de kilometraje máxima (km) de los wear_rate_pairs que alimentan la tasa promedio de desgaste por tipo de coche usada en Proyección de Reperfilado y Cambio.' },
     { clave: 'measurement_gap_umbral_meses', valor: '6', descripcion: 'Meses sin medición desde la última medición confirmada de un disco a partir de los cuales se muestra la alerta de "recomendado medir pronto" (ver MeasurementGapModule). La alerta SEVERA queda fija en 7 meses, no configurable.' },
+    { clave: 'dias_semaforo_alerta', valor: '16', descripcion: 'Días sin medir a partir de los cuales el tren pasa a Alerta en la vista de tarjetas de Mediciones' },
+    { clave: 'dias_semaforo_critico', valor: '26', descripcion: 'Días sin medir a partir de los cuales el tren pasa a Crítico en la vista de tarjetas de Mediciones' },
+    { clave: 'dias_semaforo_prioridad', valor: '31', descripcion: 'Días sin medir a partir de los cuales el tren pasa a Prioridad en la vista de tarjetas de Mediciones' },
   ]
   for (const p of params) {
     await prisma.systemParam.upsert({
@@ -118,6 +131,17 @@ async function seedTrains() {
   type TrainSeed = { numero: number; modelo: ModeloTren; color: string; velocidadMaxKmh: number }
 
   const trains: TrainSeed[] = [
+    // Pseudo-tren "Reserva" (numero=0): unidades Ansaldo sin tren asignado —
+    // hoja "UDT RESERVA" del Excel y coches de repuesto (ver flota.md). No es
+    // un tren real en servicio; existe para que WagonUnit.trenId (NOT NULL)
+    // y ScanRecord.trenNumero tengan un valor consistente sin volverse
+    // nullable en cascada (ver migration-excel.parser.ts, TREN_RESERVA).
+    {
+      numero: 0,
+      modelo: 'ansaldo_mb300' as const,
+      color: 'gris',
+      velocidadMaxKmh: 90,
+    },
     ...Array.from({ length: 5 }, (_, i) => ({
       numero: i + 1,
       modelo: 'ansaldo_mb300' as const,
@@ -192,6 +216,16 @@ const ORDEN_COCHE_TREN: readonly TipoCoche[] = [
   'MA2',
 ]
 
+// serie es texto libre obligatorio a nivel de DTO (Inventario) pero nullable
+// a nivel de columna (ver schema.prisma, BrakeDisc.serie) — piezas montadas
+// directamente por este seed o por la migración masiva de Excel nunca traen
+// un número de serie de fábrica real. Se genera uno sintético (MIG-xxxxxxxx)
+// en vez de dejarlo null, para que Inventario siempre tenga algo que
+// mostrar/buscar. Mismo criterio que MigrationCommitService.resolverBrakeDisc.
+function generarSerieAuto(): string {
+  return `MIG-${randomBytes(4).toString('hex').toUpperCase()}`
+}
+
 function numerosCochePorTren(numeroTren: number): Record<TipoCoche, number> {
   const idx = numeroTren - 6
   const ma1 = 101 + 4 * idx
@@ -228,6 +262,10 @@ async function seedFlotaAlstom() {
       for (let offset = 0; offset < 4; offset++) {
         const ejeNumero = plan.ejeInicio + offset
         const bogieCodigo = plan.bogiePorOffset[offset]
+        // serie es DEL EJE — izquierdo y derecho de un mismo eje comparten
+        // el mismo valor (ver comentario en schema.prisma, BrakeDisc.serie).
+        // Se genera UNA vez por eje, fuera del loop de lado.
+        const serieEje = generarSerieAuto()
 
         for (const lado of ['izquierdo', 'derecho'] as const satisfies readonly LadoDisco[]) {
           // rueda = 2*eje (derecho) / 2*eje-1 (izquierdo) — confirmado en el
@@ -237,11 +275,12 @@ async function seedFlotaAlstom() {
 
           await prisma.brakeDisc.upsert({
             where: {
-              wagonUnitId_bogieCodigo_ejeNumero_lado: {
+              wagonUnitId_bogieCodigo_ejeNumero_lado_posicion: {
                 wagonUnitId: wagon.id,
                 bogieCodigo,
                 ejeNumero,
                 lado,
+                posicion: 'unica',
               },
             },
             update: { ruedaNumero },
@@ -250,9 +289,12 @@ async function seedFlotaAlstom() {
               bogieCodigo,
               ejeNumero,
               lado,
+              posicion: 'unica',
               ruedaNumero,
               stage: 'en_servicio',
               fase: 'usada',
+              serie: serieEje,
+              fabricante: tren.modelo,
             },
           })
           brakeDiscs++
@@ -266,6 +308,267 @@ async function seedFlotaAlstom() {
   )
 }
 
+// Catálogo de flota Ansaldo (wagon_units + brake_discs) — 5 trenes + 2 coches
+// de reserva bajo el pseudo-tren 0. Verificado contra el Excel real
+// (test-data/CONTROL TOP - copia ANSALDO.xlsm, hojas T01-T05/UDT RESERVA) y
+// espejo de flota.md (ver ahí la nota sobre Tren 5, que queda con un solo par
+// M20/M21 confirmado hasta poder verificar el segundo).
+//
+// A diferencia de Alstom, los códigos de bogie (C1..C6) son fijos POR TIPO DE
+// COCHE (no por posición dentro del tren): toda unidad M20 usa C1/C2, toda
+// M21 usa C3/C4, toda M22 usa C5/C6 — confirmado que esto se repite igual
+// para las 2 unidades de cada tipo dentro de un mismo tren (wagonUnitId ya
+// distingue la instancia física, ver @@unique de BrakeDisc). El número de eje
+// también se reinicia a {1,2} POR BOGIE (no es continuo 1-4 por coche como en
+// Alstom).
+//
+// Cada eje tiene 4 discos (lado × posición: izquierdo/derecho × interior/
+// exterior) en vez de 2 — la diferencia física central de Ansaldo frente a
+// Alstom (ver PosicionDisco en schema.prisma).
+const BOGIES_POR_TIPO_ANSALDO: Record<'M20' | 'M21' | 'M22', readonly [string, string]> = {
+  M20: ['C1', 'C2'],
+  M21: ['C3', 'C4'],
+  M22: ['C5', 'C6'],
+}
+
+const COCHES_ANSALDO: ReadonlyArray<{
+  trenNumero: number
+  numeroCoche: number
+  tipoCoche: 'M20' | 'M21' | 'M22'
+}> = [
+  { trenNumero: 1, numeroCoche: 1, tipoCoche: 'M20' },
+  { trenNumero: 1, numeroCoche: 2, tipoCoche: 'M21' },
+  { trenNumero: 1, numeroCoche: 302, tipoCoche: 'M22' },
+  { trenNumero: 1, numeroCoche: 301, tipoCoche: 'M22' },
+  { trenNumero: 1, numeroCoche: 4, tipoCoche: 'M21' },
+  { trenNumero: 1, numeroCoche: 3, tipoCoche: 'M20' },
+  { trenNumero: 2, numeroCoche: 5, tipoCoche: 'M20' },
+  { trenNumero: 2, numeroCoche: 6, tipoCoche: 'M21' },
+  { trenNumero: 2, numeroCoche: 303, tipoCoche: 'M22' },
+  { trenNumero: 2, numeroCoche: 305, tipoCoche: 'M22' },
+  { trenNumero: 2, numeroCoche: 8, tipoCoche: 'M21' },
+  { trenNumero: 2, numeroCoche: 7, tipoCoche: 'M20' },
+  { trenNumero: 3, numeroCoche: 11, tipoCoche: 'M20' },
+  { trenNumero: 3, numeroCoche: 12, tipoCoche: 'M21' },
+  { trenNumero: 3, numeroCoche: 307, tipoCoche: 'M22' },
+  { trenNumero: 3, numeroCoche: 306, tipoCoche: 'M22' },
+  { trenNumero: 3, numeroCoche: 10, tipoCoche: 'M21' },
+  { trenNumero: 3, numeroCoche: 9, tipoCoche: 'M20' },
+  { trenNumero: 4, numeroCoche: 13, tipoCoche: 'M20' },
+  { trenNumero: 4, numeroCoche: 14, tipoCoche: 'M21' },
+  { trenNumero: 4, numeroCoche: 308, tipoCoche: 'M22' },
+  { trenNumero: 4, numeroCoche: 309, tipoCoche: 'M22' },
+  { trenNumero: 4, numeroCoche: 16, tipoCoche: 'M21' },
+  { trenNumero: 4, numeroCoche: 15, tipoCoche: 'M20' },
+  { trenNumero: 5, numeroCoche: 310, tipoCoche: 'M22' },
+  { trenNumero: 5, numeroCoche: 304, tipoCoche: 'M22' },
+  { trenNumero: 5, numeroCoche: 22, tipoCoche: 'M21' },
+  { trenNumero: 5, numeroCoche: 21, tipoCoche: 'M20' },
+  // Reserva (pseudo-tren 0).
+  { trenNumero: 0, numeroCoche: 20, tipoCoche: 'M20' },
+  { trenNumero: 0, numeroCoche: 19, tipoCoche: 'M21' },
+]
+
+async function seedFlotaAnsaldo() {
+  let wagonUnits = 0
+  let brakeDiscs = 0
+  const trenesCache = new Map<number, string>()
+
+  for (const coche of COCHES_ANSALDO) {
+    let trenId = trenesCache.get(coche.trenNumero)
+    if (!trenId) {
+      const tren = await prisma.train.findUniqueOrThrow({
+        where: { numero: coche.trenNumero },
+      })
+      trenId = tren.id
+      trenesCache.set(coche.trenNumero, trenId)
+    }
+
+    const wagon = await prisma.wagonUnit.upsert({
+      where: { numeroCoche: coche.numeroCoche },
+      update: { tipoCoche: coche.tipoCoche, trenId },
+      create: { numeroCoche: coche.numeroCoche, tipoCoche: coche.tipoCoche, trenId },
+    })
+    wagonUnits++
+
+    for (const bogieCodigo of BOGIES_POR_TIPO_ANSALDO[coche.tipoCoche]) {
+      for (const ejeNumero of [1, 2]) {
+        // serie es DEL EJE (mismo criterio que Alstom): las 4 filas de este
+        // eje (izq/der x interior/exterior) comparten la misma serie.
+        const serieEje = generarSerieAuto()
+
+        for (const lado of ['izquierdo', 'derecho'] as const satisfies readonly LadoDisco[]) {
+          const ruedaNumero = lado === 'derecho' ? 2 * ejeNumero : 2 * ejeNumero - 1
+
+          for (const posicion of ['interior', 'exterior'] as const satisfies readonly PosicionDisco[]) {
+            await prisma.brakeDisc.upsert({
+              where: {
+                wagonUnitId_bogieCodigo_ejeNumero_lado_posicion: {
+                  wagonUnitId: wagon.id,
+                  bogieCodigo,
+                  ejeNumero,
+                  lado,
+                  posicion,
+                },
+              },
+              update: { ruedaNumero },
+              create: {
+                wagonUnitId: wagon.id,
+                bogieCodigo,
+                ejeNumero,
+                lado,
+                posicion,
+                ruedaNumero,
+                stage: 'en_servicio',
+                fase: 'usada',
+                serie: serieEje,
+                fabricante: 'ansaldo_mb300',
+              },
+            })
+            brakeDiscs++
+          }
+        }
+      }
+    }
+  }
+
+  console.log(
+    `wagon_units: ${wagonUnits} registros (flota Ansaldo + reserva) — brake_discs: ${brakeDiscs} registros (4 discos por eje)`,
+  )
+}
+
+// Backfill idempotente, 2 pasadas:
+//  1) Piezas con posición conocida (wagonUnitId/bogieCodigo/ejeNumero, aunque
+//     ya no estén montadas — ver comentario "última posición conocida" en
+//     OperationsCambioDiscoService) se agrupan de a 2 (izquierdo+derecho) y
+//     quedan con LA MISMA serie — antes de este fix cada lado se backfilleaba
+//     con una serie propia, lo cual ya no es válido (serie es del eje, ver
+//     schema.prisma). También completa `fabricante` desde el modelo del tren.
+//  2) Cualquier fila SIN posición conocida y sin serie (no debería quedar
+//     ninguna tras el seed normal, pero es una red de seguridad) recibe una
+//     serie propia — no tiene con quién emparejarse.
+async function seedBackfillSerieFaltante() {
+  const conPosicion = await prisma.brakeDisc.findMany({
+    where: { bogieCodigo: { not: null }, ejeNumero: { not: null } },
+    select: {
+      id: true,
+      serie: true,
+      lado: true,
+      wagonUnitId: true,
+      bogieCodigo: true,
+      ejeNumero: true,
+      fabricante: true,
+      wagonUnit: { select: { tren: { select: { modelo: true } } } },
+    },
+  })
+
+  const grupos = new Map<string, typeof conPosicion>()
+  for (const d of conPosicion) {
+    const clave = `${d.wagonUnitId}|${d.bogieCodigo}|${d.ejeNumero}`
+    const lista = grupos.get(clave) ?? []
+    lista.push(d)
+    grupos.set(clave, lista)
+  }
+
+  let unificados = 0
+  for (const grupo of grupos.values()) {
+    const serieComun = grupo.find((d) => d.serie)?.serie ?? generarSerieAuto()
+    const fabricanteComun = grupo.find((d) => d.fabricante)?.fabricante ?? grupo[0]?.wagonUnit?.tren.modelo ?? null
+    for (const d of grupo) {
+      if (d.serie === serieComun && d.fabricante === fabricanteComun) continue
+      await prisma.brakeDisc.update({
+        where: { id: d.id },
+        data: { serie: serieComun, fabricante: fabricanteComun },
+      })
+      unificados++
+    }
+  }
+
+  const sueltasSinSerie = await prisma.brakeDisc.findMany({
+    where: { serie: null, OR: [{ bogieCodigo: null }, { ejeNumero: null }] },
+    select: { id: true },
+  })
+  for (const disco of sueltasSinSerie) {
+    await prisma.brakeDisc.update({
+      where: { id: disco.id },
+      data: { serie: generarSerieAuto() },
+    })
+  }
+
+  console.log(
+    `brake_discs: ${unificados} filas unificadas por eje (serie/fabricante), ${sueltasSinSerie.length} sueltas sin serie backfilleadas`,
+  )
+}
+
+// 10 EJES de prueba SUELTOS (sin montar — wagonUnitId/bogieCodigo/ejeNumero
+// en null; solo `lado` se fija, igual que cualquier par dado de alta por
+// InventoryService.registrar) para probar las 3 tablas de Inventario: 6
+// pares (12 discos) en Almacén, 4 pares (8 discos) en Taller. Cada par
+// COMPARTE serie (izquierdo y derecho del mismo eje, ver schema.prisma).
+// Series fijas (DF-0001..DF-0010) para que el seed sea idempotente.
+async function seedInventarioPrueba() {
+  const MARCAS = ['Nextsense', 'Faiveley', 'Knorr-Bremse', 'SAB WABCO']
+  const FABRICANTES = ['alstom_metropolis9000', 'ansaldo_mb300'] as const
+  const LADOS = ['izquierdo', 'derecho'] as const satisfies readonly LadoDisco[]
+
+  const pares = [
+    ...Array.from({ length: 6 }, (_, i) => ({
+      serie: `DF-${String(i + 1).padStart(4, '0')}`,
+      stage: 'almacen' as const,
+      // Regla de negocio: un disco recién dado de alta siempre es 'nueva'
+      // hasta que pase a servicio — nunca 'usada' estando en Almacén desde
+      // el alta (ver comentario del usuario). Los que sí simulan "volvió de
+      // servicio" quedan en Taller (fase 'usada'), no acá.
+      fase: 'nueva' as const,
+      marcaRueda: MARCAS[i % MARCAS.length],
+      lote: `L-2026-${String(i + 1).padStart(2, '0')}`,
+      fabricante: FABRICANTES[i % FABRICANTES.length],
+    })),
+    ...Array.from({ length: 4 }, (_, i) => ({
+      serie: `DF-${String(i + 7).padStart(4, '0')}`,
+      stage: 'taller' as const,
+      fase: 'usada' as const,
+      marcaRueda: MARCAS[i % MARCAS.length],
+      lote: `L-2026-${String(i + 7).padStart(2, '0')}`,
+      fabricante: FABRICANTES[i % FABRICANTES.length],
+    })),
+  ]
+
+  // Limpieza de la corrida anterior: esa versión del seeder creaba discos
+  // SUELTOS de a uno (lado null, serie propia por disco) — ya no son válidos
+  // bajo el modelo de pares, se reemplazan por los pares de abajo.
+  const { count: eliminados } = await prisma.brakeDisc.deleteMany({
+    where: { serie: { startsWith: 'DF-' }, lado: null },
+  })
+  if (eliminados > 0) console.log(`brake_discs: ${eliminados} discos sueltos de prueba (versión vieja del seeder) eliminados`)
+
+  let discos = 0
+  for (const par of pares) {
+    for (const lado of LADOS) {
+      await prisma.brakeDisc.upsert({
+        where: { serie_lado_posicion: { serie: par.serie, lado, posicion: 'unica' } },
+        update: {
+          stage: par.stage,
+          fase: par.fase,
+          marcaRueda: par.marcaRueda,
+          lote: par.lote,
+          fabricante: par.fabricante,
+          // Reactiva el disco si una corrida anterior de pruebas lo había
+          // eliminado (soft-delete, activo=false) desde Inventario — sin
+          // esto, re-sembrar no lo hacía visible de nuevo (bug detectado en
+          // vivo: "Discos disponibles: 0" en Cambio de Disco pese a haber
+          // corrido el seed).
+          activo: true,
+        },
+        create: { ...par, lado },
+      })
+      discos++
+    }
+  }
+
+  console.log(`brake_discs: ${pares.length} ejes de prueba / ${discos} discos (6 pares almacén, 4 pares taller)`)
+}
+
 async function main() {
   await seedBogieCatalog()
   await seedSystemParams()
@@ -273,6 +576,9 @@ async function main() {
   await seedAdministrador()
   await seedTrains()
   await seedFlotaAlstom()
+  await seedFlotaAnsaldo()
+  await seedBackfillSerieFaltante()
+  await seedInventarioPrueba()
 }
 
 main()

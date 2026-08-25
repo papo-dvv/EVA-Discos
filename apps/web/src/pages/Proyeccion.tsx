@@ -7,7 +7,6 @@ import { SidebarTrenes } from '../features/scan-records/components/SidebarTrenes
 import { useScanRecordsResumenPorTren } from '../features/scan-records/queries'
 import { PanelFiltrosProyeccion } from '../features/projection/components/PanelFiltrosProyeccion'
 import { PanelPromedioPorVagon } from '../features/projection/components/PanelPromedioPorVagon'
-import { PanelUmbralesProyeccion } from '../features/projection/components/PanelUmbralesProyeccion'
 import { TablaProyeccion } from '../features/projection/components/TablaProyeccion'
 import { TablaPronostico } from '../features/projection/components/TablaPronostico'
 import {
@@ -121,7 +120,6 @@ export function Proyeccion() {
           {/* Promedio por vagón + fórmulas arriba de la tabla en pantallas sin columna derecha */}
           <div className="mt-4 space-y-4 xl:hidden">
             <PanelPromedioPorVagon datos={promedioPorVagon.data} cargando={promedioPorVagon.isLoading} />
-            <PanelUmbralesProyeccion />
             <CardFormulas variante="proyeccion" />
           </div>
 
@@ -178,7 +176,6 @@ export function Proyeccion() {
         <aside className="hidden w-[21.25rem] flex-shrink-0 xl:block">
           <div className="sticky top-6 space-y-4">
             <PanelPromedioPorVagon datos={promedioPorVagon.data} cargando={promedioPorVagon.isLoading} />
-            <PanelUmbralesProyeccion />
             <CardFormulas variante="proyeccion" />
           </div>
         </aside>

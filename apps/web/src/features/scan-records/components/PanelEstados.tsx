@@ -1,6 +1,5 @@
 import { CardFormulas } from '../../../components/CardFormulas'
 import { Widget } from '../../../components/Widget'
-import { PanelParametros } from '../../system-params/components/PanelParametros'
 import type { ConteoPorEstado, StatsScanRecords } from '../types'
 
 type EstadoTarjeta = 'ok' | 'seguimiento' | 'cambio' | 'critico' | 'reperfilado'
@@ -13,11 +12,12 @@ const TARJETAS: { estado: EstadoTarjeta; label: string; key: keyof ConteoPorEsta
   { estado: 'reperfilado', label: 'Reperfilado', key: 'reperfilado' },
 ]
 
-// Panel lateral: 5 tarjetas de estado (total vs. mostrando) + parámetros
-// editables inline con confirmación previa al PATCH. Compartido entre la
-// vista previa de una migración en curso y la vista permanente de
-// confirmados — `etiquetaTotal` es lo único que cambia entre modos (el texto
-// no tiene sentido decir "de esta carga" cuando no hay ninguna carga de por medio).
+// Panel lateral: 5 tarjetas de estado (total vs. mostrando) + fórmulas.
+// Compartido entre la vista previa de una migración en curso y la vista
+// permanente de confirmados — `etiquetaTotal` es lo único que cambia entre
+// modos (el texto no tiene sentido decir "de esta carga" cuando no hay
+// ninguna carga de por medio). Los parámetros configurables se editan en
+// Configuración (antes vivían acá, ver PanelParametros modulo="mediciones").
 export function PanelEstados({
   stats,
   hayFiltro,
@@ -71,7 +71,6 @@ export function PanelEstados({
       </div>
 
       <CardFormulas variante="mediciones" />
-      <PanelParametros modulo="mediciones" />
     </div>
   )
 }

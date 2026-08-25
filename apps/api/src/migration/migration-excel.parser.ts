@@ -1,6 +1,6 @@
 import type { WorkBook } from 'xlsx';
 import { utils } from 'xlsx';
-import { LadoDisco } from '../../generated/prisma';
+import { LadoDisco, PosicionDisco } from '../../generated/prisma';
 import type {
   BrakeDiscRulesEngine,
   EstadoDiscoAmpliado,
@@ -15,12 +15,16 @@ import { numeroCocheOficial } from '../fleet/relacion-oficial-coches';
 // (hojas T06–T44, corrección de tren por hoja, cálculo de Rd/estado por el
 // backend, discrepancia contra "Comentario") vive acá, aislada y testeable.
 
-// Rango de hojas de la migración: T06 … T44 (39 hojas). Cualquier otra hoja
-// del archivo se ignora; las de este rango que falten se reportan.
-export const HOJAS_MIGRACION: readonly string[] = Array.from(
-  { length: 39 },
-  (_, i) => `T${String(i + 6).padStart(2, '0')}`,
-);
+// Rango de hojas de la migración: T01 … T44 (Ansaldo 01-05, Alstom 06-44) más
+// la hoja de reserva Ansaldo (unidades sin tren real asignado — ver
+// resolverTrenDeHoja). Cualquier otra hoja del archivo se ignora; las de este
+// rango que falten se reportan.
+export const HOJA_RESERVA = 'UDT RESERVA';
+
+export const HOJAS_MIGRACION: readonly string[] = [
+  ...Array.from({ length: 44 }, (_, i) => `T${String(i + 1).padStart(2, '0')}`),
+  HOJA_RESERVA,
+];
 
 // Encabezados (fila 2). Cada campo lista las grafías aceptables; la búsqueda
 // normaliza acentos, mayúsculas y símbolos, así que "N° Coche" y "Ubicación"
@@ -249,6 +253,10 @@ const TIPOS_COCHE_VALIDOS: readonly string[] = [
   'REM',
   'MB2',
   'MA2',
+  // Ansaldo
+  'M20',
+  'M21',
+  'M22',
 ];
 
 // Normaliza el valor crudo de "Coche": trim + mayúsculas, y mapea las
@@ -295,6 +303,36 @@ export function resolverLado(
   return null;
 }
 
+// Sufijo Ansaldo: "..._i_ext" / "..._i_int" / "..._d_ext" / "..._d_int"
+// (interior/exterior en cada lado — ver PosicionDisco en schema.prisma).
+// Ejemplo real: "disco_freno_1_I_ext". Distinto del formato Alstom
+// ("disco_freno_N_izquierdo"/"_derecho"), que no tiene esta distinción.
+const SUFIJO_ANSALDO = /_([id])_(ext|int)$/;
+
+// Combina lado + posición a partir del texto de "Ubicación". Wrapper de
+// resolverLado (Alstom/genérico, posicion siempre 'unica') que además
+// reconoce el formato Ansaldo. Usado por este parser (ordenFisico de cada
+// fila en borrador) y por migration-commit.service.ts al resolver el
+// BrakeDisc real — una sola fuente de verdad para "qué lado/posición es esta
+// fila".
+export function resolverLadoYPosicion(
+  ubicacion: string | null,
+  rueda: number | null,
+): { lado: LadoDisco | null; posicion: PosicionDisco } {
+  const u = (ubicacion ?? '').trim().toLowerCase();
+  const match = SUFIJO_ANSALDO.exec(u);
+  if (match) {
+    const lado = match[1] === 'i' ? LadoDisco.izquierdo : LadoDisco.derecho;
+    const posicion =
+      match[2] === 'ext' ? PosicionDisco.exterior : PosicionDisco.interior;
+    return { lado, posicion };
+  }
+  return {
+    lado: resolverLado(ubicacion, rueda),
+    posicion: PosicionDisco.unica,
+  };
+}
+
 function mensajeError(err: unknown): string {
   if (err instanceof Error) return err.message;
   if (typeof err === 'string') return err;
@@ -319,11 +357,23 @@ function depurarValor(v: unknown): string {
   return `${repr} [${tipo}]`;
 }
 
+// Pseudo-tren "Reserva" (ver schema.prisma, Train.numero=0): unidades
+// Ansaldo sin tren real asignado, hoja HOJA_RESERVA del Excel.
+export const TREN_RESERVA = 0;
+
 // 'T15' -> 15, 'T06' -> 6. null si el nombre no calza con el patrón.
 function numeroDeHoja(nombreHoja: string): number | null {
   const match = /^T(\d{2})$/.exec(nombreHoja.trim());
   if (!match) return null;
   return Number(match[1]);
+}
+
+// Tren que corresponde a una hoja: HOJA_RESERVA es un caso especial (su
+// columna "Tren" trae el texto literal "UDT RESERVA", no un número) — se
+// fija directo al pseudo-tren 0 sin pasar por la columna de la fila.
+function trenDeHoja(nombreHoja: string): number | null {
+  if (nombreHoja.trim() === HOJA_RESERVA) return TREN_RESERVA;
+  return numeroDeHoja(nombreHoja);
 }
 
 // Mapea el texto libre de "Comentario" a un estado comparable. Devuelve null
@@ -374,7 +424,7 @@ export function procesarWorkbook(
   }
 
   for (const nombreHoja of hojasAProcesar) {
-    const trenDeHoja = numeroDeHoja(nombreHoja);
+    const trenDeEstaHoja = trenDeHoja(nombreHoja);
     const hoja = workbook.Sheets[nombreHoja];
     // Matriz de arrays (header:1 => acceso por índice numérico).
     const matriz = utils.sheet_to_json<unknown[]>(hoja, {
@@ -382,6 +432,14 @@ export function procesarWorkbook(
       blankrows: false,
       defval: null,
     });
+    // Forward-fill: en las hojas Ansaldo (T01-T05, HOJA_RESERVA) N° Coche,
+    // Bogie y Eje solo vienen en la primera fila de cada grupo (coche/bogie/
+    // eje) — las filas de continuación del mismo grupo los dejan en blanco
+    // (verificado directo en el Excel real). Alstom nunca trae blancos acá,
+    // así que esto es un no-op para esas hojas. Se reinicia por hoja.
+    let ultimoNumeroCoche: unknown = null;
+    let ultimoBogie: unknown = null;
+    let ultimoEje: unknown = null;
 
     // La fila de encabezado NO está en una posición fija: algunos archivos traen
     // una fila "Panel Principal" antes (encabezados en la fila 2), otros no
@@ -457,6 +515,16 @@ export function procesarWorkbook(
       const filaCruda = matriz[i];
       const filaExcel = i + 1; // 1-based, para reportes legibles
       totalFilasLeidas++;
+
+      // Forward-fill de N° Coche/Bogie/Eje: solo avanza el "último valor
+      // visto" si la celda de ESTA fila trae dato (ver comentario arriba del
+      // bucle de hoja). No-op para Alstom, donde estas columnas nunca vienen
+      // vacías.
+      if (!esCeldaVacia(filaCruda[col.numeroCoche]))
+        ultimoNumeroCoche = filaCruda[col.numeroCoche];
+      if (!esCeldaVacia(filaCruda[col.bogie]))
+        ultimoBogie = filaCruda[col.bogie];
+      if (!esCeldaVacia(filaCruda[col.eje])) ultimoEje = filaCruda[col.eje];
 
       // Aislamiento por fila: un error inesperado en UNA fila se reporta y se
       // continúa; nunca aborta la carga completa del archivo.
@@ -536,8 +604,14 @@ export function procesarWorkbook(
           continue;
         }
 
-        // Kilometraje también es NOT NULL; sin default silencioso.
-        const kilometraje = aNumeroONull(filaCruda[col.kilometraje]);
+        // Kilometraje también es NOT NULL; sin default silencioso — EXCEPTO
+        // en HOJA_RESERVA, donde nunca viene (unidad de repuesto sin tren
+        // real, sin odómetro que referenciar): se usa 0, no se rechaza la
+        // fila (verificado en el Excel real: las 32 filas de esa hoja traen
+        // Kilometraje vacío).
+        const kilometrajeCelda = aNumeroONull(filaCruda[col.kilometraje]);
+        const kilometraje =
+          kilometrajeCelda ?? (nombreHoja.trim() === HOJA_RESERVA ? 0 : null);
         if (kilometraje === null) {
           filasInvalidas.push({
             hoja: nombreHoja,
@@ -574,29 +648,31 @@ export function procesarWorkbook(
         // b. En libros históricos la hoja siempre manda. En tablas genéricas
         // (CSV/TSV/TXT/ODS/etc.) se usa la columna Tren.
         const trenExcel = aNumeroONull(filaCruda[col.tren]);
-        const trenNumero = trenDeHoja ?? trenExcel;
+        const trenNumero = trenDeEstaHoja ?? trenExcel;
         if (
           trenNumero === null ||
           !Number.isInteger(trenNumero) ||
-          trenNumero < 6 ||
+          trenNumero < 0 ||
           trenNumero > 44
         ) {
           filasInvalidas.push({
             hoja: nombreHoja,
             fila: filaExcel,
-            motivo: `Tren inválido (${trenExcel ?? 'vacío'}; se espera 6–44)`,
+            motivo: `Tren inválido (${trenExcel ?? 'vacío'}; se espera 0–44)`,
           });
           continue;
         }
         const corregidoPorHoja =
-          trenDeHoja !== null && trenExcel !== null && trenExcel !== trenDeHoja;
+          trenDeEstaHoja !== null &&
+          trenExcel !== null &&
+          trenExcel !== trenDeEstaHoja;
         if (corregidoPorHoja) {
           detalleDiscrepancias.push({
             hoja: nombreHoja,
             filaExcel,
             tipo: 'tren',
             valorExcel: trenExcel,
-            valorSistema: trenDeHoja,
+            valorSistema: trenDeEstaHoja,
           });
         }
 
@@ -616,13 +692,11 @@ export function procesarWorkbook(
           });
         }
 
-        const bogieExcel = aTextoONull(filaCruda[col.bogie]);
-        const ejeExcel = aNumeroONull(filaCruda[col.eje]);
+        const bogieExcel = aTextoONull(ultimoBogie);
+        const ejeExcel = aNumeroONull(ultimoEje);
         const ubicacionExcel = aTextoONull(filaCruda[col.ubicacion]);
         const ruedaExcel = aNumeroONull(filaCruda[col.rueda]);
-        const numeroCocheOriginalExcel = aNumeroONull(
-          filaCruda[col.numeroCoche],
-        );
+        const numeroCocheOriginalExcel = aNumeroONull(ultimoNumeroCoche);
         const numeroCocheSistema = numeroCocheOficial(
           trenNumero,
           cocheNormalizado,

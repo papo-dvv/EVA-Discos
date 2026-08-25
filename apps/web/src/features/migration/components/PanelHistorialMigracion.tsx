@@ -28,7 +28,9 @@ function fechaRelativa(iso: string): string {
 }
 
 function alcance(evento: EventoHistorialMigracionApi): string {
-  if (evento.trenNumero !== null) return `Tren ${evento.trenNumero}`
+  if (evento.trenNumero !== null) {
+    return evento.trenNumero === 0 ? 'Reserva' : `Tren ${evento.trenNumero}`
+  }
   if (evento.marca) return evento.marca
   if (evento.alcance === 'todos') return 'Todos'
   return 'Migración masiva'

@@ -32,7 +32,11 @@ interface FakeBrakeDisc {
   bogieCodigo: string;
   ejeNumero: number;
   lado: string;
-  wagonUnit: { tipoCoche: string; numeroCoche: number };
+  wagonUnit: {
+    tipoCoche: string;
+    numeroCoche: number;
+    tren: { modelo: string };
+  };
 }
 
 // Identidad por defecto de CUALQUIER disco pedido, salvo que el test pase su
@@ -44,7 +48,11 @@ function discoPorDefecto(id: string): FakeBrakeDisc {
     bogieCodigo: 'PB2',
     ejeNumero: 1,
     lado: 'izquierdo',
-    wagonUnit: { tipoCoche: 'MA1', numeroCoche: 129 },
+    wagonUnit: {
+      tipoCoche: 'MA1',
+      numeroCoche: 129,
+      tren: { modelo: 'alstom_metropolis9000' },
+    },
   };
 }
 
@@ -337,7 +345,11 @@ describe('WearRateService.recalcularParaDiscos', () => {
           bogieCodigo: 'PB6',
           ejeNumero: 3,
           lado: 'derecho',
-          wagonUnit: { tipoCoche: 'MB1', numeroCoche: 408 },
+          wagonUnit: {
+            tipoCoche: 'MB1',
+            numeroCoche: 408,
+            tren: { modelo: 'alstom_metropolis9000' },
+          },
         },
       },
     });
