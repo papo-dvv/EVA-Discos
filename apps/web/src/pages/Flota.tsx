@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { BadgeEstadoFlota } from '../features/fleet/components/BadgeEstadoFlota'
 import { useFleetSummary } from '../features/fleet/queries'
 import type { FleetSummaryItem } from '../features/fleet/types'
+import { extraerMensajeError } from '../lib/extraerMensajeError'
 
 type FiltroEstado = 'todos' | 'operativo' | 'alerta'
 
@@ -42,14 +43,19 @@ export function Flota() {
 
   return (
     <div className="mx-auto w-full max-w-[1680px] px-4 py-6 sm:px-6 lg:px-8">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="font-display text-3xl font-bold tracking-tight text-slate-800">Flota</h1>
-          <p className="mt-1 text-sm text-slate-500">Supervisión operativa de trenes y estado de discos de freno</p>
+      <div className="relative isolate overflow-hidden rounded-3xl border border-white/80 bg-gradient-to-br from-white via-emerald-50/80 to-slate-100 px-5 py-6 shadow-[0_18px_50px_-36px_rgba(6,78,59,0.75)] sm:px-7">
+        <div aria-hidden className="absolute -right-24 -top-20 h-64 w-64 rounded-full bg-emerald-400/20 blur-3xl" />
+        <img aria-hidden src="/images/mediciones-tren-alerta-alstom.png" className="pointer-events-none absolute -right-8 bottom-0 hidden h-44 w-[22rem] object-contain object-bottom opacity-35 lg:block" />
+        <div className="relative flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="font-body text-[0.68rem] font-bold uppercase tracking-[0.2em] text-emerald-700">Centro de control</p>
+            <h1 className="mt-1 font-display text-3xl font-bold tracking-tight text-slate-800">Flota</h1>
+            <p className="mt-1 max-w-xl text-sm text-slate-500">Supervisión operativa de trenes y estado de discos de freno.</p>
+          </div>
+          <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white/80 px-3 py-1.5 text-xs font-semibold text-emerald-700 shadow-sm backdrop-blur">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" /> Información actualizada
+          </span>
         </div>
-        <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" /> Información actualizada
-        </span>
       </div>
 
       <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -76,7 +82,15 @@ export function Flota() {
       </section>
 
       {summary.isLoading && <p className="py-16 text-center text-sm text-slate-500">Cargando flota...</p>}
-      {summary.isError && <p role="alert" className="py-16 text-center text-sm text-red-600">No se pudo cargar el resumen de flota.</p>}
+      {summary.isError && (
+        <div role="alert" className="eva-panel mx-auto mt-6 max-w-xl p-6 text-center">
+          <p className="text-sm font-semibold text-red-700">No se pudo cargar el resumen de flota</p>
+          <p className="mt-2 text-xs text-slate-500">{extraerMensajeError(summary.error)}</p>
+          <button type="button" onClick={() => summary.refetch()} className="mt-4 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-emerald-700">
+            Reintentar
+          </button>
+        </div>
+      )}
       {summary.data && (
         <>
           <p className="mt-5 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{trenes.length} trenes encontrados</p>
@@ -110,14 +124,14 @@ function TarjetaTren({ tren }: { tren: FleetSummaryItem }) {
 
   return (
     <Link to={`/fleet/${tren.tren}`} className={`group overflow-hidden rounded-2xl border bg-gradient-to-b ${meta.fondo} to-white shadow-[0_12px_34px_-24px_rgba(15,23,42,0.45)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_20px_42px_-22px_rgba(15,23,42,0.38)] ${meta.borde}`}>
-      <div className="relative flex h-36 items-center justify-center overflow-hidden border-b border-slate-200/70 bg-white">
+      <div className="relative flex h-44 items-center justify-center overflow-hidden border-b border-slate-200/70 bg-white/70">
         <div className={`absolute h-24 w-24 rounded-full blur-3xl ${meta.punto} opacity-20`} />
         <img
           src="/images/mediciones-tren-alerta-alstom.png"
-          alt="Tren ALSTOM"
-          className="absolute inset-0 h-full w-full object-cover object-left transition-transform duration-500 group-hover:scale-[1.025]"
+          alt="Frontal del tren ALSTOM"
+          className="relative h-full w-full object-contain p-3 transition-transform duration-500 group-hover:scale-[1.04]"
         />
-        <span className="absolute right-3 top-3 rounded-full border border-emerald-200 bg-white/85 px-2 py-1 text-[0.65rem] font-bold text-emerald-700">ALSTOM</span>
+        <span className="absolute right-3 top-3 rounded-full border border-emerald-200 bg-emerald-50/90 px-2 py-1 text-[0.65rem] font-bold text-emerald-700">ALSTOM</span>
       </div>
       <div className="p-4">
         <div className="flex items-start justify-between gap-3">

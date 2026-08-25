@@ -123,9 +123,12 @@ export function MedicionesConfirmadas() {
 
         <main className="min-w-0 flex-1">
           {/* Barra glass: título — sin acciones de migración, no aplican acá */}
-          <GlassSurface className="flex flex-wrap items-center justify-between gap-4 rounded-glass px-6 py-4">
-            <div>
-              <h1 className="font-display text-2xl font-semibold tracking-tight text-concreto-oscuro">
+          <GlassSurface fuerte className="relative isolate flex flex-wrap items-center justify-between gap-4 overflow-hidden rounded-glass-lg bg-[linear-gradient(115deg,rgba(255,255,255,0.92),rgba(236,253,245,0.86),rgba(240,249,255,0.82))] px-6 py-5">
+            <div aria-hidden className="absolute -right-20 -top-16 h-48 w-48 rounded-full bg-emerald-400/20 blur-3xl" />
+            <img aria-hidden src="/images/cardcochealstom1.png" className="pointer-events-none absolute -right-14 bottom-0 hidden h-36 w-80 object-contain opacity-30 lg:block" />
+            <div className="relative">
+              <p className="font-body text-[0.6rem] font-bold uppercase tracking-[0.2em] text-emerald-700">Centro de datos · tiempo real</p>
+              <h1 className="mt-1 font-display text-2xl font-semibold tracking-tight text-concreto-oscuro">
                 Mediciones confirmadas
               </h1>
               <p className="mt-0.5 font-body text-sm text-concreto">
@@ -134,6 +137,8 @@ export function MedicionesConfirmadas() {
               </p>
             </div>
           </GlassSurface>
+
+          <SemaforoMediciones stats={stats.data} />
 
           {/* Estado de la flota física completa (ver TarjetaUltimaMedicion) —
               reusa trenSeleccionado como el toggle General/Por tren. */}
@@ -248,5 +253,34 @@ export function MedicionesConfirmadas() {
         />
       )}
     </div>
+  )
+}
+
+function SemaforoMediciones({ stats }: { stats?: { total: { ok: number; seguimiento: number; cambio: number; critico: number; reperfilado: number } } }) {
+  const estados = [
+    ['Reperfilado', stats?.total.reperfilado ?? 0, 'bg-fuchsia-500', 'text-fuchsia-700', 'from-fuchsia-50 to-white'],
+    ['Crítico', stats?.total.critico ?? 0, 'bg-red-500', 'text-red-700', 'from-red-50 to-white'],
+    ['Cambio', stats?.total.cambio ?? 0, 'bg-amber-500', 'text-amber-700', 'from-amber-50 to-white'],
+    ['OK', stats?.total.ok ?? 0, 'bg-emerald-500', 'text-emerald-700', 'from-emerald-50 to-white'],
+  ] as const
+  const total = estados.reduce((suma, [, valor]) => suma + valor, 0) || 1
+
+  return (
+    <GlassSurface fuerte className="mt-3 rounded-glass p-3.5">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <span className="text-[0.65rem] font-bold uppercase tracking-[0.12em] text-concreto">Semáforo operativo</span>
+        <span className="text-xs text-concreto">Pasa el cursor para revisar la distribución</span>
+      </div>
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+        {estados.map(([label, value, dot, text, fondo]) => (
+          <div key={label} title={`${label}: ${value} mediciones`} className={`group rounded-xl border border-white/80 bg-gradient-to-br ${fondo} p-3 shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-md`}>
+            <div className="flex items-center justify-between gap-2"><span className={`h-2.5 w-2.5 rounded-full ${dot} shadow-[0_0_0_4px_rgba(255,255,255,0.58)]`} /><span className={`font-data text-sm font-bold ${text}`}>{Math.round((value / total) * 100)}%</span></div>
+            <p className="mt-2 font-body text-[0.64rem] font-semibold uppercase tracking-[0.1em] text-concreto">{label}</p>
+            <p className={`mt-0.5 font-data text-xl font-bold ${text}`}>{value}</p>
+            <div className="mt-2 h-1 overflow-hidden rounded-full bg-slate-200/60"><span className={`block h-full rounded-full ${dot} transition-all duration-700`} style={{ width: `${(value / total) * 100}%` }} /></div>
+          </div>
+        ))}
+      </div>
+    </GlassSurface>
   )
 }
