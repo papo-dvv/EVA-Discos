@@ -1,10 +1,11 @@
 import { LogOut, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { NavLink } from 'react-router-dom'
+import { NavLink, Link } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import { SECCIONES_SIDEBAR } from './sidebarItems'
 
 const CLAVE_COLAPSADA = 'eva.sidebar.colapsada'
+export const EVENTO_COLAPSAR_SIDEBAR = 'eva:sidebar-colapsar'
 
 // Sidebar persistente del shell (MainLayout) — styles.md §4: columna fija,
 // siempre oscura (mismo fondo cinemático con o sin sesión), colapso
@@ -17,6 +18,15 @@ export function Sidebar() {
   useEffect(() => {
     localStorage.setItem(CLAVE_COLAPSADA, String(colapsada))
   }, [colapsada])
+
+  useEffect(() => {
+    function colapsar() {
+      setColapsada(true)
+    }
+
+    window.addEventListener(EVENTO_COLAPSAR_SIDEBAR, colapsar)
+    return () => window.removeEventListener(EVENTO_COLAPSAR_SIDEBAR, colapsar)
+  }, [])
 
   const rol = sesion?.usuario.rol
 
@@ -43,13 +53,22 @@ export function Sidebar() {
           los estáticos. */}
       <div className="relative flex h-full flex-col">
         <div className="flex h-[70px] items-center gap-2 border-b border-white/5 px-4">
-          <img src="/images/linea1logo.png" alt="Línea 1" className="h-9 w-9 shrink-0 object-contain" />
-          {!colapsada && (
-            <div className="min-w-0 leading-none">
-              <p className="truncate text-[13px] font-bold text-white">Metro Lima</p>
-              <p className="mt-1 text-[8px] font-medium text-white/55">Gestión</p>
-            </div>
-          )}
+          {/* linea1logo reemplaza el wordmark "EVA / de Línea 1 de Lima" solo
+              acá (ver Marca.tsx, que sigue usándose tal cual en Login y otras
+              pantallas) — clic navega a "/" (Inicio), el dashboard. */}
+          <Link to="/" className="flex min-w-0 items-center gap-2" title="Ir a Inicio">
+            <img
+              src="/images/linea1logo.png"
+              alt="Línea 1"
+              className="h-9 w-9 shrink-0 object-contain"
+            />
+            {!colapsada && (
+              <span className="min-w-0 leading-none">
+                <span className="block truncate text-[13px] font-bold text-white">Metro Lima</span>
+                <span className="mt-1 block text-[8px] font-medium text-white/55">Gestión</span>
+              </span>
+            )}
+          </Link>
         </div>
 
         <nav className="flex-1 overflow-y-auto px-2.5 py-4">

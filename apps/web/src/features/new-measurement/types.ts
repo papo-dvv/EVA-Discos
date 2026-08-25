@@ -32,6 +32,9 @@ export interface PosicionEsqueleto {
 
 export interface FichaTecnico {
   posicion: number
+  // Cargo editable — exclusivo de la tabla CARGO/NOMBRES/FIRMA de Reperfilado
+  // (ver FooterFicha variante='reperfilado'); sin uso en Medición.
+  cargo: string | null
   nombre: string | null
   firma: string | null
   fecha: string | null
@@ -249,6 +252,7 @@ export interface ReferenciaUltimaFicha {
   // P.T. de ESA ficha histórica — exclusivo de 'ultima_ficha' (no existe en
   // ReferenciaUltimaMedicion, que no proviene de ninguna ficha real).
   ptCodigo: string | null
+  comentariosActividad: string | null
   esqueleto: PosicionEsqueleto[]
   rows: import('../scan-records/types').PreviewRow[]
   responsableMantenimientoFirma: string | null
@@ -287,6 +291,7 @@ export interface CambiosFicha {
   ptCodigo?: string
   tecnicos?: {
     posicion: number
+    cargo?: string
     nombre?: string
     firma?: string
     fecha?: string

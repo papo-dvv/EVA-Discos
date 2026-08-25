@@ -98,12 +98,29 @@ export class NewMeasurementCommitService {
   ): Promise<ResumenCommitMedicion> {
     const ficha = await this.prisma.measurementSheet.findUnique({
       where: { id: fichaId },
-      include: { instrumentos: true },
+      include: { instrumentos: true, tecnicos: true },
     });
     if (!ficha) {
       throw new NotFoundException('Ficha de medición no encontrada.');
     }
     validarInstrumentos(ficha.instrumentos, ficha.fechaFicha);
+    validarPersonaCompleta('Responsable de Mantenimiento', {
+      nombre: ficha.responsableMantenimientoNombre,
+      firma: ficha.responsableMantenimientoFirma,
+      fecha: ficha.responsableMantenimientoFecha,
+    });
+    validarPersonaCompleta('Ing. MR / Técnico Especialista', {
+      nombre: ficha.ingMrNombre,
+      firma: ficha.ingMrFirma,
+      fecha: ficha.ingMrFecha,
+    });
+    for (const tecnico of ficha.tecnicos) {
+      validarPersonaCompleta(`Técnico ${tecnico.posicion}`, {
+        nombre: tecnico.nombre,
+        firma: tecnico.firma,
+        fecha: tecnico.fecha,
+      });
+    }
     if (!ficha.responsableMantenimientoNombre?.trim()) {
       throw new UnprocessableEntityException(
         'Falta el responsable de mantenimiento — es obligatorio para confirmar la ficha.',
@@ -483,6 +500,30 @@ export class NewMeasurementCommitService {
   ): UnprocessableEntityException {
     return new UnprocessableEntityException(
       `No se pudo confirmar la ficha: eje ${fila.ejeExcel ?? '?'} — ${detalle}. No se guardó ningún cambio.`,
+    );
+  }
+}
+
+function firmaValida(firma: string | null | undefined): boolean {
+  return Boolean(firma?.startsWith('data:image/'));
+}
+
+function validarPersonaCompleta(
+  etiqueta: string,
+  persona: {
+    nombre: string | null | undefined;
+    firma: string | null | undefined;
+    fecha: Date | null | undefined;
+  },
+): void {
+  const valores = [
+    persona.nombre?.trim() ?? '',
+    firmaValida(persona.firma) ? persona.firma : '',
+    persona.fecha ? 'fecha' : '',
+  ];
+  if (valores.some(Boolean) && valores.some((valor) => !valor)) {
+    throw new UnprocessableEntityException(
+      `${etiqueta}: completa nombre, firma y fecha, o deja los 3 campos vacíos.`,
     );
   }
 }

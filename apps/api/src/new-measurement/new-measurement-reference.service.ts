@@ -48,6 +48,7 @@ export interface ReferenciaUltimaFicha {
   // tecnicos/instrumentos/ingMr*): 'ultima_medicion' no tiene P.T. porque no
   // proviene de ninguna ficha real.
   ptCodigo: string | null;
+  comentariosActividad: string | null;
   esqueleto: PosicionEsqueleto[];
   rows: PreviewRow[];
   // Exclusivo de 'ultima_ficha' (ver comentario en obtener): a diferencia de
@@ -177,6 +178,7 @@ export class NewMeasurementReferenceService {
       kilometraje: Number(ficha.kilometraje),
       responsable: ficha.responsableMantenimientoNombre,
       ptCodigo: ficha.ptCodigo,
+      comentariosActividad: ficha.comentariosActividad,
       esqueleto: generarEsqueleto48(numerosCoche),
       rows: filas.map(aPreviewRow),
       responsableMantenimientoFirma: ficha.responsableMantenimientoFirma,

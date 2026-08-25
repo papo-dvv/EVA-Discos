@@ -186,8 +186,11 @@ export async function resolverAccionPorDiscId(
   const accionPorDisco = new Map<string, ResultadoAccionRecomendada | null>();
   if (discIdsPropios.length === 0) return accionPorDisco;
 
+  // stage: 'en_servicio' — "acción recomendada" compara ambos lados de un
+  // eje FÍSICO montado ahora mismo; una pieza retirada a almacén/taller (ver
+  // Operaciones) ya no tiene una posición real con la que emparejarse.
   const discosPropios = await prisma.brakeDisc.findMany({
-    where: { id: { in: discIdsPropios } },
+    where: { id: { in: discIdsPropios }, stage: 'en_servicio' },
   });
   if (discosPropios.length === 0) return accionPorDisco;
 
@@ -195,11 +198,12 @@ export async function resolverAccionPorDiscId(
   // opuesto. No siempre existe (nunca se creó un disco para ese lado).
   const discosPar = await prisma.brakeDisc.findMany({
     where: {
+      stage: 'en_servicio',
       OR: discosPropios.map((d) => ({
         wagonUnitId: d.wagonUnitId,
         bogieCodigo: d.bogieCodigo,
         ejeNumero: d.ejeNumero,
-        lado: ladoOpuesto(d.lado),
+        lado: ladoOpuesto(d.lado!),
       })),
     },
   });
@@ -208,12 +212,18 @@ export async function resolverAccionPorDiscId(
   for (const d of [...discosPropios, ...discosPar]) discoPorId.set(d.id, d);
 
   // Un solo grupo por eje (wagonUnitId+bogieCodigo+ejeNumero), con AMBOS
-  // discos si existen.
+  // discos si existen. wagonUnitId/bogieCodigo/ejeNumero/lado no-null
+  // garantizados por el where (stage: 'en_servicio') de ambas queries de
+  // arriba — Prisma no lo refleja en el tipo generado.
   const gruposPorEje = new Map<string, Partial<Record<LadoDisco, BrakeDisc>>>();
   for (const disco of discoPorId.values()) {
-    const clave = claveEjeConfirmado(disco);
+    const clave = claveEjeConfirmado({
+      wagonUnitId: disco.wagonUnitId!,
+      bogieCodigo: disco.bogieCodigo!,
+      ejeNumero: disco.ejeNumero!,
+    });
     const grupo = gruposPorEje.get(clave) ?? {};
-    grupo[disco.lado] = disco;
+    grupo[disco.lado!] = disco;
     gruposPorEje.set(clave, grupo);
   }
 

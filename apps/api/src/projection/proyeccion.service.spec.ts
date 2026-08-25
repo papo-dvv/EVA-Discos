@@ -141,6 +141,7 @@ describe('ProyeccionService.listarDiscos', () => {
 
     expect(findManyMock.mock.calls[0][0].where).toEqual({
       activo: true,
+      stage: 'en_servicio',
       wagonUnit: { tren: { numero: 7 } },
     });
   });
@@ -446,6 +447,7 @@ describe('ProyeccionService.listarDiscos — filtros nuevos de eje/rueda/lado/mo
 
     expect(findManyMock.mock.calls[0][0].where).toEqual({
       activo: true,
+      stage: 'en_servicio',
       lado: { in: ['derecho'] },
       AND: [
         { ejeNumero: { gte: 2, lte: 4 } },

@@ -251,6 +251,8 @@ async function seedFlotaAlstom() {
               ejeNumero,
               lado,
               ruedaNumero,
+              stage: 'en_servicio',
+              fase: 'usada',
             },
           })
           brakeDiscs++

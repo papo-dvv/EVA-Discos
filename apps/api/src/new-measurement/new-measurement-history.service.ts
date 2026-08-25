@@ -4,6 +4,7 @@ import {
   type TipoEventoHistorialMedicion,
 } from '../../generated/prisma';
 import { PrismaService } from '../prisma/prisma.service';
+import type { MotivoFicha } from './new-measurement-csv.parser';
 
 // Foto de una fila de medición (eje/lado/T/H) tal como quedó en snapshot_filas
 // — usada por ficha_reiniciada para poder comparar contra una re-subida
@@ -58,6 +59,16 @@ export class NewMeasurementHistoryService {
     tx?: Prisma.TransactionClient,
   ): Promise<void> {
     const client = tx ?? this.prisma;
+    const ficha = evento.fichaId
+      ? await client.measurementSheet.findUnique({
+          where: { id: evento.fichaId },
+          select: { motivo: true },
+        })
+      : null;
+    const detalle = [evento.detalle, ficha?.motivo ? `motivo:${ficha.motivo}` : null]
+      .filter(Boolean)
+      .join('\n');
+
     await client.measurementHistoryEvent.create({
       data: {
         tipo: evento.tipo,
@@ -69,14 +80,22 @@ export class NewMeasurementHistoryService {
         snapshotFilas: evento.snapshotFilas
           ? (evento.snapshotFilas as unknown as Prisma.InputJsonValue)
           : Prisma.DbNull,
-        detalle: evento.detalle ?? null,
+        detalle: detalle || null,
         usuarioId: evento.usuarioId,
       },
     });
   }
 
-  async listar(limit = 50): Promise<EventoHistorialApi[]> {
+  async listar(limit = 50, motivo?: MotivoFicha): Promise<EventoHistorialApi[]> {
     const eventos = await this.prisma.measurementHistoryEvent.findMany({
+      where: motivo
+        ? {
+            OR: [
+              { ficha: { motivo } },
+              { detalle: { contains: `motivo:${motivo}` } },
+            ],
+          }
+        : undefined,
       orderBy: { createdAt: 'desc' },
       take: limit,
       include: { usuario: { select: { nombresCompletos: true } } },

@@ -113,6 +113,11 @@ export interface ResumenFichaManual {
   esqueleto: PosicionEsqueleto[];
 }
 
+// Texto fijo de la ficha de Reperfilado (motivo='Reperfilado') — ver
+// HeaderReperfilado, que solo lo muestra (nunca lo edita).
+export const ACTIVIDAD_TORNO_FOSA =
+  'CONTROL DE TRABAJOS EN TORNO FOSA - DISCOS DE FRENO TREN ALSTOM (Estático)';
+
 export interface ResumenReperfiladoDesdeMedicion {
   fichaId: string;
   sourceFichaId: string;
@@ -253,8 +258,7 @@ export class NewMeasurementService {
             actividad: ACTIVIDAD_BAJO_BASTIDOR,
             trenOriginalCsv: tren.numero,
             kilometrajeOriginalCsv: resultado.metadata.kilometraje!,
-            codigosBogie:
-              codigosBogiePorTren(tren.numero) ?? Prisma.JsonNull,
+            codigosBogie: codigosBogiePorTren(tren.numero) ?? Prisma.JsonNull,
           },
         });
 
@@ -342,7 +346,7 @@ export class NewMeasurementService {
           fechaFicha,
           actividad:
             dto.motivo === 'Reperfilado'
-              ? 'CONTROL DE TRABAJOS EN TORNO FOSA'
+              ? ACTIVIDAD_TORNO_FOSA
               : ACTIVIDAD_BAJO_BASTIDOR,
           motivo: dto.motivo ?? MOTIVO_MEDICION,
           codigosBogie: codigosBogiePorTren(tren.numero) ?? Prisma.JsonNull,
@@ -380,7 +384,7 @@ export class NewMeasurementService {
   ): Promise<RelacionBogieCatalogoConNumeroCoche> {
     try {
       const creada = crearRelacionBogie(input);
-      return (await this.conSeriesCoche([creada]))[0]!;
+      return (await this.conSeriesCoche([creada]))[0];
     } catch (error) {
       throw new BadRequestException((error as Error).message);
     }
@@ -392,7 +396,7 @@ export class NewMeasurementService {
   ): Promise<RelacionBogieCatalogoConNumeroCoche> {
     try {
       const actualizada = actualizarRelacionBogie(id, input);
-      return (await this.conSeriesCoche([actualizada]))[0]!;
+      return (await this.conSeriesCoche([actualizada]))[0];
     } catch (error) {
       throw new BadRequestException((error as Error).message);
     }
@@ -546,7 +550,7 @@ export class NewMeasurementService {
           trenNumero: origen.trenNumero,
           kilometraje: origen.kilometraje,
           fechaFicha: origen.fechaFicha,
-          actividad: 'CONTROL DE TRABAJOS EN TORNO FOSA',
+          actividad: ACTIVIDAD_TORNO_FOSA,
           motivo: 'Reperfilado',
           trenOriginalCsv: origen.trenOriginalCsv,
           kilometrajeOriginalCsv: origen.kilometrajeOriginalCsv,
@@ -653,7 +657,9 @@ export class NewMeasurementService {
   ): Promise<RelacionBogieCatalogoConNumeroCoche[]> {
     if (filas.length === 0) return [];
     const trenes = await this.prisma.train.findMany({
-      where: { numero: { in: [...new Set(filas.map((fila) => fila.trenNumero))] } },
+      where: {
+        numero: { in: [...new Set(filas.map((fila) => fila.trenNumero))] },
+      },
       select: {
         numero: true,
         wagonUnits: { select: { tipoCoche: true, numeroCoche: true } },

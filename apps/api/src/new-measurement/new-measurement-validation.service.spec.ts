@@ -9,6 +9,10 @@ interface FakeFicha {
   fechaFicha: Date;
   verificado: boolean;
   ptCodigo: string | null;
+  todasConformes?: boolean | null;
+  motivo?: string;
+  fechaHoraInicio?: Date | null;
+  fechaHoraFin?: Date | null;
 }
 
 interface FakeScanRecord {
@@ -447,6 +451,7 @@ describe('NewMeasurementValidationService.verificar', () => {
   it('todoValido=true y verificado=true cuando ninguna fila queda inválida', async () => {
     const filaValida = filaBase({ id: 'fila-1' });
     const { prisma, fichaRef } = crearEntorno({
+      ficha: { todasConformes: true },
       scanRecords: [filaValida],
     });
     const service = new NewMeasurementValidationService(

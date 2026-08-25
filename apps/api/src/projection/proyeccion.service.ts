@@ -696,6 +696,9 @@ export class ProyeccionService {
 
     const where: Prisma.BrakeDiscWhereInput = {
       activo: true,
+      // stage: 'en_servicio' — la proyección extrapola desgaste futuro, que
+      // solo tiene sentido para piezas montadas y acumulando uso.
+      stage: 'en_servicio',
       ...(q.tren !== undefined
         ? { wagonUnit: { tren: { numero: q.tren } } }
         : {}),
@@ -707,14 +710,16 @@ export class ProyeccionService {
       include: { wagonUnit: { include: { tren: true } } },
     });
 
+    // wagonUnit/bogieCodigo/ejeNumero no-null garantizados por el where
+    // (stage: 'en_servicio') — Prisma no lo refleja en el tipo generado.
     return discos
       .map((d) => ({
         discId: d.id,
-        trenNumero: d.wagonUnit.tren.numero,
+        trenNumero: d.wagonUnit!.tren.numero,
         ordenFisico: calcularOrdenFisico({
-          tipoCoche: d.wagonUnit.tipoCoche,
-          bogieCodigo: d.bogieCodigo,
-          ejeNumero: d.ejeNumero,
+          tipoCoche: d.wagonUnit!.tipoCoche,
+          bogieCodigo: d.bogieCodigo!,
+          ejeNumero: d.ejeNumero!,
           ruedaNumero: d.ruedaNumero,
         }),
       }))

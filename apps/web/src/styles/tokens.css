@@ -372,6 +372,15 @@ body {
 .tabla-chip--critico { background: var(--tabla-estado-critico-bg); color: var(--tabla-estado-critico-text); }
 .tabla-chip--reperfilado { background: var(--tabla-accion-reperfilado-bg); color: var(--tabla-accion-reperfilado-text); }
 
+/* Motivo detectado por la última verificación que ya no aplica luego de
+   editar T/H. Se mantiene hasta volver a verificar, pero deja claro que el
+   valor actual lo corrigió. */
+.motivo-invalido--corregido {
+  text-decoration-line: line-through;
+  text-decoration-color: currentColor;
+  text-decoration-thickness: 1px;
+}
+
 /* Modificador para chips con texto LARGO/variable (ej. el comentario de un
    par de Tasa de Desgaste no válido) — .tabla-chip asume una sola línea
    corta y usa border-radius:999px (media píldora) para lograrlo; con texto

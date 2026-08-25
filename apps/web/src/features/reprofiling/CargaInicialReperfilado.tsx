@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { LoaderCircle, ScanLine } from 'lucide-react'
 import { GlassButton } from '../../components/GlassButton'
 import { GlassField } from '../../components/GlassField'
 import { GlassSelect } from '../../components/GlassSelect'
@@ -11,13 +12,15 @@ import {
   type ResultadoOcrReperfilado,
 } from '../new-measurement/api'
 import { extraerMensajeError } from '../../lib/extraerMensajeError'
+import { useInvalidarHistorialMediciones } from '../new-measurement/queries'
 
 type TipoTren = 'ALSTOM' | 'ANSALDO'
 
-const OPCIONES_TIPO_TREN = [
-  { valor: 'ALSTOM', etiqueta: 'ALSTOM' },
-  { valor: 'ANSALDO', etiqueta: 'ANSALDO' },
-]
+// ANSALDO (trenes 1-5) todavía no tiene catálogo de coches/bogies sembrado
+// (ver apps/api/prisma/seed.ts) — el backend rechaza cualquier tren fuera de
+// 6-44 (ver validarTrenAlstom). Se deja el tipo declarado para cuando se
+// habilite, pero por ahora el selector solo ofrece ALSTOM.
+const OPCIONES_TIPO_TREN = [{ valor: 'ALSTOM', etiqueta: 'ALSTOM' }]
 
 function opcionesNumeroTren(tipo: TipoTren) {
   const inicio = tipo === 'ALSTOM' ? 6 : 1
@@ -46,6 +49,9 @@ export function CargaInicialReperfilado({
   const [ocr, setOcr] = useState<ResultadoOcrReperfilado | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [cargando, setCargando] = useState(false)
+  const [leyendoFoto, setLeyendoFoto] = useState(false)
+  const [progresoFoto, setProgresoFoto] = useState(0)
+  const invalidarHistorial = useInvalidarHistorialMediciones()
 
   function seleccionarFoto(foto: File | null) {
     setArchivo(foto)
@@ -63,6 +69,7 @@ export function CargaInicialReperfilado({
         kilometraje: Number(kilometraje),
         motivo: 'Reperfilado',
       })
+      invalidarHistorial()
       onCreada(ficha.fichaId)
     } catch (err) {
       setError(
@@ -78,8 +85,11 @@ export function CargaInicialReperfilado({
     if (!archivo) return
     setError(null)
     setCargando(true)
+    setLeyendoFoto(true)
+    setProgresoFoto(2)
     try {
-      const resultado = await leerFotoReperfilado(archivo)
+      const resultado = await leerFotoReperfilado(archivo, setProgresoFoto)
+      setProgresoFoto(100)
       setOcr(resultado)
       if (resultado.trenNumero !== null)
         setTipoTren(resultado.trenNumero <= 5 ? 'ANSALDO' : 'ALSTOM')
@@ -93,6 +103,7 @@ export function CargaInicialReperfilado({
       setError(extraerMensajeError(err, 'No se pudo leer la fotografía.'))
     } finally {
       setCargando(false)
+      setLeyendoFoto(false)
     }
   }
 
@@ -161,6 +172,7 @@ export function CargaInicialReperfilado({
           reperfiladoHAntes: hAntes,
         })
       }
+      invalidarHistorial()
       onCreada(ficha.fichaId)
     } catch (err) {
       setError(
@@ -175,15 +187,8 @@ export function CargaInicialReperfilado({
   }
 
   return (
-    <div>
-      <h2 className="font-display text-lg font-semibold text-concreto-oscuro">
-        Nueva ficha de torno fosa
-      </h2>
-      <p className="mt-1 font-body text-sm text-concreto">
-        Registra la ficha manualmente o toma una fotografía del formato físico
-        para proponer los datos.
-      </p>
-      <div className="mt-5">
+    <div className="relative" aria-busy={leyendoFoto || undefined}>
+      <div>
         <SegmentedControl<'foto' | 'manual'>
           ariaLabel="Origen del reperfilado"
           opciones={[
@@ -393,6 +398,44 @@ export function CargaInicialReperfilado({
             </GlassButton>
           </div>
         </form>
+      )}
+
+      {leyendoFoto && (
+        <div
+          className="absolute inset-0 z-20 flex items-center justify-center rounded-glass-lg bg-white/50 p-6 text-center backdrop-blur-md"
+          role="status"
+          aria-live="polite"
+        >
+          <div className="w-full max-w-xs">
+            <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-white/75 text-verde-oscuro shadow-sm">
+              {progresoFoto < 90 ? (
+                <LoaderCircle size={25} className="animate-spin" aria-hidden />
+              ) : (
+                <ScanLine size={25} className="animate-pulse" aria-hidden />
+              )}
+            </div>
+            <p className="mt-4 font-body text-sm font-semibold text-concreto-oscuro">
+              {progresoFoto < 90 ? 'Subiendo fotografía' : 'Escaneando la ficha'}
+            </p>
+            <p className="mt-1 font-display text-3xl font-semibold text-verde-oscuro">
+              {progresoFoto}%
+            </p>
+            <div
+              className="mt-3 h-2 overflow-hidden rounded-full bg-white/75"
+              aria-label={`Progreso de escaneo: ${progresoFoto}%`}
+            >
+              <div
+                className="h-full rounded-full bg-verde-institucional transition-[width] duration-300"
+                style={{ width: `${progresoFoto}%` }}
+              />
+            </div>
+            <p className="mt-3 font-body text-xs text-concreto">
+              {progresoFoto < 90
+                ? 'Cargando la fotografía para su lectura.'
+                : 'Reconociendo los datos manuscritos de la ficha.'}
+            </p>
+          </div>
+        </div>
       )}
     </div>
   )

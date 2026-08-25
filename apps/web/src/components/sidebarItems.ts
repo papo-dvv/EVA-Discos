@@ -4,9 +4,11 @@ import {
   FolderUp,
   Gauge,
   LineChart,
+  PackageSearch,
   PenLine,
   TrainFront,
   TrendingUp,
+  Wrench,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -46,6 +48,13 @@ export const SECCIONES_SIDEBAR: SeccionSidebar[] = [
       { etiqueta: 'Trazabilidad', ruta: '/trazabilidad', icono: LineChart },
       { etiqueta: 'Tasa de desgaste', ruta: '/tasa-desgaste', icono: Gauge },
       { etiqueta: 'Proyección', ruta: '/proyeccion', icono: TrendingUp },
+    ],
+  },
+  {
+    titulo: 'Operaciones',
+    items: [
+      { etiqueta: 'Operaciones', ruta: '/operaciones', icono: Wrench },
+      { etiqueta: 'Inventario', ruta: '/inventario', icono: PackageSearch },
     ],
   },
 ]

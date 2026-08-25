@@ -4,6 +4,7 @@ import { GlassModal } from '../../../components/GlassModal'
 import { GlassSurface } from '../../../components/GlassSurface'
 import { ScrollArea } from '../../../components/ScrollArea'
 import { SegmentedControl } from '../../../components/SegmentedControl'
+import { aFechaCorta } from '../fecha'
 import { useReferenciaFicha } from '../queries'
 import type {
   FichaInstrumento,
@@ -121,6 +122,7 @@ export function ModalMedicionAnterior({ fichaId, trenNumero, onCerrar }: Props) 
             {esFichaCompleta && (
               <>
                 <SeccionInstrumentosSoloLectura instrumentos={esFichaCompleta.instrumentos} />
+                <SeccionObservacionesSoloLectura valor={esFichaCompleta.comentariosActividad} />
                 <SeccionRealizadoPorSoloLectura tecnicos={esFichaCompleta.tecnicos} />
                 <SeccionResponsablesSoloLectura data={esFichaCompleta} />
               </>
@@ -168,9 +170,9 @@ function SeccionInstrumentosSoloLectura({ instrumentos }: { instrumentos: FichaI
                 <td className="px-2 py-1.5 text-concreto-oscuro">{inst.codigo || '—'}</td>
                 <td className="px-2 py-1.5 text-concreto-oscuro">{inst.descripcion || '—'}</td>
                 <td className="px-2 py-1.5 text-concreto-oscuro">{inst.modeloMarca || '—'}</td>
-                <td className="px-2 py-1.5 font-data text-concreto-oscuro">{inst.fechaCalibracion ?? '—'}</td>
+                <td className="px-2 py-1.5 font-data text-concreto-oscuro">{aFechaCorta(inst.fechaCalibracion) || '—'}</td>
                 <td className="px-2 py-1.5 font-data text-concreto-oscuro">
-                  {inst.fechaVencimientoCalibracion ?? '—'}
+                  {aFechaCorta(inst.fechaVencimientoCalibracion) || '—'}
                 </td>
                 <td className="px-2 py-1.5 text-concreto-oscuro">{inst.observaciones || '—'}</td>
               </tr>
@@ -178,6 +180,17 @@ function SeccionInstrumentosSoloLectura({ instrumentos }: { instrumentos: FichaI
           </tbody>
         </table>
       </div>
+    </GlassSurface>
+  )
+}
+
+function SeccionObservacionesSoloLectura({ valor }: { valor: string | null }) {
+  return (
+    <GlassSurface fuerte className="mt-4 rounded-glass p-5">
+      <h3 className="mb-2 font-display text-base font-semibold text-concreto-oscuro">Observaciones</h3>
+      <p className="whitespace-pre-wrap break-words font-body text-sm text-concreto-oscuro">
+        {valor?.trim() || '—'}
+      </p>
     </GlassSurface>
   )
 }
@@ -193,9 +206,8 @@ function SeccionRealizadoPorSoloLectura({ tecnicos }: { tecnicos: FichaTecnico[]
               Técnico {t.posicion}
             </p>
             <p className="font-body text-sm text-concreto-oscuro">{t.nombre || '—'}</p>
-            <p className="mt-0.5 font-body text-xs text-concreto">
-              Firma: {t.firma || '—'} · Fecha: {t.fecha ?? '—'}
-            </p>
+            <FirmaSoloLectura firma={t.firma} />
+            <p className="mt-1 font-body text-xs text-concreto">Fecha: {aFechaCorta(t.fecha) || '—'}</p>
           </div>
         ))}
       </div>
@@ -239,9 +251,33 @@ function BloqueResponsableSoloLectura({
     <div>
       <p className="mb-2 font-body text-sm font-semibold text-concreto-oscuro">{titulo}</p>
       <p className="font-body text-sm text-concreto-oscuro">{nombre || '—'}</p>
-      <p className="mt-0.5 font-body text-xs text-concreto">
-        Firma: {firma || '—'} · Fecha: {fecha ?? '—'}
-      </p>
+      <FirmaSoloLectura firma={firma} />
+      <p className="mt-1 font-body text-xs text-concreto">Fecha: {aFechaCorta(fecha) || '—'}</p>
     </div>
+  )
+}
+
+function FirmaSoloLectura({ firma }: { firma: string | null }) {
+  if (!firma) {
+    return <p className="mt-0.5 font-body text-xs text-concreto">Firma: —</p>
+  }
+
+  if (firma.startsWith('data:image/')) {
+    return (
+      <div className="mt-1">
+        <p className="font-body text-xs text-concreto">Firma:</p>
+        <img
+          src={firma}
+          alt="Firma registrada"
+          className="mt-1 max-h-12 max-w-48 rounded-lg border border-concreto/10 bg-white/70 object-contain px-2 py-1"
+        />
+      </div>
+    )
+  }
+
+  return (
+    <p className="mt-0.5 max-w-full break-words font-body text-xs text-concreto">
+      Firma: {firma}
+    </p>
   )
 }

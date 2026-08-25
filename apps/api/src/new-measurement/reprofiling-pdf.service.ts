@@ -16,6 +16,35 @@ import {
 const NOMBRE_PLANTILLA =
   'UT-UF-MTO-FR-414 CONTROL DE TRABAJOS EN TORNO FOSA_260730_103107.pdf';
 
+// firma es un data URL base64 (PNG/JPG del pad de firma digital, ver
+// FirmaDigital.tsx) — se dibuja como imagen embebida, nunca como texto (mismo
+// criterio que dibujarFirma en apps/web/src/features/new-measurement/cartillaPdf.ts).
+async function dibujarFirma(
+  pdf: PDFDocument,
+  page: ReturnType<PDFDocument['getPage']>,
+  firma: string | null | undefined,
+  x: number,
+  y: number,
+  maximoAncho = 46,
+  maximoAlto = 12,
+): Promise<void> {
+  if (!firma?.startsWith('data:image/')) return;
+  const imagen = firma.startsWith('data:image/png')
+    ? await pdf.embedPng(firma)
+    : await pdf.embedJpg(firma);
+  const escala = Math.min(
+    maximoAncho / imagen.width,
+    maximoAlto / imagen.height,
+    1,
+  );
+  page.drawImage(imagen, {
+    x,
+    y,
+    width: imagen.width * escala,
+    height: imagen.height * escala,
+  });
+}
+
 @Injectable()
 export class ReprofilingPdfService {
   constructor(private readonly prisma: PrismaService) {}
@@ -128,24 +157,12 @@ export class ReprofilingPdfService {
       escribir(numero(izq?.reperfiladoHAntes), columnas.izqAntesH, y);
       escribir(numero(izq?.tValue), columnas.izqDespuesT, y, 6.7, true);
       escribir(numero(izq?.hValue), columnas.izqDespuesH, y, 6.7, true);
-      escribir(
-        numero(izq ? 2.5 : null),
-        columnas.izqRa,
-        y,
-        6.7,
-        true,
-      );
+      escribir(numero(izq ? 2.5 : null), columnas.izqRa, y, 6.7, true);
       escribir(numero(der?.reperfiladoTAntes), columnas.derAntesT, y);
       escribir(numero(der?.reperfiladoHAntes), columnas.derAntesH, y);
       escribir(numero(der?.tValue), columnas.derDespuesT, y, 6.7, true);
       escribir(numero(der?.hValue), columnas.derDespuesH, y, 6.7, true);
-      escribir(
-        numero(der ? 2.5 : null),
-        columnas.derRa,
-        y,
-        6.7,
-        true,
-      );
+      escribir(numero(der ? 2.5 : null), columnas.derRa, y, 6.7, true);
       escribir(der?.observacion ?? izq?.observacion, 548, y, 5.2);
     }
 
@@ -156,15 +173,22 @@ export class ReprofilingPdfService {
       escribir(numerosCoche[tipo], 315, 535 - indice * 51.8, 7, true);
     });
     const posicionesBogie = [
-      ['MA1:PB3', 1], ['MA1:PB4', 3], ['MB1:PB6', 5], ['MB1:PB2', 7],
-      ['MB3:PB6', 9], ['MB3:PB2', 11], ['REM:TB1', 13], ['REM:TB2', 15],
-      ['MB2:PB2', 17], ['MB2:PB6', 19], ['MA2:PB4', 21], ['MA2:PB3', 23],
+      ['MA1:PB3', 1],
+      ['MA1:PB4', 3],
+      ['MB1:PB6', 5],
+      ['MB1:PB2', 7],
+      ['MB3:PB6', 9],
+      ['MB3:PB2', 11],
+      ['REM:TB1', 13],
+      ['REM:TB2', 15],
+      ['MB2:PB2', 17],
+      ['MB2:PB6', 19],
+      ['MA2:PB4', 21],
+      ['MA2:PB3', 23],
     ] as const;
     posicionesBogie.forEach(([posicion, ejeInicio]) => {
       const y =
-        561 -
-        (ejeInicio - 1) * 12.35 -
-        Math.floor((ejeInicio - 1) / 4) * 2.35;
+        561 - (ejeInicio - 1) * 12.35 - Math.floor((ejeInicio - 1) / 4) * 2.35;
       escribir(codigosBogie[posicion], 49, y, 5.8, true);
     });
 
@@ -186,28 +210,17 @@ export class ReprofilingPdfService {
       .forEach((linea, indice) =>
         escribir(linea.trim(), 45, 115 - indice * 9, 5.7),
       );
-    ficha.tecnicos.slice(0, 2).forEach((tecnico, indice) => {
+    for (const [indice, tecnico] of ficha.tecnicos.slice(0, 2).entries()) {
       const y = 72 - indice * 10;
-      escribir('TÉCNICO', 52, y, 5.5, true);
+      escribir(tecnico.cargo || 'TÉCNICO', 52, y, 5.5, true);
       escribir(tecnico.nombre, 210, y, 6.1, true);
-      escribir(tecnico.firma, 505, y, 5.6);
-    });
+      await dibujarFirma(pdf, page, tecnico.firma, 505, y - 2);
+    }
     escribir('RESPONSABLE DE MANTENIMIENTO', 52, 53, 5.1, true);
     escribir(ficha.responsableMantenimientoNombre, 210, 53, 6.1, true);
-    escribir(ficha.responsableMantenimientoFirma, 505, 53, 5.6);
-    escribir(
-      ficha.ingMrNombre,
-      210,
-      34,
-      6.1,
-      true,
-    );
-    escribir(
-      ficha.ingMrFirma,
-      505,
-      34,
-      5.6,
-    );
+    await dibujarFirma(pdf, page, ficha.responsableMantenimientoFirma, 505, 51);
+    escribir(ficha.ingMrNombre, 210, 34, 6.1, true);
+    await dibujarFirma(pdf, page, ficha.ingMrFirma, 505, 32);
 
     return pdf.save();
   }
@@ -215,8 +228,12 @@ export class ReprofilingPdfService {
   private rutaPlantilla(): string {
     const rutas = [
       process.env.REPERFILADO_PDF_TEMPLATE,
+      // process.cwd() es la raíz del monorepo al correr `npm run start` desde
+      // ahí, o apps/api al correrlo directamente en ese workspace — se
+      // prueban ambos, mismo criterio que ubicarArchivoRelacionBogies
+      // (new-measurement-bogie-codes.ts).
       join(process.cwd(), 'assets', NOMBRE_PLANTILLA),
-      join('/Users/appletec/Downloads', NOMBRE_PLANTILLA),
+      join(process.cwd(), '..', '..', 'assets', NOMBRE_PLANTILLA),
     ].filter((ruta): ruta is string => Boolean(ruta));
     const encontrada = rutas.find((ruta) => existsSync(ruta));
     if (!encontrada) {

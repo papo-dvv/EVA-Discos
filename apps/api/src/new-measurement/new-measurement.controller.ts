@@ -74,7 +74,7 @@ export class NewMeasurementController {
   // NewMeasurementHistoryService.
   @Get('historial')
   historial(@Query() query: HistorialQueryDto) {
-    return this.historyService.listar(query.limit);
+    return this.historyService.listar(query.limit, query.motivo);
   }
 
   @Get('bogie-catalog')

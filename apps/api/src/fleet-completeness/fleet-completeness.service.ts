@@ -43,7 +43,10 @@ export class FleetCompletenessService {
     // borradores de migración tienen discId null hasta confirmarse) — así
     // que "> 0" ya implica "confirmada", sin necesidad de un where aparte.
     const discos = await this.prisma.brakeDisc.findMany({
-      where: { activo: true },
+      // stage: 'en_servicio' — el catálogo esperado de flota es sobre piezas
+      // montadas; sin este filtro, una pieza en almacen/taller (wagonUnit
+      // null) rompería el acceso a wagonUnit.tren de abajo.
+      where: { activo: true, stage: 'en_servicio' },
       select: {
         wagonUnit: { select: { tren: { select: { numero: true } } } },
         _count: { select: { scanRecords: true } },
@@ -55,7 +58,7 @@ export class FleetCompletenessService {
       { discosEsperados: number; conMedicion: number }
     >();
     for (const disco of discos) {
-      const tren = disco.wagonUnit.tren.numero;
+      const tren = disco.wagonUnit!.tren.numero;
       const actual = porTrenMap.get(tren) ?? {
         discosEsperados: 0,
         conMedicion: 0,
@@ -103,7 +106,11 @@ export class FleetCompletenessService {
     }
 
     const discos = await this.prisma.brakeDisc.findMany({
-      where: { activo: true, wagonUnit: { tren: { numero: tren } } },
+      where: {
+        activo: true,
+        stage: 'en_servicio',
+        wagonUnit: { tren: { numero: tren } },
+      },
       select: {
         bogieCodigo: true,
         ejeNumero: true,
@@ -114,29 +121,31 @@ export class FleetCompletenessService {
       },
     });
 
+    // bogieCodigo/ejeNumero/lado/wagonUnit no-null garantizados por el where
+    // (stage: 'en_servicio') — Prisma no lo refleja en el tipo generado.
     return discos
       .filter((d) => d._count.scanRecords === 0)
       .sort(
         (a, b) =>
           calcularOrdenFisico({
-            tipoCoche: a.wagonUnit.tipoCoche,
-            bogieCodigo: a.bogieCodigo,
-            ejeNumero: a.ejeNumero,
+            tipoCoche: a.wagonUnit!.tipoCoche,
+            bogieCodigo: a.bogieCodigo!,
+            ejeNumero: a.ejeNumero!,
             ruedaNumero: a.ruedaNumero,
           }) -
           calcularOrdenFisico({
-            tipoCoche: b.wagonUnit.tipoCoche,
-            bogieCodigo: b.bogieCodigo,
-            ejeNumero: b.ejeNumero,
+            tipoCoche: b.wagonUnit!.tipoCoche,
+            bogieCodigo: b.bogieCodigo!,
+            ejeNumero: b.ejeNumero!,
             ruedaNumero: b.ruedaNumero,
           }),
       )
       .map((d) => ({
-        coche: d.wagonUnit.tipoCoche,
-        numeroCoche: d.wagonUnit.numeroCoche,
-        bogie: d.bogieCodigo,
-        eje: d.ejeNumero,
-        lado: d.lado,
+        coche: d.wagonUnit!.tipoCoche,
+        numeroCoche: d.wagonUnit!.numeroCoche,
+        bogie: d.bogieCodigo!,
+        eje: d.ejeNumero!,
+        lado: d.lado!,
       }));
   }
 }

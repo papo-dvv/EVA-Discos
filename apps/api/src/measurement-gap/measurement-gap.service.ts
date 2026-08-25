@@ -103,7 +103,12 @@ export class MeasurementGapService {
     }
 
     const discos = await this.prisma.brakeDisc.findMany({
-      where: { id: { in: [...ultimaPorDisco.keys()] } },
+      // stage: 'en_servicio' — una pieza retirada a almacén/taller ya no
+      // necesita medición periódica (no está desgastándose en un tren).
+      where: {
+        id: { in: [...ultimaPorDisco.keys()] },
+        stage: 'en_servicio',
+      },
       select: {
         id: true,
         bogieCodigo: true,
@@ -129,14 +134,16 @@ export class MeasurementGapService {
       conteos[categoria] += 1;
 
       if (categoria !== 'normal') {
+        // wagonUnit/bogieCodigo/ejeNumero/lado no-null garantizados por el
+        // where (stage: 'en_servicio') — Prisma no lo refleja en el tipo.
         filas.push({
           categoria,
-          tren: disco.wagonUnit.tren.numero,
-          coche: disco.wagonUnit.tipoCoche,
-          numeroCoche: disco.wagonUnit.numeroCoche,
-          bogie: disco.bogieCodigo,
-          eje: disco.ejeNumero,
-          lado: disco.lado,
+          tren: disco.wagonUnit!.tren.numero,
+          coche: disco.wagonUnit!.tipoCoche,
+          numeroCoche: disco.wagonUnit!.numeroCoche,
+          bogie: disco.bogieCodigo!,
+          eje: disco.ejeNumero!,
+          lado: disco.lado!,
           fechaUltimaMedicion: fechaUltima.toISOString().slice(0, 10),
           mesesSinMedir: Number(meses.toFixed(1)),
         });

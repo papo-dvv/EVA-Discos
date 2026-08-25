@@ -1,5 +1,6 @@
 import axios from 'axios'
 import qs from 'qs'
+import { EVENTO_SESION_NO_AUTORIZADA } from '../auth/sessionEvents'
 
 export const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_URL ?? 'http://localhost:3000',
@@ -29,22 +30,14 @@ apiClient.interceptors.request.use((config) => {
   return config
 })
 
-// La sesión persistida puede quedar obsoleta (por expiración del JWT o por un
-// cambio del secreto del backend). En ese caso no debemos mantener el shell
-// autenticado mientras cada pantalla muestra "Unauthorized": limpiamos la
-// sesión y forzamos un nuevo login. Se excluye el propio login para que unas
-// credenciales incorrectas se puedan mostrar como error sin recargar la vista.
+// Cualquier 401 con una sesión persistida indica que el JWT ya no puede
+// utilizarse. AuthProvider escucha este evento, limpia la sesión y los guards
+// de rutas llevan inmediatamente al usuario a /login.
 apiClient.interceptors.response.use(
   (response) => response,
-  (error: unknown) => {
-    if (axios.isAxiosError(error) && error.response?.status === 401) {
-      const requestUrl = error.config?.url ?? ''
-      if (!requestUrl.endsWith('/auth/login')) {
-        localStorage.removeItem('eva.sesion')
-        if (window.location.pathname !== '/login') {
-          window.location.replace('/login')
-        }
-      }
+  (error) => {
+    if (axios.isAxiosError(error) && error.response?.status === 401 && localStorage.getItem('eva.sesion')) {
+      window.dispatchEvent(new Event(EVENTO_SESION_NO_AUTORIZADA))
     }
     return Promise.reject(error)
   },

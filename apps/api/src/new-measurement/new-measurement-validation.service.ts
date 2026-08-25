@@ -85,6 +85,16 @@ export class NewMeasurementValidationService {
           Number(fila.tValue) >= Number(referenciaDisco.tValue);
         const rdInvalido =
           referenciaDisco !== null && fila.rdValue >= referenciaDisco.rdValue;
+        // Exclusivo de Reperfilado: "antes" nunca puede reflejar MENOS
+        // desgaste que la última medición confirmada de ese disco — espesor
+        // no puede ser mayor (no "engorda") y cóncavo no puede ser menor (no
+        // retrocede solo). Solo se evalúa cuando ambos "antes" están cargados.
+        const antesInvalido =
+          referenciaDisco !== null &&
+          fila.reperfiladoTAntes !== null &&
+          fila.reperfiladoHAntes !== null &&
+          (Number(fila.reperfiladoTAntes) > Number(referenciaDisco.tValue) ||
+            Number(fila.reperfiladoHAntes) < Number(referenciaDisco.hValue));
 
         return {
           id: fila.id,
@@ -95,6 +105,7 @@ export class NewMeasurementValidationService {
           fechaInvalido,
           tInvalido,
           rdInvalido,
+          antesInvalido,
         };
       }),
     );
@@ -108,6 +119,7 @@ export class NewMeasurementValidationService {
             fechaInvalido: f.fechaInvalido,
             tInvalido: f.tInvalido,
             rdInvalido: f.rdInvalido,
+            antesInvalido: f.antesInvalido,
           },
         }),
       ),
@@ -136,8 +148,14 @@ export class NewMeasurementValidationService {
     const filas = await this.recalcularFlags(fichaId);
     const alertasReperfilado =
       ficha.motivo === 'Reperfilado'
-        ? await this.validarReperfilado(ficha.uploadedFileId)
+        ? await this.validarReperfilado(ficha, filas)
         : [];
+    const conformidadIncompleta = ficha.todasConformes !== true;
+    if (conformidadIncompleta) {
+      alertasReperfilado.push(
+        'Marca si todas las medidas son conformes (Sí/No) para poder bloquear la ficha.',
+      );
+    }
 
     // filas ya viene ordenado por ORDEN_FISICO_DEFECTO (ver recalcularFlags):
     // .filter() preserva ese orden, así que filasExcluidas sale pre-ordenado
@@ -164,6 +182,7 @@ export class NewMeasurementValidationService {
       filasExcluidas.length === 0 &&
       !kmInvalido &&
       !fechaInvalido &&
+      !conformidadIncompleta &&
       alertasReperfilado.length === 0;
 
     await this.prisma.measurementSheet.update({
@@ -186,12 +205,32 @@ export class NewMeasurementValidationService {
   }
 
   private async validarReperfilado(
-    fileId: string | null,
+    ficha: {
+      uploadedFileId: string | null;
+      fechaHoraInicio: Date | null;
+      fechaHoraFin: Date | null;
+    },
+    filasValidadas: FilaValidada[],
   ): Promise<string[]> {
+    const fileId = ficha.uploadedFileId;
     if (!fileId) return ['La ficha no tiene una carga de mediciones asociada.'];
     const filas = await this.prisma.scanRecord.findMany({ where: { fileId } });
     if (filas.length === 0)
       return ['Ingresa al menos una posición medida antes de validar.'];
+
+    const alertas: string[] = [];
+    if (!ficha.fechaHoraFin) {
+      alertas.push(
+        'Completa la Fecha / hora fin — es obligatoria para bloquear la ficha.',
+      );
+    } else if (
+      ficha.fechaHoraInicio &&
+      ficha.fechaHoraFin.getTime() < ficha.fechaHoraInicio.getTime()
+    ) {
+      alertas.push(
+        'La Fecha / hora fin no puede ser anterior a la Fecha / hora inicio.',
+      );
+    }
 
     const espesorNoReduce = filas.filter(
       (fila) =>
@@ -211,15 +250,37 @@ export class NewMeasurementValidationService {
         fila.reperfiladoTAntes === null || fila.reperfiladoHAntes === null,
     ).length;
 
-    const alertas: string[] = [];
     if (valoresAntesIncompletos)
-      alertas.push(`${valoresAntesIncompletos} posición(es): completa espesor y cóncavo antes del reperfilado.`);
+      alertas.push(
+        `${valoresAntesIncompletos} posición(es): completa espesor y cóncavo antes del reperfilado.`,
+      );
     if (espesorNoReduce)
-      alertas.push(`${espesorNoReduce} posición(es): el espesor posterior debe ser menor que el anterior.`);
+      alertas.push(
+        `${espesorNoReduce} posición(es): el espesor posterior debe ser menor que el anterior.`,
+      );
     if (concavoNoReduce)
-      alertas.push(`${concavoNoReduce} posición(es): el cóncavo posterior debe ser menor que el anterior.`);
+      alertas.push(
+        `${concavoNoReduce} posición(es): el cóncavo posterior debe ser menor que el anterior.`,
+      );
     if (rugosidadInvalida)
-      alertas.push(`${rugosidadInvalida} posición(es): la rugosidad final R.A. debe ser exactamente 2,5 µm.`);
+      alertas.push(
+        `${rugosidadInvalida} posición(es): la rugosidad final R.A. debe ser exactamente 2,5 µm.`,
+      );
+
+    // antesInvalido ya viene calculado por recalcularFlags (comparación
+    // contra la última medición CONFIRMADA de cada disco físico) — se lee
+    // acá en vez de resolver discos de nuevo. El mensaje agregado
+    // (motivosInvalidosDeFila) ya queda visible por fila en la tabla, ver
+    // TablaFichaReperfilado; este texto es el resumen que muestra el modal.
+    const antesRetrocedido = filasValidadas.filter(
+      (f) => f.antesInvalido,
+    ).length;
+    if (antesRetrocedido) {
+      alertas.push(
+        `${antesRetrocedido} posición(es): los valores antes del reperfilado no pueden reflejar menos desgaste que la última medición registrada de ese disco.`,
+      );
+    }
+
     return alertas;
   }
 
@@ -272,7 +333,8 @@ export class NewMeasurementValidationService {
     const puestoIncompleto =
       ficha.motivo === 'Reperfilado'
         ? !ficha.puestoTrabajo?.trim() ||
-          !ficha.fechaHoraInicio
+          !ficha.fechaHoraInicio ||
+          !ficha.fechaHoraFin
         : !ficha.ptCodigo?.trim();
     if (puestoIncompleto) {
       throw new UnprocessableEntityException(
@@ -347,6 +409,7 @@ export interface FilaValidada {
   fechaInvalido: boolean;
   tInvalido: boolean;
   rdInvalido: boolean;
+  antesInvalido: boolean;
 }
 
 export interface FilaExcluida {
@@ -368,13 +431,13 @@ export interface FlagsFichaNivelRaiz {
 }
 
 export interface ResumenVerificacion extends FlagsFichaNivelRaiz {
-  // Binario: false si CUALQUIERA de los 4 flags (t/rd por fila, km/fecha a
-  // nivel ficha) sigue activo tras la re-evaluación — es el mismo valor que
+  // Binario: false si CUALQUIERA de los flags (t/rd/antes por fila, km/fecha
+  // a nivel ficha) sigue activo tras la re-evaluación — es el mismo valor que
   // measurement_sheet.verificado queda tras este POST (ver más arriba).
   todoValido: boolean;
   // Ordenado por el mismo criterio jerárquico que el resto del sistema (ver
   // ORDEN_FISICO_DEFECTO) — listo para renderizar tal cual, sin reordenar.
-  // Solo incluye filas con un problema PROPIO (t/rd): un problema de
+  // Solo incluye filas con un problema PROPIO (t/rd/antes): un problema de
   // km/fecha ya se reporta una única vez arriba, nunca repetido acá fila por
   // fila (ver motivosInvalidosDeFila).
   filasExcluidas: FilaExcluida[];
@@ -391,6 +454,10 @@ export interface ResumenBloqueo {
 // (t/rd) — un problema de km/fecha es a nivel ficha y no hace que la fila en
 // sí misma se liste (ver FlagsFichaNivelRaiz), aunque sí tira todoValido a
 // false vía el chequeo aparte en verificar().
-function esInvalida(f: { tInvalido: boolean; rdInvalido: boolean }): boolean {
-  return f.tInvalido || f.rdInvalido;
+function esInvalida(f: {
+  tInvalido: boolean;
+  rdInvalido: boolean;
+  antesInvalido: boolean;
+}): boolean {
+  return f.tInvalido || f.rdInvalido || f.antesInvalido;
 }

@@ -94,7 +94,9 @@ export function HeaderFicha({
             className="flex-1"
           />
           <BotonFechaHoy
+            disabled={deshabilitada}
             onClick={() => {
+              if (deshabilitada) return
               const hoy = fechaHoyCorta()
               setFecha(hoy)
               if (hoy !== aFechaCorta(ficha.fechaFicha)) onGuardar({ fechaFicha: hoy })
