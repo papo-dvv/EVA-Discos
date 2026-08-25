@@ -31,11 +31,33 @@ export function ModalHistoricoDisco({ disco, onCerrar }: Props) {
         )}
         {historico.data && (
           <div className="space-y-4 pr-2">
-            <div className="grid gap-3 sm:grid-cols-3">
+            {/* La pieza se abre primero como objeto técnico 3D; debajo se
+                separan lectura actual, evolución y registro para no mezclar
+                toda la información de mantenimiento en una sola vista. */}
+            <div className="flex flex-col items-center gap-4 rounded-glass border border-concreto/15 bg-[radial-gradient(circle_at_50%_0%,rgba(63,169,95,0.18),transparent_58%)] p-4 sm:flex-row">
+              <div
+                aria-hidden
+                className="h-28 w-28 shrink-0 rounded-full border-[10px] border-slate-700 shadow-[inset_10px_10px_14px_rgba(255,255,255,0.65),inset_-11px_-11px_16px_rgba(15,23,42,0.68),0_16px_24px_rgba(15,92,57,0.25)]"
+                style={{
+                  background: 'repeating-conic-gradient(#dbe4dc 0 7deg, #637267 7deg 12deg)',
+                  transform: 'perspective(260px) rotateX(52deg) rotateZ(-18deg)',
+                }}
+              >
+                <span className="m-auto block h-8 w-8 rounded-full bg-slate-200 shadow-[inset_4px_4px_6px_rgba(71,85,105,0.55),inset_-3px_-3px_5px_white]" />
+              </div>
+              <div className="text-center sm:text-left">
+                <p className="font-body text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-verde-oscuro">Vista 3D del disco</p>
+                <p className="mt-1 font-body text-sm text-concreto">Seleccionaste el lado {disco.lado}. Revisa primero su condición actual y luego su evolución.</p>
+              </div>
+            </div>
+            <section aria-label="Lectura actual">
+              <p className="mb-2 font-body text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-concreto">1. Lectura actual</p>
+              <div className="grid gap-3 sm:grid-cols-3">
               <DatoActual etiqueta="Rd actual" valor={historico.data.actual.rd} />
               <DatoActual etiqueta="H actual" valor={historico.data.actual.h} />
               <DatoActual etiqueta="T actual" valor={historico.data.actual.t} />
-            </div>
+              </div>
+            </section>
 
             {historico.data.historico.length === 0 ? (
               <div className="rounded-glass border border-concreto/15 bg-white/35 px-4 py-8 text-center font-body text-sm text-concreto">
@@ -43,6 +65,7 @@ export function ModalHistoricoDisco({ disco, onCerrar }: Props) {
               </div>
             ) : (
               <>
+                <p className="font-body text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-concreto">2. Evolución y registro</p>
                 <GraficoHistorico puntos={historico.data.historico} />
                 <TablaHistorico puntos={historico.data.historico} />
               </>
