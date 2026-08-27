@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { GlassSurface } from '../../../components/GlassSurface'
 import { SegmentedControl } from '../../../components/SegmentedControl'
 import type {
@@ -49,6 +49,16 @@ type Props = {
 // coche" queda fuera de este bloque — "Tren" ocupa la posición donde vivía
 // antes; ese promedio sigue disponible tal cual en Proyección (ver
 // PanelPromedioPorVagon), sin cambios.
+//
+// PanelPromedioPorTren SÍ dispara su propio fetch (usePromedioPorTren, el más
+// pesado de Trazabilidad — recorre wear_rate_pairs y calcula consenso por
+// cada uno de los 39 trenes en el backend), a diferencia de Métodos/
+// Estadísticas, que solo reciben props ya calculados por el padre. Por eso
+// esa card no se monta hasta que el usuario visita "Tren" por primera vez
+// (`haVisitadoTren`) — así no se paga ese costo en cada carga de la pantalla
+// para quien nunca abre esa vista. Una vez visitada, se queda montada (mismo
+// criterio `hidden` que las otras 2) para no perder su estado ni refetchear
+// de más al alternar.
 export function PanelLateralTrazabilidad({
   conteo,
   gauss,
@@ -65,6 +75,11 @@ export function PanelLateralTrazabilidad({
   filtrarPorRangoKm,
 }: Props) {
   const [vista, setVista] = useState<Vista>('metodos')
+  const [haVisitadoTren, setHaVisitadoTren] = useState(false)
+
+  useEffect(() => {
+    if (vista === 'tren') setHaVisitadoTren(true)
+  }, [vista])
 
   return (
     <GlassSurface fuerte className="rounded-glass p-4">
@@ -98,9 +113,11 @@ export function PanelLateralTrazabilidad({
         />
       </div>
 
-      <div hidden={vista !== 'tren'}>
-        <PanelPromedioPorTren filtrarPorRangoKm={filtrarPorRangoKm} />
-      </div>
+      {haVisitadoTren && (
+        <div hidden={vista !== 'tren'}>
+          <PanelPromedioPorTren filtrarPorRangoKm={filtrarPorRangoKm} />
+        </div>
+      )}
     </GlassSurface>
   )
 }

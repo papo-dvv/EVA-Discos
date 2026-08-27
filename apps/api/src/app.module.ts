@@ -16,6 +16,7 @@ import { OperationsModule } from './operations/operations.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProjectionModule } from './projection/projection.module';
 import { ScanRecordsModule } from './scan-records/scan-records.module';
+import { SystemParamsCacheModule } from './system-params/system-params-cache.module';
 import { SystemParamsModule } from './system-params/system-params.module';
 import { TraceabilityModule } from './traceability/traceability.module';
 import { WearRateModule } from './wear-rate/wear-rate.module';
@@ -39,6 +40,7 @@ import { WearRateModule } from './wear-rate/wear-rate.module';
     OperationsModule,
     ProjectionModule,
     ScanRecordsModule,
+    SystemParamsCacheModule,
     SystemParamsModule,
     TraceabilityModule,
     WearRateModule,

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { SystemParamsCacheService } from '../system-params/system-params-cache.service';
 
 // Clave exacta de system_params.clave — mismo criterio que CLAVES_PERCENTILES
 // en consenso-config.service.ts. Único parámetro configurable del cálculo de
@@ -15,13 +15,12 @@ const UMBRAL_SIMETRICA_POR_DEFECTO = 0.5;
 // ConsensoConfigService.obtenerEpsilon.
 @Injectable()
 export class AsimetriaConfigService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly systemParamsCache: SystemParamsCacheService) {}
 
   async obtenerUmbralSimetrica(): Promise<number> {
-    const fila = await this.prisma.systemParam.findUnique({
-      where: { clave: CLAVE_UMBRAL_SIMETRICA },
-    });
-    const valor = fila ? Number(fila.valor) : NaN;
+    const valoresPorClave = await this.systemParamsCache.obtenerTodos();
+    const texto = valoresPorClave.get(CLAVE_UMBRAL_SIMETRICA);
+    const valor = texto !== undefined ? Number(texto) : NaN;
     return Number.isFinite(valor) ? valor : UMBRAL_SIMETRICA_POR_DEFECTO;
   }
 }

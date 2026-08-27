@@ -1,11 +1,23 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { cambiarDisco, obtenerDetalleTrenOperaciones, retirarMasivo } from './api'
+import {
+  cambiarDisco,
+  obtenerDetalleTrenOperaciones,
+  obtenerTrenesPendientesReperfilado,
+  retirarMasivo,
+} from './api'
 
 export function useDetalleTrenOperaciones(trenNumero: number | undefined) {
   return useQuery({
     queryKey: ['operations', 'detalleTren', trenNumero],
     queryFn: () => obtenerDetalleTrenOperaciones(trenNumero as number),
     enabled: trenNumero !== undefined,
+  })
+}
+
+export function useTrenesPendientesReperfilado() {
+  return useQuery({
+    queryKey: ['operations', 'reperfilado-pendiente'],
+    queryFn: obtenerTrenesPendientesReperfilado,
   })
 }
 

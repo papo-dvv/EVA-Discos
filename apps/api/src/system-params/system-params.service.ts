@@ -11,6 +11,7 @@ import {
   ConsensoValidationService,
   type AjusteExtremo,
 } from '../traceability/consenso-validation.service';
+import { SystemParamsCacheService } from './system-params-cache.service';
 import {
   PARAMS_EDITABLES,
   PARAMS_INICIALES_FALTANTES,
@@ -35,6 +36,7 @@ export class SystemParamsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly consensoValidation: ConsensoValidationService,
+    private readonly systemParamsCache: SystemParamsCacheService,
   ) {}
 
   // Lista todos los parámetros ordenados por clave, marcando cuáles son
@@ -92,7 +94,7 @@ export class SystemParamsService {
     }
 
     if (!actual) {
-      return this.prisma.$transaction(async (tx) => {
+      const resultado = await this.prisma.$transaction(async (tx) => {
         const creado = await tx.systemParam.create({
           data: {
             clave,
@@ -107,6 +109,8 @@ export class SystemParamsService {
         });
         return { ...creado, ajustesConsenso: [] };
       });
+      this.systemParamsCache.invalidar();
+      return resultado;
     }
 
     // Los 4 parámetros de percentil (únicos configurables de los 3 métodos)
@@ -144,7 +148,7 @@ export class SystemParamsService {
     // realmente (un PATCH con el mismo valor no ensucia el historial);
     // actualizado_por/actualizado_en sí se refrescan siempre para dejar
     // constancia de quién lo revisó por última vez.
-    return this.prisma.$transaction(async (tx) => {
+    const resultado = await this.prisma.$transaction(async (tx) => {
       const actualizado = await tx.systemParam.update({
         where: { clave },
         data: {
@@ -171,5 +175,7 @@ export class SystemParamsService {
 
       return { ...actualizado, ajustesConsenso };
     });
+    this.systemParamsCache.invalidar();
+    return resultado;
   }
 }

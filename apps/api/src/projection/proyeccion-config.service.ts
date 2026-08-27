@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { SystemParamsCacheService } from '../system-params/system-params-cache.service';
 
 // Claves exactas de system_params.clave — mismo criterio que CLAVES_UMBRALES
 // (brake-disc-rules/umbrales.ts) y CLAVES_PERCENTILES (traceability/consenso-config.service.ts).
@@ -23,13 +23,10 @@ export interface RangoKmProyeccion {
 // UmbralesProviderService/ConsensoConfigService/AsimetriaConfigService.
 @Injectable()
 export class ProyeccionConfigService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly systemParamsCache: SystemParamsCacheService) {}
 
   async obtenerRangoKm(): Promise<RangoKmProyeccion> {
-    const filas = await this.prisma.systemParam.findMany({
-      where: { clave: { in: [CLAVE_KM_RANGO_MIN, CLAVE_KM_RANGO_MAX] } },
-    });
-    const valoresPorClave = new Map(filas.map((f) => [f.clave, f.valor]));
+    const valoresPorClave = await this.systemParamsCache.obtenerTodos();
 
     return {
       kmMin: this.leerNumero(

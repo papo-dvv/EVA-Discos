@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { SystemParamsCacheService } from '../system-params/system-params-cache.service';
 import type { FraccionesPercentil } from './traceability-stats.service';
 
 // Claves exactas de system_params.clave — mismo criterio que
@@ -57,13 +57,10 @@ function campoDeClave(clave: string): keyof FraccionesPercentil | null {
 // revienta por un parámetro no configurado todavía.
 @Injectable()
 export class ConsensoConfigService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly systemParamsCache: SystemParamsCacheService) {}
 
   async obtenerFracciones(): Promise<FraccionesPercentil> {
-    const filas = await this.prisma.systemParam.findMany({
-      where: { clave: { in: Object.values(CLAVES_PERCENTILES) } },
-    });
-    const valoresPorClave = new Map(filas.map((f) => [f.clave, f.valor]));
+    const valoresPorClave = await this.systemParamsCache.obtenerTodos();
 
     return {
       limiteInferior: this.leerFraccion(valoresPorClave, 'limiteInferior'),
@@ -74,10 +71,9 @@ export class ConsensoConfigService {
   }
 
   async obtenerEpsilon(): Promise<number> {
-    const fila = await this.prisma.systemParam.findUnique({
-      where: { clave: CLAVE_EPSILON },
-    });
-    const valor = fila ? Number(fila.valor) : NaN;
+    const valoresPorClave = await this.systemParamsCache.obtenerTodos();
+    const texto = valoresPorClave.get(CLAVE_EPSILON);
+    const valor = texto !== undefined ? Number(texto) : NaN;
     return Number.isFinite(valor) ? valor : EPSILON_POR_DEFECTO;
   }
 
@@ -86,11 +82,10 @@ export class ConsensoConfigService {
   // "no configurado" NO cae a un número por defecto: la Regla A del extremo
   // (ver ConsensoValidationService) simplemente no se evalúa.
   async obtenerAmplitudMaximaExtremo(): Promise<number | null> {
-    const fila = await this.prisma.systemParam.findUnique({
-      where: { clave: CLAVE_AMPLITUD_MAXIMA_EXTREMO },
-    });
-    if (!fila) return null;
-    const texto = fila.valor.trim();
+    const valoresPorClave = await this.systemParamsCache.obtenerTodos();
+    const crudo = valoresPorClave.get(CLAVE_AMPLITUD_MAXIMA_EXTREMO);
+    if (crudo === undefined) return null;
+    const texto = crudo.trim();
     if (texto === '') return null;
     const numero = Number(texto);
     return Number.isFinite(numero) ? numero : null;

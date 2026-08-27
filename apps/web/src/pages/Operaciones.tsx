@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { ArrowRight, PackageMinus, RefreshCcw } from 'lucide-react'
+import { ArrowRight, PackageMinus, RefreshCcw, ScanLine } from 'lucide-react'
 import { GlassSurface } from '../components/GlassSurface'
 import { SegmentedControl } from '../components/SegmentedControl'
 import { ModalCambioDisco } from '../features/operations/components/ModalCambioDisco'
+import { ModalPendientesReperfilado } from '../features/operations/components/ModalPendientesReperfilado'
 import { ModalRetiroMasivo } from '../features/operations/components/ModalRetiroMasivo'
 import { useStatsInventario } from '../features/inventory/queries'
 
@@ -13,6 +14,7 @@ export function Operaciones() {
   const [tipoTren, setTipoTren] = useState<TipoTren>('ALSTOM')
   const [retiroAbierto, setRetiroAbierto] = useState(false)
   const [cambioAbierto, setCambioAbierto] = useState(false)
+  const [reperfiladoAbierto, setReperfiladoAbierto] = useState(false)
   const [preseleccion, setPreseleccion] = useState<{ tren: number; coche: number } | null>(null)
   const [searchParams, setSearchParams] = useSearchParams()
   const stats = useStatsInventario()
@@ -84,7 +86,7 @@ export function Operaciones() {
 
       <h2 className="mb-3 font-display text-lg font-semibold text-concreto-oscuro">Operaciones disponibles</h2>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <button type="button" onClick={() => setRetiroAbierto(true)} className="block text-left">
           <GlassSurface fuerte elevar className="rounded-glass-lg p-6 transition-transform hover:-translate-y-0.5">
             <div className="flex items-start justify-between gap-3">
@@ -120,9 +122,28 @@ export function Operaciones() {
             </span>
           </GlassSurface>
         </button>
+
+        <button type="button" onClick={() => setReperfiladoAbierto(true)} className="block text-left">
+          <GlassSurface fuerte elevar className="rounded-glass-lg p-6 transition-transform hover:-translate-y-0.5">
+            <div className="flex items-start justify-between gap-3">
+              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-verde-institucional to-verde-institucional/70 text-white shadow-[0_10px_24px_rgba(15,23,42,0.16)]">
+                <ScanLine size={20} aria-hidden />
+              </span>
+              <ArrowRight size={18} aria-hidden className="text-concreto" />
+            </div>
+            <p className="mt-4 font-display text-xl font-semibold text-concreto-oscuro">Reperfilado</p>
+            <p className="mt-1 font-body text-sm text-concreto">
+              Trenes con discos pendientes de reperfilado según su última medición confirmada.
+            </p>
+            <span className="mt-4 inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-verde-institucional to-verde-institucional/70 px-3 py-1 font-body text-xs font-semibold text-white">
+              Ver pendientes →
+            </span>
+          </GlassSurface>
+        </button>
       </div>
 
       {retiroAbierto && <ModalRetiroMasivo onCerrar={() => setRetiroAbierto(false)} />}
+      {reperfiladoAbierto && <ModalPendientesReperfilado onCerrar={() => setReperfiladoAbierto(false)} />}
       {cambioAbierto && (
         <ModalCambioDisco
           trenInicial={preseleccion?.tren}

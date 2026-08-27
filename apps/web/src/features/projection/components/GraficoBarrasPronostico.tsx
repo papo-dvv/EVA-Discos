@@ -10,12 +10,13 @@ const ALTO = 320
 const MARGEN = { top: 28, right: 28, bottom: 54, left: 56 }
 const MOSTRAR_REPERFILADOS = true
 
-type VistaBarras = 'anio' | 'mes'
-type DatoBarra = {
+export type VistaBarras = 'anio' | 'mes'
+export type DatoBarra = {
   periodo: string
   etiqueta: string
   reperfilados: number
   cambios: number
+  criticos: number
 }
 
 type Props = {
@@ -25,7 +26,6 @@ type Props = {
   onCambiarVista: (vista: VistaBarras) => void
   anio: number
   onCambiarAnio: (anio: number) => void
-  onSeleccionar: (periodo: string, tipo: TipoEventoPronostico) => void
 }
 
 function datosAnuales(meses: PronosticoMes[]): DatoBarra[] {
@@ -37,14 +37,15 @@ function datosAnuales(meses: PronosticoMes[]): DatoBarra[] {
         (total, mes) => ({
           reperfilados: total.reperfilados + mes.reperfilados,
           cambios: total.cambios + mes.cambios,
+          criticos: total.criticos + mes.desgloseEstado.critico,
         }),
-        { reperfilados: 0, cambios: 0 },
+        { reperfilados: 0, cambios: 0, criticos: 0 },
       )
     return { periodo: anio, etiqueta: anio, ...acumulado }
   })
 }
 
-function datosMensuales(meses: PronosticoMes[], anio: number): DatoBarra[] {
+export function datosMensuales(meses: PronosticoMes[], anio: number): DatoBarra[] {
   return meses
     .filter((mes) => mes.mes.startsWith(String(anio)))
     .map((mes) => ({
@@ -54,6 +55,7 @@ function datosMensuales(meses: PronosticoMes[], anio: number): DatoBarra[] {
       ),
       reperfilados: mes.reperfilados,
       cambios: mes.cambios,
+      criticos: mes.desgloseEstado.critico,
     }))
 }
 
@@ -90,18 +92,19 @@ export function GraficoBarrasPronostico({
   onCambiarVista,
   anio,
   onCambiarAnio,
-  onSeleccionar,
 }: Props) {
   const datos = vista === 'anio' ? datosAnuales(meses) : datosMensuales(meses, anio)
   const maximo = Math.max(
     1,
     ...datos.map((dato) => dato.cambios),
+    ...datos.map((dato) => dato.criticos),
     ...(MOSTRAR_REPERFILADOS ? datos.map((dato) => dato.reperfilados) : []),
   )
   const anchoUtil = ANCHO - MARGEN.left - MARGEN.right
   const altoUtil = ALTO - MARGEN.top - MARGEN.bottom
   const anchoGrupo = anchoUtil / Math.max(datos.length, 1)
-  const anchoBarra = Math.max(6, Math.min(26, anchoGrupo * 0.3))
+  const cantidadSeries = MOSTRAR_REPERFILADOS ? 3 : 2
+  const anchoBarra = Math.max(5, Math.min(20, (anchoGrupo * 0.75) / cantidadSeries))
   const ticks = Array.from({ length: 5 }, (_, indice) => Math.round((maximo * indice) / 4))
 
   return (
@@ -144,6 +147,10 @@ export function GraficoBarrasPronostico({
           <span className="h-2.5 w-2.5 rounded-sm bg-[color:var(--color-estado-cambio)]" />
           Cambios
         </span>
+        <span className="flex items-center gap-1.5">
+          <span className="h-2.5 w-2.5 rounded-sm bg-[color:var(--color-estado-critico)]" />
+          Críticos
+        </span>
       </div>
 
       {cargando ? (
@@ -180,8 +187,18 @@ export function GraficoBarrasPronostico({
             })}
             {datos.map((dato, indice) => {
               const centro = MARGEN.left + anchoGrupo * (indice + 0.5)
+              const separacion = 2
+              const anchoTotalSeries = cantidadSeries * anchoBarra + (cantidadSeries - 1) * separacion
+              const xInicial = centro - anchoTotalSeries / 2
+              let cursor = xInicial
+              const siguienteX = () => {
+                const x = cursor
+                cursor += anchoBarra + separacion
+                return x
+              }
               const series: {
-                tipo: TipoEventoPronostico
+                tipo: TipoEventoPronostico | 'CRITICO'
+                etiqueta: string
                 valor: number
                 x: number
                 color: string
@@ -190,17 +207,26 @@ export function GraficoBarrasPronostico({
                   ? [
                       {
                         tipo: 'REPERFILADO' as const,
+                        etiqueta: 'Reperfilados',
                         valor: dato.reperfilados,
-                        x: centro - anchoBarra - 2,
+                        x: siguienteX(),
                         color: 'var(--color-estado-reperfilado)',
                       },
                     ]
                   : []),
                 {
                   tipo: 'CAMBIO',
+                  etiqueta: 'Cambios',
                   valor: dato.cambios,
-                  x: MOSTRAR_REPERFILADOS ? centro + 2 : centro - anchoBarra / 2,
+                  x: siguienteX(),
                   color: 'var(--color-estado-cambio)',
+                },
+                {
+                  tipo: 'CRITICO',
+                  etiqueta: 'Críticos',
+                  valor: dato.criticos,
+                  x: siguienteX(),
+                  color: 'var(--color-estado-critico)',
                 },
               ]
               return (
@@ -239,17 +265,7 @@ export function GraficoBarrasPronostico({
                           height={Math.max(1, alto)}
                           rx={2}
                           fill={serie.color}
-                          role="button"
-                          tabIndex={0}
-                          aria-label={`${serie.tipo === 'CAMBIO' ? 'Cambios' : 'Reperfilados'}: ${serie.valor}, ${dato.etiqueta}`}
-                          style={{ cursor: 'pointer' }}
-                          onClick={() => onSeleccionar(dato.periodo, serie.tipo)}
-                          onKeyDown={(evento) => {
-                            if (evento.key === 'Enter' || evento.key === ' ') {
-                              evento.preventDefault()
-                              onSeleccionar(dato.periodo, serie.tipo)
-                            }
-                          }}
+                          aria-label={`${serie.etiqueta}: ${serie.valor}, ${dato.etiqueta}`}
                         />
                       </g>
                     )

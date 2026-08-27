@@ -2,7 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { Prisma, TipoCoche } from '../../generated/prisma';
 import { agruparPorMes, ordenarPorMes } from '../common/agrupar-por-mes';
 import { PrismaService } from '../prisma/prisma.service';
-import { ProyeccionConfigService } from '../projection/proyeccion-config.service';
+import {
+  ProyeccionConfigService,
+  type RangoKmProyeccion,
+} from '../projection/proyeccion-config.service';
 import { AsimetriaConfigService } from './asimetria-config.service';
 import { ConsensoConfigService } from './consenso-config.service';
 import type { TraceabilityScopeQueryDto } from './dto/traceability-scope-query.dto';
@@ -179,6 +182,27 @@ export interface PromedioPorTrenItem {
   datosLimitados: boolean;
   // Solo con incluirDetalle=true: mismo cálculo, scope tren+tipoCoche.
   porTipoCoche?: PromedioPorTrenTipoCocheItem[];
+}
+
+// Fila cruda que devuelve la primera consulta $queryRaw de obtenerSeries —
+// todo NULL solo si conteo=0 (Postgres: AVG/STDDEV_SAMP/PERCENTILE_CONT sobre
+// un conjunto vacío devuelven NULL), caso que el propio método corta ANTES de
+// leer estos campos (conteo < CONTEO_MINIMO).
+interface AgregadoSqlRow {
+  conteo: number;
+  media: number | null;
+  desviacion: number | null;
+  pctLi: number | null;
+  pctLs: number | null;
+  pctEi: number | null;
+  pctEs: number | null;
+  q1: number | null;
+  q3: number | null;
+}
+
+interface FilaPeriodoSqlRow {
+  fecha2: Date;
+  tasaMensual: number;
 }
 
 @Injectable()
@@ -400,19 +424,41 @@ export class TraceabilityService {
     });
   }
 
+  // Límites/consenso calculados por Postgres (AVG/STDDEV_SAMP/PERCENTILE_CONT)
+  // en vez de traer el histórico COMPLETO del scope a memoria para promediarlo
+  // en JS — con 39 trenes activos, ese histórico ya son >10K filas hoy y solo
+  // crece. La equivalencia numérica con el cálculo JS de
+  // TraceabilityStatsService está verificada a mano contra datos reales
+  // (PERCENTILE_CONT usa la misma interpolación lineal que `percentil()` acá
+  // — R-7 — así que coinciden EXACTO; AVG/STDDEV_SAMP difieren solo en ruido
+  // de punto flotante de ~1e-16, muy por debajo de cualquier precisión que
+  // esta pantalla muestra). Los puntos individuales para clasificar/graficar
+  // SÍ se siguen trayendo por fila (ver más abajo), pero acotados al periodo
+  // pedido, no al histórico completo.
   async obtenerSeries(
     q: TraceabilitySeriesQueryDto,
   ): Promise<TraceabilitySeriesResponse> {
-    const where = this.construirWhereScope(q);
-    const filas = await this.prisma.wearRatePair.findMany({
-      where,
-      select: { fecha2: true, tasaMensual: true, diferenciaKm: true },
-      orderBy: { fecha2: 'asc' },
-    });
-    const filasParaCalculo = q.filtrarPorRangoKm
-      ? await this.filtrarFilasPorRangoKm(filas)
-      : filas;
-    const conteoTotalHistorico = filasParaCalculo.length;
+    const { fracciones, epsilon } = await this.obtenerConfigConsenso();
+    const rangoKm = q.filtrarPorRangoKm
+      ? await this.proyeccionConfig.obtenerRangoKm()
+      : null;
+    const condiciones = this.condicionesScopeSql(q, rangoKm);
+
+    const [agregado] = await this.prisma.$queryRaw<AgregadoSqlRow[]>(Prisma.sql`
+      SELECT
+        COUNT(*)::int AS "conteo",
+        (AVG(tasa_mensual))::float8 AS "media",
+        (STDDEV_SAMP(tasa_mensual))::float8 AS "desviacion",
+        (PERCENTILE_CONT(${fracciones.limiteInferior}) WITHIN GROUP (ORDER BY tasa_mensual))::float8 AS "pctLi",
+        (PERCENTILE_CONT(${fracciones.limiteSuperior}) WITHIN GROUP (ORDER BY tasa_mensual))::float8 AS "pctLs",
+        (PERCENTILE_CONT(${fracciones.extremoInferior}) WITHIN GROUP (ORDER BY tasa_mensual))::float8 AS "pctEi",
+        (PERCENTILE_CONT(${fracciones.extremoSuperior}) WITHIN GROUP (ORDER BY tasa_mensual))::float8 AS "pctEs",
+        (PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY tasa_mensual))::float8 AS "q1",
+        (PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY tasa_mensual))::float8 AS "q3"
+      FROM wear_rate_pairs
+      WHERE es_valido = true ${condiciones}
+    `);
+    const conteoTotalHistorico = agregado.conteo;
 
     // Mismo umbral que /summary: los límites se calculan siempre sobre el
     // histórico completo (nunca por periodo), así que si el histórico
@@ -421,20 +467,54 @@ export class TraceabilityService {
       return { datosInsuficientes: true, conteoTotalHistorico };
     }
 
-    const valores = filasParaCalculo.map((f) => Number(f.tasaMensual));
-    const { gauss, percentiles, tukey, consenso } =
-      await this.calcularMetodos(valores);
+    // Non-null: con conteoTotalHistorico >= CONTEO_MINIMO (20 filas),
+    // Postgres siempre devuelve un valor para estos agregados sobre un
+    // conjunto no vacío (nunca NULL salvo COUNT(*)=0).
+    const media = agregado.media!;
+    const desviacion = agregado.desviacion!;
+    const gauss: LimitesMetodo = {
+      limiteInferior: media - 2 * desviacion,
+      limiteSuperior: media + 2 * desviacion,
+      extremoInferior: media - 3 * desviacion,
+      extremoSuperior: media + 3 * desviacion,
+    };
+    const percentiles: LimitesMetodo = {
+      limiteInferior: agregado.pctLi!,
+      limiteSuperior: agregado.pctLs!,
+      extremoInferior: agregado.pctEi!,
+      extremoSuperior: agregado.pctEs!,
+    };
+    const q1 = agregado.q1!;
+    const q3 = agregado.q3!;
+    const iqr = q3 - q1;
+    const tukey: LimitesMetodo = {
+      limiteInferior: q1 - 1.5 * iqr,
+      limiteSuperior: q3 + 1.5 * iqr,
+      extremoInferior: q1 - 3 * iqr,
+      extremoSuperior: q3 + 3 * iqr,
+    };
+    const consensoBruto = this.stats.calcularConsenso(gauss, percentiles, tukey);
+    const consenso = this.stats.aplicarPisoExtremoInferior(
+      consensoBruto,
+      epsilon,
+    );
 
     const desde = this.calcularFechaDesde(q.periodo);
-    const filasPeriodo = desde
-      ? filasParaCalculo.filter((f) => f.fecha2 >= desde)
-      : filasParaCalculo;
+    const condicionFecha = desde
+      ? Prisma.sql`AND fecha_2 >= ${desde}`
+      : Prisma.empty;
+    const filasPeriodo = await this.prisma.$queryRaw<FilaPeriodoSqlRow[]>(Prisma.sql`
+      SELECT fecha_2 AS "fecha2", (tasa_mensual)::float8 AS "tasaMensual"
+      FROM wear_rate_pairs
+      WHERE es_valido = true ${condiciones} ${condicionFecha}
+      ORDER BY fecha_2 ASC
+    `);
     const conteoMostradoEnPeriodo = filasPeriodo.length;
 
     const puntosClasificados = this.stats.clasificarYLimpiarSerie(
       filasPeriodo.map((f) => ({
         fecha: f.fecha2,
-        valor: Number(f.tasaMensual),
+        valor: f.tasaMensual,
       })),
       consenso.limiteConsenso,
       consenso.extremoConsenso,
@@ -593,6 +673,32 @@ export class TraceabilityService {
       ...(q.tipoCoche !== undefined ? { tipoCoche: q.tipoCoche } : {}),
       ...(q.bogieCodigo !== undefined ? { bogieCodigo: q.bogieCodigo } : {}),
     };
+  }
+
+  // Equivalente SQL de construirWhereScope + filtro de rango de km, para las
+  // 2 consultas $queryRaw de obtenerSeries — mismo criterio de scope (AND
+  // entre las dimensiones presentes), armado con Prisma.sql para escapar los
+  // valores de forma segura (nunca interpolación de texto cruda).
+  private condicionesScopeSql(
+    q: TraceabilityScopeQueryDto,
+    rangoKm: RangoKmProyeccion | null,
+  ): Prisma.Sql {
+    const partes: Prisma.Sql[] = [];
+    if (q.tren !== undefined) {
+      partes.push(Prisma.sql`AND tren_numero = ${q.tren}`);
+    }
+    if (q.tipoCoche !== undefined) {
+      partes.push(Prisma.sql`AND tipo_coche = ${q.tipoCoche}::"TipoCoche"`);
+    }
+    if (q.bogieCodigo !== undefined) {
+      partes.push(Prisma.sql`AND bogie_codigo = ${q.bogieCodigo}`);
+    }
+    if (rangoKm) {
+      partes.push(
+        Prisma.sql`AND diferencia_km BETWEEN ${rangoKm.kmMin} AND ${rangoKm.kmMax}`,
+      );
+    }
+    return partes.length > 0 ? Prisma.join(partes, ' ') : Prisma.empty;
   }
 
   // Ancla al "ahora" del servidor (no a la fecha más reciente del dataset):

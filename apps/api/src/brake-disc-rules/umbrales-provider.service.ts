@@ -1,28 +1,21 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { SystemParamsCacheService } from '../system-params/system-params-cache.service';
 import {
   CLAVES_UMBRALES,
   UMBRALES_POR_DEFECTO,
   type Umbrales,
 } from './umbrales';
 
-// Única pieza de este módulo que toca Prisma: lee los 4 umbrales desde
-// system_params y completa con el valor por defecto lo que falte (fila
-// inexistente o valor no numérico) — nunca revienta por un parámetro no
+// Lee los 4 umbrales desde el caché compartido de system_params (ver
+// SystemParamsCacheService) y completa con el valor por defecto lo que falte
+// (fila inexistente o valor no numérico) — nunca revienta por un parámetro no
 // configurado todavía.
 @Injectable()
 export class UmbralesProviderService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly systemParamsCache: SystemParamsCacheService) {}
 
   async obtenerUmbrales(): Promise<Umbrales> {
-    const claves = Object.values(CLAVES_UMBRALES);
-    const filas = await this.prisma.systemParam.findMany({
-      where: { clave: { in: claves } },
-    });
-
-    const valoresPorClave = new Map(
-      filas.map((fila) => [fila.clave, fila.valor]),
-    );
+    const valoresPorClave = await this.systemParamsCache.obtenerTodos();
 
     return {
       rdUmbralOk: this.leerNumero(

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ClipboardPenLine, Download, RefreshCcw, Ruler } from 'lucide-react'
-import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { GlassButton } from '../components/GlassButton'
 import { GlassSurface } from '../components/GlassSurface'
@@ -192,6 +192,15 @@ export function NuevasMediciones() {
   }, [motivoActivo])
 
   if (motivoActivo === 'Reperfilado') {
+    // El punto de entrada de un reperfilado NUEVO vive en Operaciones (ver
+    // ModalPendientesReperfilado) — acá solo se renderiza la ficha si ya hay
+    // una en curso (fichaId en la URL o guardada en fichaActiva). Sin eso,
+    // motivoActivo='Reperfilado' solo puede venir de una visita directa/vieja
+    // (localStorage), así que redirige en vez de mostrar el formulario
+    // embebido de antes.
+    if (!fichaId && !obtenerFichaActiva('reperfilado')) {
+      return <Navigate to="/operaciones" replace />
+    }
     return <Reperfilado onCambiarMotivo={setMotivoActivo} />
   }
 
@@ -501,13 +510,13 @@ function NuevasMedicionesMedicion({
               valor={motivo}
               onCambiar={(valor) => {
                 if (valor === 'Reperfilado') {
+                  // Con una ficha de reperfilado ya en curso, continúa ahí
+                  // como siempre. Sin ficha en curso, el punto de entrada es
+                  // Operaciones (ver ModalPendientesReperfilado) — ya no se
+                  // muestra el formulario de creación embebido acá.
                   const activa = obtenerFichaActiva('reperfilado')
                   onCambiarMotivo('Reperfilado')
-                  navigate(
-                    activa
-                      ? `/nuevas-mediciones/${activa}`
-                      : '/nuevas-mediciones',
-                  )
+                  navigate(activa ? `/nuevas-mediciones/${activa}` : '/operaciones')
                   return
                 }
                 onCambiarMotivo(valor)

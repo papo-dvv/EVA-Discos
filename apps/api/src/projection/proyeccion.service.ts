@@ -23,8 +23,10 @@ import {
   ProyeccionCalculatorService,
   type PosicionDisco,
   type ProyeccionDisco,
+  type UmbralesProyectarDisco,
 } from './proyeccion-calculator.service';
 import { ProyeccionRateService } from './proyeccion-rate.service';
+import { ProyeccionUmbralesService } from './proyeccion-umbrales.service';
 import type { ProyeccionDiscosQueryDto } from './dto/proyeccion-discos-query.dto';
 import type { ProyeccionPronosticoQueryDto } from './dto/proyeccion-pronostico-query.dto';
 import type {
@@ -140,7 +142,21 @@ export class ProyeccionService {
     private readonly rate: ProyeccionRateService,
     private readonly calculator: ProyeccionCalculatorService,
     private readonly brakeDiscRules: BrakeDiscRulesService,
+    private readonly umbralesProyeccion: ProyeccionUmbralesService,
   ) {}
+
+  // Umbrales de BrakeDiscRules + Proyección, resueltos UNA sola vez por
+  // request — mismo criterio que ProyeccionRateService.calcularTasasPorTipoCoche:
+  // son globales (no dependen del disco), así que releerlos por cada disco del
+  // scope (hasta ~1900 en flota completa) solo multiplica queries a
+  // system_params sin cambiar el resultado.
+  private async resolverUmbralesProyeccion(): Promise<UmbralesProyectarDisco> {
+    const [umbrales, configuracionProyeccion] = await Promise.all([
+      this.brakeDiscRules.obtenerUmbrales(),
+      this.umbralesProyeccion.obtener(),
+    ]);
+    return { umbrales, configuracionProyeccion };
+  }
 
   // Ordenados con el mismo criterio jerárquico que scan-records/wear-rate
   // (tren -> coche -> bogie -> eje -> rueda, ver common/orden-fisico.ts).
@@ -173,10 +189,17 @@ export class ProyeccionService {
     const inicio = (q.page - 1) * q.pageSize;
     const pagina = discosEnScope.slice(inicio, inicio + q.pageSize);
 
-    const tasasPorTipoCoche = await this.rate.calcularTasasPorTipoCoche();
+    const [tasasPorTipoCoche, umbralesPrecalculados] = await Promise.all([
+      this.rate.calcularTasasPorTipoCoche(),
+      this.resolverUmbralesProyeccion(),
+    ]);
     const proyecciones = await Promise.all(
       pagina.map((d) =>
-        this.calculator.proyectarDisco(d.discId, tasasPorTipoCoche),
+        this.calculator.proyectarDisco(
+          d.discId,
+          tasasPorTipoCoche,
+          umbralesPrecalculados,
+        ),
       ),
     );
 
@@ -195,6 +218,7 @@ export class ProyeccionService {
     const overrides = await this.resolverOverridesPorEje(
       proyectadas,
       tasasPorTipoCoche,
+      umbralesPrecalculados,
     );
     const rows = proyectadas.map((p) =>
       this.aDiscoApi(p, trenPorDiscId.get(p.discId)!, overrides.get(p.discId)),
@@ -214,10 +238,17 @@ export class ProyeccionService {
     discosEnScope: DiscoEnScope[],
     q: ProyeccionDiscosQueryDto,
   ): Promise<ProyeccionDiscosResult> {
-    const tasasPorTipoCoche = await this.rate.calcularTasasPorTipoCoche();
+    const [tasasPorTipoCoche, umbralesPrecalculados] = await Promise.all([
+      this.rate.calcularTasasPorTipoCoche(),
+      this.resolverUmbralesProyeccion(),
+    ]);
     const proyecciones = await Promise.all(
       discosEnScope.map((d) =>
-        this.calculator.proyectarDisco(d.discId, tasasPorTipoCoche),
+        this.calculator.proyectarDisco(
+          d.discId,
+          tasasPorTipoCoche,
+          umbralesPrecalculados,
+        ),
       ),
     );
 
@@ -238,6 +269,7 @@ export class ProyeccionService {
     const overrides = await this.resolverOverridesPorEje(
       pagina,
       tasasPorTipoCoche,
+      umbralesPrecalculados,
     );
 
     return {
@@ -389,14 +421,20 @@ export class ProyeccionService {
     q: ProyeccionPronosticoQueryDto,
   ): Promise<PronosticoMesApi[]> {
     const discosEnScope = await this.resolverDiscosEnScope({ tren: q.tren });
-    const tasasPorTipoCoche = await this.rate.calcularTasasPorTipoCoche();
-    const umbrales = await this.brakeDiscRules.obtenerUmbrales();
-    const evaluador = new BrakeDiscRulesEngine(umbrales);
+    const [tasasPorTipoCoche, umbralesPrecalculados] = await Promise.all([
+      this.rate.calcularTasasPorTipoCoche(),
+      this.resolverUmbralesProyeccion(),
+    ]);
+    const evaluador = new BrakeDiscRulesEngine(umbralesPrecalculados.umbrales);
 
     const proyecciones = (
       await Promise.all(
         discosEnScope.map((d) =>
-          this.calculator.proyectarDisco(d.discId, tasasPorTipoCoche),
+          this.calculator.proyectarDisco(
+            d.discId,
+            tasasPorTipoCoche,
+            umbralesPrecalculados,
+          ),
         ),
       )
     ).filter((p): p is ProyeccionDisco => p !== null);
@@ -407,6 +445,7 @@ export class ProyeccionService {
       proyecciones,
       trenPorDiscId,
       tasasPorTipoCoche,
+      umbralesPrecalculados,
     );
 
     const hoy = new Date();
@@ -423,11 +462,18 @@ export class ProyeccionService {
     q: ProyeccionPronosticoDetalleQueryDto,
   ): Promise<EventoPronosticoApi[]> {
     const discosEnScope = await this.resolverDiscosEnScope({ tren: q.tren });
-    const tasasPorTipoCoche = await this.rate.calcularTasasPorTipoCoche();
+    const [tasasPorTipoCoche, umbralesPrecalculados] = await Promise.all([
+      this.rate.calcularTasasPorTipoCoche(),
+      this.resolverUmbralesProyeccion(),
+    ]);
     const proyecciones = (
       await Promise.all(
         discosEnScope.map((d) =>
-          this.calculator.proyectarDisco(d.discId, tasasPorTipoCoche),
+          this.calculator.proyectarDisco(
+            d.discId,
+            tasasPorTipoCoche,
+            umbralesPrecalculados,
+          ),
         ),
       )
     ).filter((p): p is ProyeccionDisco => p !== null);
@@ -439,6 +485,7 @@ export class ProyeccionService {
       proyecciones,
       trenPorDiscId,
       tasasPorTipoCoche,
+      umbralesPrecalculados,
     );
 
     return eventos
@@ -489,10 +536,12 @@ export class ProyeccionService {
     proyecciones: ProyeccionDisco[],
     trenPorDiscId: Map<string, number>,
     tasasPorTipoCoche: Partial<Record<TipoCoche, number | null>>,
+    umbralesPrecalculados: UmbralesProyectarDisco,
   ): Promise<EventoPronosticoCalculado[]> {
     const overrides = await this.resolverOverridesPorEje(
       proyecciones,
       tasasPorTipoCoche,
+      umbralesPrecalculados,
     );
     const eventos = new Map<string, EventoPronosticoCalculado>();
     const hoy = new Date();
@@ -760,6 +809,7 @@ export class ProyeccionService {
   private async resolverOverridesPorEje(
     proyecciones: ProyeccionDisco[],
     tasasPorTipoCoche: Partial<Record<TipoCoche, number | null>>,
+    umbralesPrecalculados: UmbralesProyectarDisco,
   ): Promise<Map<string, OverrideSiguiente>> {
     const overrides = new Map<string, OverrideSiguiente>();
     const pendientePorEje = new Map<string, ProyeccionDisco>();
@@ -783,6 +833,7 @@ export class ProyeccionService {
       const hermano = await this.resolverHermanoAdHoc(
         p,
         tasasPorTipoCoche,
+        umbralesPrecalculados,
         cacheHermano,
       );
       if (hermano) this.registrarOverrides(p, hermano, overrides);
@@ -849,6 +900,7 @@ export class ProyeccionService {
   private async resolverHermanoAdHoc(
     p: ProyeccionDisco,
     tasasPorTipoCoche: Partial<Record<TipoCoche, number | null>>,
+    umbralesPrecalculados: UmbralesProyectarDisco,
     cache: Map<string, ProyeccionDisco | null>,
   ): Promise<ProyeccionDisco | null> {
     const clave = this.claveEje(p.posicion);
@@ -866,7 +918,11 @@ export class ProyeccionService {
       select: { id: true },
     });
     const resultado = hermanoDisco
-      ? await this.calculator.proyectarDisco(hermanoDisco.id, tasasPorTipoCoche)
+      ? await this.calculator.proyectarDisco(
+          hermanoDisco.id,
+          tasasPorTipoCoche,
+          umbralesPrecalculados,
+        )
       : null;
     cache.set(clave, resultado);
     return resultado;

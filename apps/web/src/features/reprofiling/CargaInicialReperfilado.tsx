@@ -12,7 +12,9 @@ import {
   type ResultadoOcrReperfilado,
 } from '../new-measurement/api'
 import { extraerMensajeError } from '../../lib/extraerMensajeError'
-import { useInvalidarHistorialMediciones } from '../new-measurement/queries'
+import { BotonFechaHoy } from '../new-measurement/components/BotonFechaHoy'
+import { aFechaCorta, fechaHoraHoyLocal } from '../new-measurement/fecha'
+import { useInvalidarHistorialMediciones, useReferenciaFicha } from '../new-measurement/queries'
 
 type TipoTren = 'ALSTOM' | 'ANSALDO'
 
@@ -36,13 +38,22 @@ function opcionesNumeroTren(tipo: TipoTren) {
 
 const FORMATOS_FOTO = 'image/jpeg,image/png,image/webp,image/heic,image/heif'
 
-export function CargaInicialReperfilado({
-  onCreada,
-}: {
+type Props = {
   onCreada: (id: string) => void
-}) {
+  // Preselección desde ModalPendientesReperfilado (Operaciones): el usuario
+  // ya eligió el tren en la tarjeta de "reperfilado pendiente", no tiene
+  // sentido pedírselo de nuevo — mismo criterio que trenInicial en
+  // CargaInicialFicha.tsx (Medición). Todo tren pendiente hoy es Alstom (el
+  // selector "Tipo de tren" solo ofrece esa opción), así que el tipo no
+  // necesita precargarse aparte.
+  trenInicial?: number
+}
+
+export function CargaInicialReperfilado({ onCreada, trenInicial }: Props) {
   const [tipoTren, setTipoTren] = useState<TipoTren>('ALSTOM')
-  const [trenNumero, setTrenNumero] = useState('')
+  const [trenNumero, setTrenNumero] = useState(
+    trenInicial !== undefined ? String(trenInicial) : '',
+  )
   const [kilometraje, setKilometraje] = useState('')
   const [modo, setModo] = useState<'foto' | 'manual'>('foto')
   const [archivo, setArchivo] = useState<File | null>(null)
@@ -51,7 +62,22 @@ export function CargaInicialReperfilado({
   const [cargando, setCargando] = useState(false)
   const [leyendoFoto, setLeyendoFoto] = useState(false)
   const [progresoFoto, setProgresoFoto] = useState(0)
+  // El modo manual arranca con el mismo header completo que HeaderReperfilado
+  // muestra DESPUÉS de crear la ficha (Tren/Kilometraje/P.T./fecha-hora
+  // inicio/fin), no solo Tren y Kilometraje — P.T. y las horas se guardan con
+  // un PATCH aparte apenas se conoce el fichaId (crearFichaManual no los
+  // acepta, ver CrearManualDto); la Fecha de la ficha se deriva de la fecha
+  // de inicio.
+  const [puestoTrabajo, setPuestoTrabajo] = useState('')
+  const [fechaHoraInicio, setFechaHoraInicio] = useState('')
+  const [fechaHoraFin, setFechaHoraFin] = useState('')
   const invalidarHistorial = useInvalidarHistorialMediciones()
+
+  const trenNumeroInt = Number(trenNumero)
+  const trenValido = trenNumero.trim() !== '' && Number.isInteger(trenNumeroInt)
+  const referencia = useReferenciaFicha(trenValido ? trenNumeroInt : undefined, 'ultima_medicion')
+  const referenciaDisponible =
+    referencia.data?.disponible && 'fecha' in referencia.data ? referencia.data : undefined
 
   function seleccionarFoto(foto: File | null) {
     setArchivo(foto)
@@ -67,8 +93,19 @@ export function CargaInicialReperfilado({
       const ficha = await crearFichaManual({
         trenNumero: Number(trenNumero),
         kilometraje: Number(kilometraje),
+        fecha: fechaHoraInicio ? fechaHoraInicio.slice(0, 10) : undefined,
         motivo: 'Reperfilado',
       })
+      // crearFichaManual no acepta P.T./horas (no forman parte de
+      // CrearManualDto, ver backend) — se guardan con un PATCH aparte apenas
+      // se conoce el fichaId, mismo criterio que crearDesdeFoto más abajo.
+      if (puestoTrabajo.trim() || fechaHoraInicio || fechaHoraFin) {
+        await editarFicha(ficha.fichaId, {
+          puestoTrabajo: puestoTrabajo.trim() || undefined,
+          fechaHoraInicio: fechaHoraInicio ? new Date(fechaHoraInicio).toISOString() : undefined,
+          fechaHoraFin: fechaHoraFin ? new Date(fechaHoraFin).toISOString() : undefined,
+        })
+      }
       invalidarHistorial()
       onCreada(ficha.fichaId)
     } catch (err) {
@@ -353,7 +390,7 @@ export function CargaInicialReperfilado({
         </form>
       ) : (
         <form onSubmit={crear} className="mt-5">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <GlassSelect
               label="Tipo de tren *"
               opciones={OPCIONES_TIPO_TREN}
@@ -371,14 +408,63 @@ export function CargaInicialReperfilado({
               onCambiar={(valor) => setTrenNumero(valor ?? '')}
               placeholder="Selecciona el número"
             />
+            <div>
+              <GlassField
+                label="Kilometraje"
+                type="number"
+                step="any"
+                required
+                value={kilometraje}
+                onChange={(e) => setKilometraje(e.target.value)}
+              />
+              {referenciaDisponible && (
+                <p className="mt-1.5 text-[0.6875rem] font-medium leading-snug text-concreto">
+                  Última registrada: {aFechaCorta(referenciaDisponible.fecha)} · {referenciaDisponible.kilometraje} km
+                </p>
+              )}
+            </div>
             <GlassField
-              label="Kilometraje"
-              type="number"
-              step="any"
-              required
-              value={kilometraje}
-              onChange={(e) => setKilometraje(e.target.value)}
+              label="P.T."
+              placeholder="Puesto de trabajo"
+              value={puestoTrabajo}
+              onChange={(e) => setPuestoTrabajo(e.target.value)}
             />
+            <div>
+              <label
+                htmlFor="reperfilado-manual-inicio"
+                className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.1em] text-concreto"
+              >
+                Fecha / hora inicio
+              </label>
+              <div className="flex items-center gap-1.5">
+                <input
+                  id="reperfilado-manual-inicio"
+                  type="datetime-local"
+                  value={fechaHoraInicio}
+                  onChange={(e) => setFechaHoraInicio(e.target.value)}
+                  className="glass-field w-full min-w-0 px-3 py-2 text-sm"
+                />
+                <BotonFechaHoy onClick={() => setFechaHoraInicio(fechaHoraHoyLocal())} />
+              </div>
+            </div>
+            <div>
+              <label
+                htmlFor="reperfilado-manual-fin"
+                className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.1em] text-concreto"
+              >
+                Fecha / hora fin
+              </label>
+              <div className="flex items-center gap-1.5">
+                <input
+                  id="reperfilado-manual-fin"
+                  type="datetime-local"
+                  value={fechaHoraFin}
+                  onChange={(e) => setFechaHoraFin(e.target.value)}
+                  className="glass-field w-full min-w-0 px-3 py-2 text-sm"
+                />
+                <BotonFechaHoy onClick={() => setFechaHoraFin(fechaHoraHoyLocal())} />
+              </div>
+            </div>
           </div>
           {error && (
             <p

@@ -45,6 +45,15 @@ export class OperationsController {
     return this.fleet.detalle(trenNumero);
   }
 
+  // Reexpone FleetService.pendientesReperfilado bajo el gate de roles de
+  // Operaciones — mismo criterio que detalleTren de arriba: FleetController
+  // está restringido a administrador, acá se reusa el servicio sin duplicar
+  // la consulta ni aflojar el acceso de Flota.
+  @Get('reperfilado-pendiente')
+  reperfiladoPendiente() {
+    return this.fleet.pendientesReperfilado();
+  }
+
   @Post('retiro-masivo')
   retirar(
     @Body() dto: RetiroMasivoDto,

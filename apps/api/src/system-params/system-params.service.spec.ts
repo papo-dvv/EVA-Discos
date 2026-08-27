@@ -6,6 +6,7 @@ import {
 import { Test } from '@nestjs/testing';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConsensoValidationService } from '../traceability/consenso-validation.service';
+import { SystemParamsCacheService } from './system-params-cache.service';
 import { SystemParamsService } from './system-params.service';
 
 type Registro = Record<string, unknown>;
@@ -26,6 +27,7 @@ describe('SystemParamsService', () => {
   let service: SystemParamsService;
   let prisma: PrismaMock;
   let consensoValidation: { validarCambioPercentil: jest.Mock };
+  let systemParamsCache: { invalidar: jest.Mock };
 
   beforeEach(async () => {
     prisma = {
@@ -53,11 +55,14 @@ describe('SystemParamsService', () => {
         .mockResolvedValue({ tipo: 'aceptado', ajustes: [] }),
     };
 
+    systemParamsCache = { invalidar: jest.fn() };
+
     const moduleRef = await Test.createTestingModule({
       providers: [
         SystemParamsService,
         { provide: PrismaService, useValue: prisma },
         { provide: ConsensoValidationService, useValue: consensoValidation },
+        { provide: SystemParamsCacheService, useValue: systemParamsCache },
       ],
     }).compile();
 

@@ -1,16 +1,9 @@
 import { GlassField } from '../../components/GlassField'
 import { useSyncedState } from '../../hooks/useSyncedState'
-import { aFechaCorta } from '../new-measurement/fecha'
+import { aFechaCorta, fechaHoraHoyLocal } from '../new-measurement/fecha'
 import { useReferenciaFicha } from '../new-measurement/queries'
 import type { CambiosFicha, FichaMedicion } from '../new-measurement/types'
 import { BotonFechaHoy } from '../new-measurement/components/BotonFechaHoy'
-
-function fechaHoraHoyLocal(): string {
-  const ahora = new Date()
-  ahora.setSeconds(0, 0)
-  ahora.setMinutes(ahora.getMinutes() - ahora.getTimezoneOffset())
-  return ahora.toISOString().slice(0, 16)
-}
 
 export function HeaderReperfilado({
   ficha,

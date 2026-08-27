@@ -7,6 +7,7 @@ import type {
   ProyeccionDisco,
 } from './proyeccion-calculator.service';
 import type { ProyeccionRateService } from './proyeccion-rate.service';
+import type { ProyeccionUmbralesService } from './proyeccion-umbrales.service';
 import { ProyeccionService } from './proyeccion.service';
 
 const TIPOS_COCHE = ['MA1', 'MB1', 'MB3', 'REM', 'MB2', 'MA2'] as const;
@@ -75,6 +76,16 @@ function crearBrakeDiscRules() {
   } as unknown as BrakeDiscRulesService;
 }
 
+function crearUmbralesProyeccion() {
+  return {
+    obtener: jest.fn().mockResolvedValue({
+      hUmbralReperfilado: 5,
+      rdUmbralCambio: 0.4,
+      reperfiladoDescuentoRd: 0.2,
+    }),
+  } as unknown as ProyeccionUmbralesService;
+}
+
 function crearRate(tasas: Partial<Record<string, number | null>> = {}) {
   const completo = Object.fromEntries(
     TIPOS_COCHE.map((t) => [t, tasas[t] ?? null]),
@@ -108,6 +119,7 @@ describe('ProyeccionService.listarDiscos', () => {
       crearRate(),
       calculator,
       crearBrakeDiscRules(),
+      crearUmbralesProyeccion(),
     );
 
     const resultado = await service.listarDiscos({ page: 1, pageSize: 2 });
@@ -135,6 +147,7 @@ describe('ProyeccionService.listarDiscos', () => {
       crearRate(),
       { proyectarDisco: jest.fn() } as unknown as ProyeccionCalculatorService,
       crearBrakeDiscRules(),
+      crearUmbralesProyeccion(),
     );
 
     await service.listarDiscos({ tren: 7, page: 1, pageSize: 25 });
@@ -177,6 +190,7 @@ describe('ProyeccionService.listarDiscos', () => {
       crearRate(),
       calculator,
       crearBrakeDiscRules(),
+      crearUmbralesProyeccion(),
     );
     const resultado = await service.listarDiscos({ page: 1, pageSize: 25 });
 
@@ -223,6 +237,7 @@ describe('ProyeccionService.listarDiscos', () => {
       crearRate(),
       calculator,
       crearBrakeDiscRules(),
+      crearUmbralesProyeccion(),
     );
     const resultado = await service.listarDiscos({ page: 1, pageSize: 25 });
 
@@ -261,6 +276,7 @@ describe('ProyeccionService.listarDiscos — filtros derivados', () => {
       crearRate(),
       calculator,
       crearBrakeDiscRules(),
+      crearUmbralesProyeccion(),
     );
   }
 
@@ -414,6 +430,7 @@ describe('ProyeccionService.listarDiscos — filtros nuevos de eje/rueda/lado/mo
       crearRate(),
       calculator,
       crearBrakeDiscRules(),
+      crearUmbralesProyeccion(),
     );
   }
 
@@ -433,6 +450,7 @@ describe('ProyeccionService.listarDiscos — filtros nuevos de eje/rueda/lado/mo
       crearRate(),
       { proyectarDisco: jest.fn() } as unknown as ProyeccionCalculatorService,
       crearBrakeDiscRules(),
+      crearUmbralesProyeccion(),
     );
 
     await service.listarDiscos({
@@ -478,6 +496,7 @@ describe('ProyeccionService.listarDiscos — filtros nuevos de eje/rueda/lado/mo
       crearRate(),
       calculator,
       crearBrakeDiscRules(),
+      crearUmbralesProyeccion(),
     );
 
     const resultado = await service.listarDiscos({
@@ -563,6 +582,7 @@ describe('ProyeccionService.listarDiscos — Parte 2: campos del ciclo de reperf
       crearRate(),
       calculator,
       crearBrakeDiscRules(),
+      crearUmbralesProyeccion(),
     );
 
     const resultado = await service.listarDiscos({ page: 1, pageSize: 25 });
@@ -640,6 +660,7 @@ describe('ProyeccionService.listarDiscos — Parte 3: fecha antepuesta por el la
         crearRate(),
         calculator,
         crearBrakeDiscRules(),
+        crearUmbralesProyeccion(),
       ),
       findFirstMock,
     };
@@ -804,6 +825,7 @@ describe('ProyeccionService.obtenerPromedioPorVagon', () => {
       rate,
       {} as unknown as ProyeccionCalculatorService,
       crearBrakeDiscRules(),
+      crearUmbralesProyeccion(),
     );
 
     const resultado = await service.obtenerPromedioPorVagon();
@@ -874,6 +896,7 @@ describe('ProyeccionService.obtenerPronostico', () => {
       crearRate(),
       calculator,
       crearBrakeDiscRules(),
+      crearUmbralesProyeccion(),
     );
 
     const meses = await service.obtenerPronostico({ meses: 12 });
@@ -933,6 +956,7 @@ describe('ProyeccionService.obtenerPronostico', () => {
       crearRate(),
       calculator,
       crearBrakeDiscRules(),
+      crearUmbralesProyeccion(),
     );
     const meses = await service.obtenerPronostico({ meses: 12 });
 
@@ -980,6 +1004,7 @@ describe('ProyeccionService.obtenerPronostico', () => {
       crearRate(),
       calculator,
       crearBrakeDiscRules(),
+      crearUmbralesProyeccion(),
     );
     const meses = await service.obtenerPronostico({ meses: 12 });
 
@@ -1009,6 +1034,7 @@ describe('ProyeccionService.obtenerPronostico', () => {
       crearRate(),
       calculator,
       crearBrakeDiscRules(),
+      crearUmbralesProyeccion(),
     );
     const meses = await service.obtenerPronostico({ meses: 60 });
 
@@ -1028,6 +1054,7 @@ describe('ProyeccionService.obtenerPronostico', () => {
       crearRate(),
       { proyectarDisco: jest.fn() } as unknown as ProyeccionCalculatorService,
       crearBrakeDiscRules(),
+      crearUmbralesProyeccion(),
     );
 
     const meses = await service.obtenerPronostico({ meses: 77 });
@@ -1089,6 +1116,7 @@ describe('ProyeccionService.obtenerPronostico', () => {
       crearRate(),
       calculator,
       crearBrakeDiscRules(),
+      crearUmbralesProyeccion(),
     );
 
     const todos = await service.obtenerDetallePronostico({
@@ -1174,6 +1202,7 @@ describe('ProyeccionService.obtenerPronostico', () => {
       crearRate(),
       calculator,
       crearBrakeDiscRules(),
+      crearUmbralesProyeccion(),
     );
 
     const meses = await service.obtenerPronostico({ meses: 12 });
