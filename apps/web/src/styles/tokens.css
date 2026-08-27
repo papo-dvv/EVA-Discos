@@ -134,9 +134,17 @@ body {
     radial-gradient(95% 75% at 90% 112%, rgba(255, 255, 255, 0.42) 0%, rgba(255, 255, 255, 0) 52%);
 }
 
-/* El contenido va por encima de los brillos/grano */
-.glass-surface > * {
+/* El contenido va por encima de los brillos/grano. No forzar `relative`
+   sobre hijos que ya son capas absolutas: eso los devolvía al flujo y
+   agrandaba tarjetas completas (p. ej. Relación de bogies). */
+.glass-surface > :not(.absolute):not(.fixed):not(.sticky) {
   position: relative;
+  z-index: 1;
+}
+
+.glass-surface > .absolute,
+.glass-surface > .fixed,
+.glass-surface > .sticky {
   z-index: 1;
 }
 

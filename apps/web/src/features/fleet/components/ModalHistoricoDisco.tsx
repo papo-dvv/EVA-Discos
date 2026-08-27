@@ -1,5 +1,5 @@
 import { Activity, CalendarDays, Disc3, Rotate3D } from 'lucide-react'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { GlassModal } from '../../../components/GlassModal'
 import { ScrollArea } from '../../../components/ScrollArea'
 import { useFleetHistorico } from '../queries'
@@ -10,12 +10,21 @@ type Props = {
   onCerrar: () => void
 }
 
+type Metrica = 'rd' | 'h' | 't'
+
 function formato(valor: number | null | undefined): string {
   return valor === null || valor === undefined ? '—' : valor.toFixed(2)
 }
 
 export function ModalHistoricoDisco({ disco, onCerrar }: Props) {
   const historico = useFleetHistorico(disco.codigoDisco, disco.lado)
+  const [metricaActiva, setMetricaActiva] = useState<Metrica>('rd')
+  const graficaRef = useRef<HTMLDivElement>(null)
+
+  function seleccionarMetrica(metrica: Metrica) {
+    setMetricaActiva(metrica)
+    graficaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
 
   return (
     <GlassModal
@@ -24,7 +33,7 @@ export function ModalHistoricoDisco({ disco, onCerrar }: Props) {
       ancho={960}
       altoMaximo="min(760px, calc(100dvh - 1.5rem))"
     >
-      <ScrollArea className="min-h-0 flex-1" viewportClassName="min-h-0 flex-1">
+      <ScrollArea className="flex min-h-0 flex-1 flex-col" viewportClassName="min-h-0 flex-1 overscroll-contain">
         {historico.isLoading && <p className="py-8 text-center font-body text-sm text-concreto">Cargando histórico...</p>}
         {historico.isError && (
           <p role="alert" className="py-8 text-center font-body text-sm text-[color:var(--color-estado-critico)]">
@@ -34,11 +43,11 @@ export function ModalHistoricoDisco({ disco, onCerrar }: Props) {
         {historico.data && (
           <div className="space-y-4 pr-2">
             <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
-              <DiscoInteractivo3D disco={disco} />
+              <DiscoInteractivo3D disco={disco} metricaActiva={metricaActiva} />
               <div className="grid content-start gap-3 sm:grid-cols-3 lg:grid-cols-1">
-                <DatoActual etiqueta="Rd actual" valor={historico.data.actual.rd} tono="emerald" />
-                <DatoActual etiqueta="H actual" valor={historico.data.actual.h} tono="orange" />
-                <DatoActual etiqueta="T actual" valor={historico.data.actual.t} tono="violet" />
+                <DatoActual metrica="rd" activa={metricaActiva === 'rd'} etiqueta="Rd actual" valor={historico.data.actual.rd} tono="emerald" onSeleccionar={seleccionarMetrica} />
+                <DatoActual metrica="h" activa={metricaActiva === 'h'} etiqueta="H actual" valor={historico.data.actual.h} tono="orange" onSeleccionar={seleccionarMetrica} />
+                <DatoActual metrica="t" activa={metricaActiva === 't'} etiqueta="T actual" valor={historico.data.actual.t} tono="violet" onSeleccionar={seleccionarMetrica} />
               </div>
             </div>
 
@@ -48,7 +57,7 @@ export function ModalHistoricoDisco({ disco, onCerrar }: Props) {
               </div>
             ) : (
               <>
-                <GraficoHistorico puntos={historico.data.historico} />
+                <div ref={graficaRef}><GraficoHistorico puntos={historico.data.historico} metricaActiva={metricaActiva} onSeleccionar={setMetricaActiva} /></div>
                 <TablaHistorico puntos={historico.data.historico} />
               </>
             )}
@@ -59,7 +68,7 @@ export function ModalHistoricoDisco({ disco, onCerrar }: Props) {
   )
 }
 
-function DiscoInteractivo3D({ disco }: { disco: FleetDiscoDetalle }) {
+function DiscoInteractivo3D({ disco, metricaActiva }: { disco: FleetDiscoDetalle; metricaActiva: Metrica }) {
   const [giro, setGiro] = useState({ x: -8, y: -18 })
   const [girando, setGirando] = useState(false)
   const estado = disco.estadoCalculado ?? 'sin estado'
@@ -69,6 +78,11 @@ function DiscoInteractivo3D({ disco }: { disco: FleetDiscoDetalle }) {
       : estado === 'SEGUIMIENTO'
         ? 'from-amber-400 to-orange-500'
         : 'from-emerald-400 to-teal-600'
+  const metrica = {
+    rd: { etiqueta: 'Radio de desgaste (Rd)', color: '#34d399', halo: 'rgba(52,211,153,.75)' },
+    h: { etiqueta: 'Altura de pestaña (H)', color: '#f97316', halo: 'rgba(249,115,22,.75)' },
+    t: { etiqueta: 'Espesor total (T)', color: '#8b5cf6', halo: 'rgba(139,92,246,.75)' },
+  }[metricaActiva]
 
   return (
     <section className="relative isolate min-h-[290px] overflow-hidden rounded-[1.8rem] border border-emerald-200/80 bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 p-5 text-white shadow-xl shadow-emerald-950/15">
@@ -111,8 +125,8 @@ function DiscoInteractivo3D({ disco }: { disco: FleetDiscoDetalle }) {
           <span className="absolute inset-0 rounded-full bg-gradient-to-br from-slate-100 via-slate-500 to-slate-950 shadow-[inset_-12px_-10px_24px_rgba(0,0,0,.55),inset_9px_8px_18px_rgba(255,255,255,.8),10px_15px_20px_rgba(0,0,0,.45)]" />
           <span className="absolute inset-[10px] rounded-full border border-white/40 bg-[repeating-conic-gradient(from_0deg,#9ca3af_0deg,#e5e7eb_3deg,#6b7280_6deg)] opacity-80" />
           <span className="absolute inset-[24px] rounded-full border-[5px] border-slate-700 bg-gradient-to-br from-slate-300 via-slate-600 to-slate-900 shadow-inner" />
-          <span className="absolute inset-[46px] rounded-full border-4 border-slate-300 bg-slate-950 shadow-[inset_5px_4px_10px_#000,0_0_0_7px_rgba(16,185,129,.22)]" />
-          <span className="absolute inset-[59px] rounded-full bg-gradient-to-br from-emerald-300 to-emerald-800 shadow-[0_0_18px_rgba(52,211,153,.75)]" />
+          <span className="absolute inset-[46px] rounded-full border-4 bg-slate-950 shadow-[inset_5px_4px_10px_#000] transition-colors" style={{ borderColor: metrica.color, boxShadow: `inset 5px 4px 10px #000, 0 0 0 7px ${metrica.halo.replace('.75', '.22')}` }} />
+          <span className="absolute inset-[59px] rounded-full transition-colors" style={{ background: `radial-gradient(circle at 35% 30%, #fff8, ${metrica.color} 35%, #082f2a)`, boxShadow: `0 0 20px ${metrica.halo}` }} />
           {[0, 60, 120, 180, 240, 300].map((angulo) => (
             <span key={angulo} className="absolute left-1/2 top-1/2 h-2.5 w-2.5 rounded-full border border-white/50 bg-slate-900 shadow-inner" style={{ transform: `translate(-50%, -50%) rotate(${angulo}deg) translateY(-50px)` }} />
           ))}
@@ -120,28 +134,28 @@ function DiscoInteractivo3D({ disco }: { disco: FleetDiscoDetalle }) {
       </button>
 
       <div className="relative z-10 flex flex-wrap items-center justify-between gap-2 border-t border-white/10 pt-3 text-[0.68rem] text-slate-300">
-        <span className="inline-flex items-center gap-1.5"><Rotate3D size={14} className="text-emerald-300" /> Arrastra o mueve para inspeccionar</span>
+        <span className="inline-flex items-center gap-1.5"><Rotate3D size={14} style={{ color: metrica.color }} /> Visualizando: <strong className="text-white">{metrica.etiqueta}</strong></span>
         <span className="inline-flex items-center gap-1.5"><CalendarDays size={14} /> {disco.fechaUltimaMedicion ?? 'Sin medición'}</span>
       </div>
     </section>
   )
 }
 
-function DatoActual({ etiqueta, valor, tono }: { etiqueta: string; valor: number | null | undefined; tono: 'emerald' | 'orange' | 'violet' }) {
+function DatoActual({ metrica, activa, etiqueta, valor, tono, onSeleccionar }: { metrica: Metrica; activa: boolean; etiqueta: string; valor: number | null | undefined; tono: 'emerald' | 'orange' | 'violet'; onSeleccionar: (metrica: Metrica) => void }) {
   const estilos = {
     emerald: 'border-emerald-200 bg-gradient-to-br from-emerald-50 to-white text-emerald-800',
     orange: 'border-orange-200 bg-gradient-to-br from-orange-50 to-white text-orange-800',
     violet: 'border-violet-200 bg-gradient-to-br from-violet-50 to-white text-violet-800',
   }
   return (
-    <div className={`flex items-center justify-between rounded-2xl border px-4 py-3 shadow-sm ${estilos[tono]}`}>
+    <button type="button" aria-pressed={activa} onClick={() => onSeleccionar(metrica)} className={`flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md ${estilos[tono]} ${activa ? 'ring-2 ring-current ring-offset-2' : 'opacity-80'}`}>
       <div><p className="font-body text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-slate-500">{etiqueta}</p><p className="mt-1 font-data text-2xl font-bold">{formato(valor)}</p></div>
       <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/80 shadow-sm"><Activity size={20} /></span>
-    </div>
+    </button>
   )
 }
 
-function GraficoHistorico({ puntos }: { puntos: FleetHistoricoPunto[] }) {
+function GraficoHistorico({ puntos, metricaActiva, onSeleccionar }: { puntos: FleetHistoricoPunto[]; metricaActiva: Metrica; onSeleccionar: (metrica: Metrica) => void }) {
   const series = [
     { key: 'rd' as const, label: 'Rd', color: 'var(--color-verde)' },
     { key: 'h' as const, label: 'H', color: 'var(--color-estado-cambio)' },
@@ -171,10 +185,10 @@ function GraficoHistorico({ puntos }: { puntos: FleetHistoricoPunto[] }) {
     <div className="rounded-[1.6rem] border border-sky-200/80 bg-gradient-to-br from-white via-sky-50/40 to-emerald-50/50 p-4 shadow-sm">
       <div className="mb-3 flex flex-wrap items-center gap-3">
         {series.map((serie) => (
-          <span key={serie.key} className="inline-flex items-center gap-2 font-body text-xs font-semibold text-concreto-oscuro">
+          <button type="button" key={serie.key} onClick={() => onSeleccionar(serie.key)} className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 font-body text-xs font-semibold transition ${metricaActiva === serie.key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 opacity-60'}`}>
             <span className="h-2.5 w-2.5 rounded-full" style={{ background: serie.color }} />
             {serie.label}
-          </span>
+          </button>
         ))}
       </div>
       <svg viewBox={`0 0 ${ancho} ${alto}`} className="h-auto w-full" role="img" aria-label="Histórico Rd H T">
@@ -193,7 +207,7 @@ function GraficoHistorico({ puntos }: { puntos: FleetHistoricoPunto[] }) {
           )
         })}
         {series.map((serie) => (
-          <path key={serie.key} d={pathSerie(serie.key)} fill="none" stroke={serie.color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+          <path key={serie.key} d={pathSerie(serie.key)} fill="none" stroke={serie.color} strokeWidth={metricaActiva === serie.key ? 4 : 2} opacity={metricaActiva === serie.key ? 1 : 0.18} strokeLinecap="round" strokeLinejoin="round" className="transition-all" />
         ))}
         {puntos.map((punto, idx) => (
           <g key={`${punto.fecha}-${idx}`}>
@@ -201,7 +215,7 @@ function GraficoHistorico({ puntos }: { puntos: FleetHistoricoPunto[] }) {
               const valor = punto[serie.key]
               if (valor === null || valor === undefined) return null
               return (
-                <circle key={serie.key} cx={x(idx)} cy={y(valor)} r="4" fill={serie.color}>
+                <circle key={serie.key} cx={x(idx)} cy={y(valor)} r={metricaActiva === serie.key ? 5 : 3} opacity={metricaActiva === serie.key ? 1 : 0.18} fill={serie.color}>
                   <title>{`${serie.label} ${formato(valor)} · ${punto.fecha ?? 'Sin fecha'}`}</title>
                 </circle>
               )
