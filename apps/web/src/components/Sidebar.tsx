@@ -36,7 +36,7 @@ export function Sidebar() {
     // overflow:hidden estuviera acá, recortaría el botón de colapso de
     // abajo, que sobresale un poco del borde derecho (-right-3).
     <aside
-      className={`relative shrink-0 transition-[width] duration-300 ${colapsada ? 'w-[68px]' : 'w-[220px] max-lg:w-[68px]'}`}
+      className={`relative shrink-0 transition-[width] duration-300 ${colapsada ? 'w-[68px]' : 'w-[220px]'}`}
     >
       {/* Sin z-index negativo a propósito: un z negativo acá puede escapar
           el stacking context del <aside> y terminar detrás del <main>
@@ -64,8 +64,8 @@ export function Sidebar() {
             />
             {!colapsada && (
               <span className="min-w-0 leading-none">
-                <span className="block truncate text-[13px] font-bold text-white max-lg:hidden">Metro Lima</span>
-                <span className="mt-1 block text-[8px] font-medium text-white/55 max-lg:hidden">Gestión</span>
+                <span className="block truncate text-[13px] font-bold text-white">Metro Lima</span>
+                <span className="mt-1 block text-[8px] font-medium text-white/55">Gestión</span>
               </span>
             )}
           </Link>
@@ -78,7 +78,7 @@ export function Sidebar() {
           return (
             <div key={seccion.titulo} className="mb-4">
               {!colapsada && (
-                <p className="mb-1.5 px-2.5 font-body text-[9px] font-bold uppercase tracking-[0.15em] text-white/38 max-lg:hidden">
+                <p className="mb-1.5 px-2.5 font-body text-[9px] font-bold uppercase tracking-[0.15em] text-white/38">
                   {seccion.titulo}
                 </p>
               )}
@@ -87,6 +87,10 @@ export function Sidebar() {
                   <li key={item.ruta}>
                     <NavLink
                       to={item.ruta}
+                      // "/" (Dashboard) matchea por prefijo con TODAS las
+                      // rutas si no se fija `end` — sin esto, quedaría
+                      // marcado como activo en cualquier pantalla.
+                      end={item.ruta === '/'}
                       title={colapsada ? item.etiqueta : undefined}
                       className={({ isActive }: { isActive: boolean }) =>
                         `flex min-h-9 items-center gap-3 rounded-xl border px-2.5 py-2 font-body text-[12px] transition-all ${
@@ -97,7 +101,7 @@ export function Sidebar() {
                       }
                     >
                       <item.icono size={17} aria-hidden className="shrink-0" />
-                      {!colapsada && <span className="truncate max-lg:hidden">{item.etiqueta}</span>}
+                      {!colapsada && <span className="truncate">{item.etiqueta}</span>}
                     </NavLink>
                   </li>
                 ))}
@@ -128,7 +132,7 @@ export function Sidebar() {
           }`}
         >
           <LogOut size={17} aria-hidden className="shrink-0" />
-          {!colapsada && <span className="max-lg:hidden">Cerrar sesión</span>}
+          {!colapsada && <span>Cerrar sesión</span>}
         </button>
       </div>
       </div>

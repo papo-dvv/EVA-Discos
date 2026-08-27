@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { ArrowRight, Boxes, CheckCircle2, Disc3, PackageMinus, ShieldCheck } from 'lucide-react'
+import { ArrowRight, Boxes, CheckCircle2, Disc3, PackageMinus, ScanLine, ShieldCheck } from 'lucide-react'
 import { GlassSurface } from '../components/GlassSurface'
 import { SegmentedControl } from '../components/SegmentedControl'
 import { ModalCambioDisco } from '../features/operations/components/ModalCambioDisco'
+import { ModalPendientesReperfilado } from '../features/operations/components/ModalPendientesReperfilado'
 import { ModalRetiroMasivo } from '../features/operations/components/ModalRetiroMasivo'
 import { useStatsInventario } from '../features/inventory/queries'
 
@@ -13,6 +14,7 @@ export function Operaciones() {
   const [tipoTren, setTipoTren] = useState<TipoTren>('ALSTOM')
   const [retiroAbierto, setRetiroAbierto] = useState(false)
   const [cambioAbierto, setCambioAbierto] = useState(false)
+  const [reperfiladoAbierto, setReperfiladoAbierto] = useState(false)
   const [preseleccion, setPreseleccion] = useState<{ tren: number; coche: number } | null>(null)
   const [searchParams, setSearchParams] = useSearchParams()
   const stats = useStatsInventario()
@@ -83,7 +85,7 @@ export function Operaciones() {
 
       <div className="mb-4"><p className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-emerald-700">Flujo de trabajo</p><h2 className="mt-1 font-display text-2xl font-bold text-slate-900">Operaciones disponibles</h2><p className="mt-1 text-sm text-slate-500">Selecciona una acción para comenzar el proceso guiado.</p></div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <button type="button" onClick={() => setRetiroAbierto(true)} className="group block text-left">
           <GlassSurface fuerte elevar className="h-full rounded-[2rem] border-amber-200/70 bg-gradient-to-br from-white to-amber-50/70 p-6 transition-all group-hover:border-amber-300 group-hover:shadow-[0_20px_50px_rgba(217,119,6,0.16)]">
             <div className="flex items-start justify-between gap-3">
@@ -119,9 +121,28 @@ export function Operaciones() {
             </span>
           </GlassSurface>
         </button>
+
+        <button type="button" onClick={() => setReperfiladoAbierto(true)} className="group block text-left">
+          <GlassSurface fuerte elevar className="h-full rounded-[2rem] border-violet-200/70 bg-gradient-to-br from-white to-violet-50/70 p-6 transition-all group-hover:border-violet-300 group-hover:shadow-[0_20px_50px_rgba(124,58,237,0.16)]">
+            <div className="flex items-start justify-between gap-3">
+              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-400 to-violet-700 text-white shadow-lg shadow-violet-600/20">
+                <ScanLine size={20} aria-hidden />
+              </span>
+              <ArrowRight size={20} aria-hidden className="text-violet-600 transition-transform group-hover:translate-x-1" />
+            </div>
+            <p className="mt-4 font-display text-xl font-semibold text-concreto-oscuro">Reperfilado</p>
+            <p className="mt-1 font-body text-sm text-concreto">
+              Trenes con discos pendientes de reperfilado según su última medición confirmada.
+            </p>
+            <span className="mt-5 inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-violet-500 to-violet-700 px-4 py-2 font-body text-xs font-bold text-white shadow-md shadow-violet-600/15">
+              Ver pendientes →
+            </span>
+          </GlassSurface>
+        </button>
       </div>
 
       {retiroAbierto && <ModalRetiroMasivo onCerrar={() => setRetiroAbierto(false)} />}
+      {reperfiladoAbierto && <ModalPendientesReperfilado onCerrar={() => setReperfiladoAbierto(false)} />}
       {cambioAbierto && (
         <ModalCambioDisco
           trenInicial={preseleccion?.tren}

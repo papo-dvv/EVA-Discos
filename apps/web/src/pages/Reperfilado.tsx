@@ -1,10 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { BellRing, ClipboardPenLine, Download, RefreshCcw, Ruler, TriangleAlert } from 'lucide-react'
+import { ClipboardPenLine, Download, RefreshCcw, Ruler, TriangleAlert } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { GlassButton } from '../components/GlassButton'
 import { GlassSurface } from '../components/GlassSurface'
-import { EstadoApiNoDisponible } from '../components/EstadoApiNoDisponible'
 import { SegmentedControl } from '../components/SegmentedControl'
 import { EVENTO_COLAPSAR_SIDEBAR } from '../components/Sidebar'
 import { WarningTooltip } from '../components/WarningTooltip'
@@ -34,7 +33,6 @@ import type {
 } from '../features/new-measurement/types'
 import { CargaInicialReperfilado } from '../features/reprofiling/CargaInicialReperfilado'
 import { HeaderReperfilado } from '../features/reprofiling/HeaderReperfilado'
-import { CodigosCocheReperfilado } from '../features/reprofiling/CodigosCocheReperfilado'
 import { extraerMensajeError } from '../lib/extraerMensajeError'
 
 const MOTIVO_OPCIONES: {
@@ -315,10 +313,10 @@ export function Reperfilado({
   }
 
   return (
-    <div className={fichaId ? 'px-2 py-4 sm:px-3' : 'px-3 py-5 sm:px-5'}>
-      <div className={fichaId ? 'w-full' : 'mx-auto flex w-full max-w-[72rem] flex-col gap-4 xl:max-w-[96rem] xl:flex-row xl:items-start'}>
+    <div className={fichaId ? 'px-2 py-4 sm:px-3' : 'px-3 py-6 sm:px-5'}>
+      <div className={fichaId ? 'w-full' : 'mx-auto flex max-w-[75rem] flex-col gap-4 xl:max-w-[96rem] xl:flex-row xl:items-start'}>
         <div className={fichaId ? 'min-w-0' : 'min-w-0 flex-1'}>
-          <GlassSurface className="rounded-glass px-5 py-4 sm:px-6">
+          <GlassSurface className="flex flex-wrap items-center justify-between gap-4 rounded-glass px-6 py-4">
             <div>
               <h1 className="font-display text-2xl font-semibold tracking-tight text-concreto-oscuro">
                 Reperfilado
@@ -327,22 +325,38 @@ export function Reperfilado({
                 Control de trabajos en torno fosa - discos de freno Tren Alstom
               </p>
             </div>
-            <div className="mt-3 flex flex-col gap-2 border-t border-concreto/10 pt-3 sm:flex-row sm:items-center">
-              <p className="font-body text-xs font-semibold uppercase tracking-[0.1em] text-concreto">Motivo de la ficha</p>
-              <SegmentedControl
-                ariaLabel="Motivo de la ficha"
-                opciones={MOTIVO_OPCIONES.map((opcion) => fichaId && opcion.valor !== 'Reperfilado' ? { ...opcion, deshabilitada: true, tooltip: 'Cancela o confirma la ficha actual para cambiar de motivo.', tooltipPosicion: 'abajo' as const } : opcion)}
-                valor="Reperfilado"
-                onCambiar={(valor) => {
-                  if (valor === 'Medición') {
-                    const activa = obtenerFichaActiva('medicion')
-                    onCambiarMotivo?.('Medición')
-                    navigate(activa ? `/nuevas-mediciones/${activa}` : '/nuevas-mediciones')
-                  }
-                }}
-              />
-            </div>
           </GlassSurface>
+
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <p className="font-body text-xs font-semibold uppercase tracking-[0.1em] text-concreto">
+            Motivo
+          </p>
+          <SegmentedControl
+            ariaLabel="Motivo de la ficha"
+            opciones={MOTIVO_OPCIONES.map((opcion) =>
+              fichaId && opcion.valor !== 'Reperfilado'
+                ? {
+                    ...opcion,
+                    deshabilitada: true,
+                    tooltip: 'Cancela o confirma la ficha actual para cambiar de motivo.',
+                    tooltipPosicion: 'abajo' as const,
+                  }
+                : opcion,
+            )}
+            valor="Reperfilado"
+            onCambiar={(valor) => {
+              if (valor === 'Medición') {
+                const activa = obtenerFichaActiva('medicion')
+                onCambiarMotivo?.('Medición')
+                navigate(
+                  activa
+                    ? `/nuevas-mediciones/${activa}`
+                    : '/nuevas-mediciones',
+                )
+              }
+            }}
+          />
+        </div>
 
         {!fichaId && (
           <GlassSurface fuerte className="mt-4 rounded-glass-lg p-6 sm:p-8">
@@ -359,7 +373,12 @@ export function Reperfilado({
           (preview.isLoading ? (
             <p className="mt-6 text-sm text-concreto">Cargando ficha…</p>
           ) : preview.isError ? (
-            <EstadoApiNoDisponible detalle={extraerMensajeError(preview.error)} />
+            <p
+              role="alert"
+              className="mt-6 text-sm text-[color:var(--color-estado-critico)]"
+            >
+              {extraerMensajeError(preview.error)}
+            </p>
           ) : ficha && preview.data ? (
             <>
               <div className="mt-4 flex flex-wrap justify-end gap-2">
@@ -407,30 +426,26 @@ export function Reperfilado({
                   deshabilitada={tablaBloqueada}
                 />
               </GlassSurface>
-              <GlassSurface className="mt-4 rounded-glass px-5 py-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.1em] text-concreto">
-                  Normas de seguridad
-                </p>
-                <p className="mt-1 text-sm text-concreto-oscuro">
-                  Antes de poner en marcha el torno se deben informar los
-                  trabajos a las áreas involucradas y cumplir los controles de
-                  seguridad exigidos por la empresa.
-                </p>
-              </GlassSurface>
-              <AlertasTecnicasReperfilado
-                ficha={ficha}
-                filas={rows.length}
-                tieneCodigos={Object.keys(ficha.codigosCoche ?? {}).length >= 6}
-                tieneCodigosBogie={Object.keys(ficha.codigosBogie ?? {}).length > 0}
-                resultado={resultado}
-              />
-              <CodigosCocheReperfilado
-                trenNumero={ficha.trenNumero}
-                esqueleto={preview.data.esqueleto}
-                codigos={ficha.codigosCoche}
-                deshabilitado={tablaBloqueada}
-                onGuardar={(codigosCoche) => editar.mutate({ codigosCoche })}
-              />
+              <div
+                role="alert"
+                className="mt-4 flex gap-3 rounded-glass border border-amber-600/30 bg-amber-50/80 px-5 py-4"
+              >
+                <TriangleAlert
+                  size={20}
+                  className="mt-0.5 shrink-0 text-amber-700"
+                  aria-hidden
+                />
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.1em] text-amber-800">
+                    Normas de seguridad
+                  </p>
+                  <p className="mt-1 text-sm font-medium text-amber-900">
+                    Antes de poner en marcha el torno se deben informar los
+                    trabajos a las áreas involucradas y cumplir los controles de
+                    seguridad exigidos por la empresa.
+                  </p>
+                </div>
+              </div>
               <TablaFichaReperfilado
                 fichaId={fichaId}
                 esqueleto={preview.data.esqueleto}
@@ -602,18 +617,4 @@ export function Reperfilado({
       )}
     </div>
   )
-}
-
-function AlertasTecnicasReperfilado({ ficha, filas, tieneCodigos, tieneCodigosBogie, resultado }: { ficha: import('../features/new-measurement/types').FichaMedicion; filas: number; tieneCodigos: boolean; tieneCodigosBogie: boolean; resultado: ResumenVerificacion | null }) {
-  const alertas = [
-    !filas ? 'Aún no hay mediciones leídas: subí una fotografía o completa una posición manual.' : null,
-    !ficha.puestoTrabajo?.trim() ? 'Falta el P.T. (puesto de trabajo).' : null,
-    !ficha.fechaHoraInicio ? 'Falta la fecha/hora de inicio.' : null,
-    !tieneCodigos ? 'Revisá la lista de códigos de coches antes de bloquear.' : null,
-    !tieneCodigosBogie ? 'Faltan códigos de bogie; la IA puede sugerirlos desde la fotografía.' : null,
-    ficha.todasConformes === null ? 'Indicá si todas las medidas son conformes.' : null,
-    ...(resultado?.alertasReperfilado ?? []),
-  ].filter((alerta): alerta is string => Boolean(alerta))
-  if (!alertas.length) return <div className="mt-4 flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-800"><BellRing size={17} />Sin pendientes técnicos detectados. La ficha está lista para verificar.</div>
-  return <section role="alert" className="mt-4 rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-white px-4 py-3"><div className="flex items-center gap-2 font-display text-sm font-semibold text-amber-900"><TriangleAlert size={17} />Alertas y datos pendientes</div><ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-amber-900">{alertas.map((alerta) => <li key={alerta}>{alerta}</li>)}</ul></section>
 }

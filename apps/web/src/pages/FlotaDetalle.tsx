@@ -1,11 +1,32 @@
-import { Activity, ArrowLeft, CircleCheck, TriangleAlert, TrainFront } from 'lucide-react'
+import { ArrowLeft, Train } from 'lucide-react'
 import { useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { GlassSurface } from '../components/GlassSurface'
+import { ScrollArea } from '../components/ScrollArea'
 import { BogieVisualizer } from '../features/fleet/components/BogieVisualizer'
+import { ESTADO_META } from '../features/fleet/components/estadoVisual'
+import { FABRICANTE_CLASES, fabricanteDeTren } from '../features/fleet/components/fabricante'
+import { LeyendaRangosDiscos } from '../features/fleet/components/LeyendaRangosDiscos'
 import { ModalHistoricoDisco } from '../features/fleet/components/ModalHistoricoDisco'
+import { getEstadoDominanteTren, ICONO_ESTADO_TREN } from '../features/fleet/components/semaforoTren'
 import { useFleetDetalle } from '../features/fleet/queries'
-import type { FleetDiscoDetalle } from '../features/fleet/types'
+import type { EstadoTren, FleetDiscoDetalle } from '../features/fleet/types'
+import { aFechaCorta } from '../features/new-measurement/fecha'
+import type { EstadoDisco } from '../features/scan-records/types'
+
+const ESTADO_TREN_LABEL: Record<EstadoTren, string> = {
+  operativo: 'Activo',
+  mantenimiento: 'En mantenimiento',
+  baja: 'De baja',
+}
+
+function formatoKm(km: number | null): string {
+  return km === null ? '—' : `${new Intl.NumberFormat('es-PE').format(Math.round(km))} km`
+}
+
+function formatoFecha(iso: string | null): string {
+  return iso ? aFechaCorta(iso) : '—'
+}
 
 export function FlotaDetalle() {
   const params = useParams()
@@ -15,37 +36,22 @@ export function FlotaDetalle() {
 
   if (!Number.isInteger(tren)) return <Navigate to="/fleet" replace />
 
+  // cardcochealstom{1-6}.png / cardcocheab{1-6}.png — mismo criterio de par
+  // por fabricante que ya usa Flota.tsx con mediciones-tren-alerta-*.png.
+  const fabricante = fabricanteDeTren(tren)
+  const prefijoImagenCoche = fabricante === 'ALSTOM' ? 'cardcochealstom' : 'cardcocheab'
+
   return (
-    <div className="mx-auto w-full max-w-[1320px] px-4 py-8 sm:px-6 lg:px-8">
+    <div className="mx-auto w-full max-w-none px-4 py-6 sm:px-6 lg:px-10">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-        <Link to="/fleet" className="glass-chip inline-flex items-center gap-2 text-concreto-oscuro">
+        <Link
+          to="/fleet"
+          className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-emerald-300 hover:text-emerald-700"
+        >
           <ArrowLeft size={15} aria-hidden />
           Flota
         </Link>
       </div>
-
-      <GlassSurface fuerte className="mb-6 rounded-glass p-5">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <p className="font-body text-xs font-semibold uppercase tracking-[0.18em] text-concreto">Detalle de tren</p>
-            <h1 className="mt-1 flex items-center gap-3 font-display text-3xl font-semibold text-concreto-oscuro">
-              <TrainFront size={28} aria-hidden />
-              Tren {tren}
-            </h1>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Leyenda estado="OK" />
-            <Leyenda estado="SEGUIMIENTO" />
-            <Leyenda estado="CAMBIO" />
-            <Leyenda estado="CRITICO" />
-            <Leyenda estado="REPERFILADO" />
-            <span className="glass-chip inline-flex items-center gap-2">
-              <span className="h-2.5 w-2.5 rounded-full bg-concreto/40" />
-              Sin datos
-            </span>
-          </div>
-        </div>
-      </GlassSurface>
 
       {detalle.isLoading && <p className="py-12 text-center font-body text-sm text-concreto">Cargando detalle...</p>}
       {detalle.isError && (
@@ -55,22 +61,109 @@ export function FlotaDetalle() {
       )}
 
       {detalle.data && (
-        <div className="space-y-5">
-          <ResumenOperativo detalle={detalle.data} />
-          {detalle.data.coches.map((coche) => (
-            <section key={coche.coche} className="space-y-3">
-              <div className="flex items-center justify-between border-b border-concreto/15 pb-2">
-                <h2 className="font-display text-xl font-semibold text-concreto-oscuro">
-                  {coche.coche} · {coche.numeroCoche ?? 'Sin N°'}
-                </h2>
+        <>
+          <GlassSurface fuerte className="mb-4 rounded-glass p-5">
+            <div className="flex items-center gap-3">
+              <div className="rounded-md bg-arena-suave p-2 text-concreto-oscuro">
+                <Train size={24} aria-hidden />
               </div>
-              <div className="grid gap-3 lg:grid-cols-2">
-                {coche.bogies.map((bogie) => (
-                  <BogieVisualizer key={`${coche.coche}-${bogie.bogie}`} bogie={bogie} onSeleccionarDisco={setDiscoSeleccionado} />
-                ))}
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="font-display text-2xl font-bold text-slate-800">Tren {tren}</h1>
+                  <span
+                    className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${FABRICANTE_CLASES[fabricante]}`}
+                  >
+                    {fabricante === 'ALSTOM' ? 'Alstom' : 'Ansaldo'}
+                  </span>
+                  {(() => {
+                    const estadoDominante = getEstadoDominanteTren(detalle.data.conteoEstado)
+                    const meta = ESTADO_META[estadoDominante]
+                    const Icono = ICONO_ESTADO_TREN[estadoDominante]
+                    return (
+                      <span
+                        className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                        style={{ backgroundColor: `color-mix(in srgb, ${meta.cssVar} 16%, transparent)`, color: meta.cssVar }}
+                      >
+                        <Icono size={13} aria-hidden />
+                        {meta.etiqueta.toUpperCase()}
+                      </span>
+                    )
+                  })()}
+                </div>
+                <p className="mt-1 text-sm text-slate-500">
+                  Selecciona un disco para consultar sus mediciones e historial.
+                </p>
               </div>
-            </section>
-          ))}
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-200 pt-4 sm:grid-cols-4">
+              <DataPair label="Estado operacional" value={ESTADO_TREN_LABEL[detalle.data.estado]} />
+              <DataPair label="Kilometraje total" value={formatoKm(detalle.data.kilometrajeActual)} />
+              <DataPair label="Última medición" value={formatoFecha(detalle.data.fechaUltimaMedicion)} />
+              {/* El modelo Train de EVA no tiene un campo de fecha de fabricación
+                  (solo createdAt, que es la fecha del registro en BD, no del tren
+                  físico) — se muestra fijo en "—" hasta que exista ese dato. */}
+              <DataPair label="Fecha fabricación" value="—" />
+            </div>
+          </GlassSurface>
+
+          <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+            {(['OK', 'SEGUIMIENTO', 'CAMBIO', 'CRITICO', 'REPERFILADO'] satisfies EstadoDisco[]).map((estado) => (
+              <GlassSurface key={estado} className="rounded-glass px-4 py-3">
+                <p className="font-body text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-concreto">
+                  {ESTADO_META[estado].etiqueta}
+                </p>
+                <p className="mt-1 font-display text-3xl font-bold" style={{ color: ESTADO_META[estado].cssVar }}>
+                  {detalle.data.conteoEstado[estado.toLowerCase() as keyof typeof detalle.data.conteoEstado]}
+                </p>
+              </GlassSurface>
+            ))}
+          </div>
+        </>
+      )}
+
+      {detalle.data && (
+        <ScrollArea ejes="x" viewportClassName="pb-3">
+          <div className="flex min-w-max items-start gap-4">
+            {detalle.data.coches.map((coche, indice) => (
+              <GlassSurface fuerte key={coche.coche} className="w-[504px] shrink-0 overflow-hidden rounded-glass p-0">
+                <div className="flex items-center gap-3 border-b border-slate-200 bg-gradient-to-r from-white via-white to-emerald-50/40 px-4 py-3">
+                  <img
+                    src={`/images/${prefijoImagenCoche}${Math.min(indice + 1, 6)}.png`}
+                    alt={`Coche ${coche.coche}`}
+                    className="h-12 w-16 shrink-0 object-contain drop-shadow-sm"
+                  />
+                  <div className="min-w-0">
+                    <p className="text-[0.65rem] font-bold uppercase tracking-[0.16em] text-emerald-700">
+                      Coche {indice + 1} de {detalle.data.coches.length}
+                    </p>
+                    <h2 className="mt-0.5 truncate font-display text-base font-bold text-slate-800">
+                      {coche.coche} · {coche.numeroCoche ?? 'Sin N°'}
+                    </h2>
+                  </div>
+                </div>
+                <div className="space-y-4 p-4">
+                  {coche.bogies.map((bogie, idx) => (
+                    <div key={`${coche.coche}-${bogie.bogie}`}>
+                      <BogieVisualizer
+                        bogie={bogie}
+                        onSeleccionarDisco={setDiscoSeleccionado}
+                        posicion={idx + 1}
+                        total={coche.bogies.length}
+                      />
+                      {idx < coche.bogies.length - 1 && <div className="mt-4 border-t-2 border-slate-200" aria-hidden />}
+                    </div>
+                  ))}
+                </div>
+              </GlassSurface>
+            ))}
+          </div>
+        </ScrollArea>
+      )}
+
+      {detalle.data && (
+        <div className="mt-6">
+          <LeyendaRangosDiscos />
         </div>
       )}
 
@@ -79,48 +172,11 @@ export function FlotaDetalle() {
   )
 }
 
-function ResumenOperativo({ detalle }: { detalle: NonNullable<ReturnType<typeof useFleetDetalle>['data']> }) {
-  const discos = detalle.coches.flatMap((coche) => coche.bogies.flatMap((bogie) => bogie.ejes.flatMap((eje) => eje.discos)))
-  const evaluados = discos.filter((disco) => disco.estadoCalculado !== null)
-  const atencion = evaluados.filter((disco) => ['SEGUIMIENTO', 'CAMBIO', 'REPERFILADO'].includes(disco.estadoCalculado ?? '')).length
-  const criticos = evaluados.filter((disco) => disco.estadoCalculado === 'CRITICO').length
-  const ok = evaluados.filter((disco) => disco.estadoCalculado === 'OK').length
-  const tarjetas = [
-    { etiqueta: 'Discos evaluados', valor: evaluados.length, detalle: `${discos.length - evaluados.length} sin dato`, icono: Activity, clase: 'border-sky-200 bg-gradient-to-br from-sky-50 to-white text-sky-800' },
-    { etiqueta: 'Operación estable', valor: ok, detalle: 'estado OK', icono: CircleCheck, clase: 'border-emerald-200 bg-gradient-to-br from-emerald-50 to-white text-emerald-800' },
-    { etiqueta: 'Requieren atención', valor: atencion, detalle: 'seguimiento, cambio o reperfilado', icono: TriangleAlert, clase: 'border-amber-200 bg-gradient-to-br from-amber-50 to-white text-amber-800' },
-    { etiqueta: 'Críticos', valor: criticos, detalle: criticos ? 'priorizar intervención' : 'sin alertas críticas', icono: TriangleAlert, clase: criticos ? 'border-rose-200 bg-gradient-to-br from-rose-50 to-white text-rose-800' : 'border-slate-200 bg-gradient-to-br from-slate-50 to-white text-slate-700' },
-  ]
+function DataPair({ label, value }: { label: string; value: string }) {
   return (
-    <section aria-label="Resumen operativo del tren" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      {tarjetas.map((tarjeta) => {
-        const Icono = tarjeta.icono
-        return <div key={tarjeta.etiqueta} className={`rounded-2xl border p-4 shadow-sm ${tarjeta.clase}`}><div className="flex items-start justify-between gap-3"><div><p className="font-body text-[0.65rem] font-bold uppercase tracking-[0.13em] opacity-70">{tarjeta.etiqueta}</p><p className="mt-1 font-data text-3xl font-bold">{tarjeta.valor}</p></div><span className="rounded-xl bg-white/75 p-2 shadow-sm"><Icono size={18} /></span></div><p className="mt-1 font-body text-[0.68rem] opacity-75">{tarjeta.detalle}</p></div>
-      })}
-    </section>
-  )
-}
-
-function Leyenda({ estado }: { estado: 'OK' | 'SEGUIMIENTO' | 'CAMBIO' | 'CRITICO' | 'REPERFILADO' }) {
-  const cssVar = {
-    OK: 'var(--color-estado-ok)',
-    SEGUIMIENTO: 'var(--color-estado-seguimiento)',
-    CAMBIO: 'var(--color-estado-cambio)',
-    CRITICO: 'var(--color-estado-critico)',
-    REPERFILADO: 'var(--color-estado-reperfilado)',
-  }[estado]
-  const etiqueta = {
-    OK: 'OK',
-    SEGUIMIENTO: 'Seguimiento',
-    CAMBIO: 'Cambio',
-    CRITICO: 'Crítico',
-    REPERFILADO: 'Reperfilado',
-  }[estado]
-
-  return (
-    <span className="glass-chip inline-flex items-center gap-2">
-      <span className="h-2.5 w-2.5 rounded-full" style={{ background: cssVar }} />
-      {etiqueta}
-    </span>
+    <div>
+      <p className="text-[0.65rem] font-bold uppercase tracking-[0.16em] text-concreto">{label}</p>
+      <p className="mt-0.5 font-body text-base font-semibold text-slate-800">{value}</p>
+    </div>
   )
 }
