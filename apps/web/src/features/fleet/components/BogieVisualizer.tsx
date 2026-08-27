@@ -348,8 +348,9 @@ function CuartoDisco({ x, y, lado, posicion, disco, onSeleccionarDisco }: Cuarto
           d={path}
           fill={color}
           opacity={1}
-          stroke="rgba(255,255,255,0.82)"
-          strokeWidth="1.5"
+          stroke={disco?.estadoCalculado ? '#ffffff' : '#64748b'}
+          strokeOpacity="0.9"
+          strokeWidth="2"
           style={{ filter: 'drop-shadow(0 6px 6px rgba(15,23,42,0.1))' }}
         />
       </g>
