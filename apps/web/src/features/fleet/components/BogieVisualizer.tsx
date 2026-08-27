@@ -188,10 +188,10 @@ export function BogieVisualizer({ bogie, onSeleccionarDisco, posicion, total }: 
                   Eje {eje.eje}: {codigoRef ? `Disco ${codigoRef}` : 'Disco sin código'}
                 </text>
 
-                <CuartoDisco x={190} y={y} lado="izquierdo" posicion="exterior" disco={izqExt} activo={discoActivo === izqExt} onSeleccionarDisco={seleccionar} />
-                <CuartoDisco x={190} y={y} lado="izquierdo" posicion="interior" disco={izqInt} activo={discoActivo === izqInt} onSeleccionarDisco={seleccionar} />
-                <CuartoDisco x={280} y={y} lado="derecho" posicion="interior" disco={derInt} activo={discoActivo === derInt} onSeleccionarDisco={seleccionar} />
-                <CuartoDisco x={280} y={y} lado="derecho" posicion="exterior" disco={derExt} activo={discoActivo === derExt} onSeleccionarDisco={seleccionar} />
+                <CuartoDisco x={190} y={y} lado="izquierdo" posicion="exterior" disco={izqExt} activo={false} onSeleccionarDisco={seleccionar} />
+                <CuartoDisco x={190} y={y} lado="izquierdo" posicion="interior" disco={izqInt} activo={false} onSeleccionarDisco={seleccionar} />
+                <CuartoDisco x={280} y={y} lado="derecho" posicion="interior" disco={derInt} activo={false} onSeleccionarDisco={seleccionar} />
+                <CuartoDisco x={280} y={y} lado="derecho" posicion="exterior" disco={derExt} activo={false} onSeleccionarDisco={seleccionar} />
 
                 <line x1="280" y1={y + 4} x2="280" y2={discoAbajoY} stroke="rgba(255,255,255,0.8)" strokeWidth="2" />
                 <text x={280 - RX - 40} y={y + 4 + RY / 2} textAnchor="end" dominantBaseline="middle" className="fill-concreto-oscuro font-data text-[11px]">
@@ -215,6 +215,9 @@ export function BogieVisualizer({ bogie, onSeleccionarDisco, posicion, total }: 
           return (
             <g key={eje.eje}>
               <line x1="78" y1={discoCentroY} x2="482" y2={discoCentroY} stroke="rgba(31,41,55,0.18)" strokeWidth="8" strokeLinecap="round" />
+              <line x1="92" y1={discoCentroY} x2="468" y2={discoCentroY} stroke="#64748b" strokeWidth="12" strokeLinecap="round" opacity="0.75" />
+              <circle cx="280" cy={discoCentroY} r="25" fill="#cbd5e1" stroke="#475569" strokeWidth="3" />
+              <circle cx="280" cy={discoCentroY} r="13" fill="#334155" stroke="#e2e8f0" strokeWidth="3" />
               <circle cx="58" cy={discoCentroY} r={RADIO_RUEDA} fill={`url(#metal-${bogie.bogie})`} stroke="#cbd5e1" strokeWidth="2" />
               <circle cx="502" cy={discoCentroY} r={RADIO_RUEDA} fill={`url(#metal-${bogie.bogie})`} stroke="#cbd5e1" strokeWidth="2" />
               <text x="280" y={y - 6} textAnchor="middle" className="fill-concreto font-body text-[12px] font-semibold">
@@ -223,6 +226,8 @@ export function BogieVisualizer({ bogie, onSeleccionarDisco, posicion, total }: 
 
               <MitadDisco x={190} y={y} disco={izquierdo} lado="izquierdo" activo={discoActivo === izquierdo} onSeleccionarDisco={seleccionar} />
               <MitadDisco x={280} y={y} disco={derecho} lado="derecho" activo={discoActivo === derecho} onSeleccionarDisco={seleccionar} />
+              <circle cx="280" cy={discoCentroY} r="16" fill="#475569" stroke="#f8fafc" strokeWidth="3" pointerEvents="none" />
+              <circle cx="280" cy={discoCentroY} r="7" fill="#0f172a" stroke="#94a3b8" strokeWidth="2" pointerEvents="none" />
 
               <line x1="280" y1={y + 4} x2="280" y2={discoAbajoY} stroke="rgba(255,255,255,0.8)" strokeWidth="2" />
               <text x={280 - RX - 30} y={discoAbajoY + 18} textAnchor="middle" className="fill-concreto-oscuro font-data text-[14px]">
