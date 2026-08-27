@@ -219,12 +219,9 @@ export class NewMeasurementValidationService {
       return ['Ingresa al menos una posición medida antes de validar.'];
 
     const alertas: string[] = [];
-    if (!ficha.fechaHoraFin) {
-      alertas.push(
-        'Completa la Fecha / hora fin — es obligatoria para bloquear la ficha.',
-      );
-    } else if (
+    if (
       ficha.fechaHoraInicio &&
+      ficha.fechaHoraFin &&
       ficha.fechaHoraFin.getTime() < ficha.fechaHoraInicio.getTime()
     ) {
       alertas.push(
@@ -333,8 +330,7 @@ export class NewMeasurementValidationService {
     const puestoIncompleto =
       ficha.motivo === 'Reperfilado'
         ? !ficha.puestoTrabajo?.trim() ||
-          !ficha.fechaHoraInicio ||
-          !ficha.fechaHoraFin
+          !ficha.fechaHoraInicio
         : !ficha.ptCodigo?.trim();
     if (puestoIncompleto) {
       throw new UnprocessableEntityException(

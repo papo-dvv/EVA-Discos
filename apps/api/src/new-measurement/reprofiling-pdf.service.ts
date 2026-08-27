@@ -25,21 +25,27 @@ async function dibujarFirma(
   firma: string | null | undefined,
   x: number,
   y: number,
-  maximoAncho = 46,
-  maximoAlto = 12,
+  maximoAncho = 84,
+  maximoAlto = 13,
 ): Promise<void> {
-  if (!firma?.startsWith('data:image/')) return;
-  const imagen = firma.startsWith('data:image/png')
-    ? await pdf.embedPng(firma)
-    : await pdf.embedJpg(firma);
+  const coincidencia = firma?.match(/^data:image\/(png|jpe?g);base64,([\s\S]+)$/i);
+  if (!coincidencia) return;
+  // Se convierte el data URL a bytes antes de incrustarlo. Así pdf-lib nunca
+  // interpreta la cadena base64 como texto y la firma conserva sus trazos.
+  const bytes = Uint8Array.from(Buffer.from(coincidencia[2], 'base64'));
+  const imagen = coincidencia[1].toLowerCase() === 'png'
+    ? await pdf.embedPng(bytes)
+    : await pdf.embedJpg(bytes);
   const escala = Math.min(
     maximoAncho / imagen.width,
     maximoAlto / imagen.height,
     1,
   );
   page.drawImage(imagen, {
-    x,
-    y,
+    // El punto recibido es el centro de la casilla de firma, no su esquina:
+    // queda centrada y contenida aunque el trazo sea muy ancho o alto.
+    x: x - (imagen.width * escala) / 2,
+    y: y - (imagen.height * escala) / 2,
     width: imagen.width * escala,
     height: imagen.height * escala,
   });
@@ -104,6 +110,24 @@ export class ReprofilingPdfService {
           color: tinta,
         });
     };
+    const escribirCentrado = (
+      valor: unknown,
+      centroX: number,
+      y: number,
+      size = 6.4,
+      negrita = false,
+    ) => {
+      const contenido = String(valor ?? '').trim();
+      if (!contenido) return;
+      const tipo = negrita ? bold : font;
+      escribir(
+        contenido,
+        centroX - tipo.widthOfTextAtSize(contenido, size) / 2,
+        y,
+        size,
+        negrita,
+      );
+    };
     const numero = (valor: unknown) =>
       valor === null || valor === undefined ? '' : Number(valor).toFixed(1);
     const fecha = (valor: Date | null) =>
@@ -115,7 +139,9 @@ export class ReprofilingPdfService {
         ? `${valor.toLocaleDateString('es-PE', { timeZone: 'America/Lima' })}  ${valor.toLocaleTimeString('es-PE', { timeZone: 'America/Lima', hour: '2-digit', minute: '2-digit', hour12: false })}`
         : '';
 
-    escribir(ficha.trenNumero, 88, 708, 7.2, true);
+    // Coordenadas calibradas contra la plantilla oficial tamaño carta.
+    // Los textos se anclan dentro de cada línea, no sobre sus rótulos.
+    escribir(ficha.trenNumero, 166, 708, 7.2, true);
     // La plantilla enviada corresponde a ALSTOM. Para ANSALDO se tapa solo
     // el texto fijo de marca, preservando el resto del encabezado oficial.
     if (ficha.trenNumero <= 5) {
@@ -129,9 +155,9 @@ export class ReprofilingPdfService {
       escribir('ANSALDO MB300', 181, 707, 6.3, true);
     }
     escribir(ficha.puestoTrabajo, 315, 708, 7.2, true);
-    escribir(ficha.kilometraje, 462, 708, 7.2, true);
-    escribir(fechaHora(ficha.fechaHoraInicio), 122, 691, 6.8, true);
-    escribir(fechaHora(ficha.fechaHoraFin), 315, 691, 6.8, true);
+    escribir(ficha.kilometraje, 442, 708, 7.2, true);
+    escribir(fechaHora(ficha.fechaHoraInicio), 116, 691, 6.2, true);
+    escribir(fechaHora(ficha.fechaHoraFin), 302, 691, 6.2, true);
 
     // Centros de las celdas de la tabla oficial (24 ejes, 2 lados).
     const columnas = {
@@ -147,54 +173,29 @@ export class ReprofilingPdfService {
       derRa: 521,
     };
     for (let eje = 1; eje <= 24; eje++) {
-      // Cada bloque de cuatro ejes tiene un separador doble ligeramente más
-      // alto que una línea normal; se descuenta para mantener el texto dentro
-      // de la casilla hasta la última fila.
-      const y = 568.5 - (eje - 1) * 12.35 - Math.floor((eje - 1) / 4) * 2.35;
+      // La plantilla mantiene la misma altura de celda para los 24 ejes; los
+      // separadores de bloque son solo trazos más gruesos, no filas extra.
+      const y = 568.5 - (eje - 1) * 12.35;
       const izq = porPosicion.get(`${eje}|izquierdo`);
       const der = porPosicion.get(`${eje}|derecho`);
-      escribir(numero(izq?.reperfiladoTAntes), columnas.izqAntesT, y);
-      escribir(numero(izq?.reperfiladoHAntes), columnas.izqAntesH, y);
-      escribir(numero(izq?.tValue), columnas.izqDespuesT, y, 6.7, true);
-      escribir(numero(izq?.hValue), columnas.izqDespuesH, y, 6.7, true);
-      escribir(numero(izq ? 2.5 : null), columnas.izqRa, y, 6.7, true);
-      escribir(numero(der?.reperfiladoTAntes), columnas.derAntesT, y);
-      escribir(numero(der?.reperfiladoHAntes), columnas.derAntesH, y);
-      escribir(numero(der?.tValue), columnas.derDespuesT, y, 6.7, true);
-      escribir(numero(der?.hValue), columnas.derDespuesH, y, 6.7, true);
-      escribir(numero(der ? 2.5 : null), columnas.derRa, y, 6.7, true);
+      escribirCentrado(numero(izq?.reperfiladoTAntes), columnas.izqAntesT, y);
+      escribirCentrado(numero(izq?.reperfiladoHAntes), columnas.izqAntesH, y);
+      escribirCentrado(numero(izq?.tValue), columnas.izqDespuesT, y, 6.7, true);
+      escribirCentrado(numero(izq?.hValue), columnas.izqDespuesH, y, 6.7, true);
+      escribirCentrado(numero(izq ? 2.5 : null), columnas.izqRa, y, 6.7, true);
+      escribirCentrado(numero(der?.reperfiladoTAntes), columnas.derAntesT, y);
+      escribirCentrado(numero(der?.reperfiladoHAntes), columnas.derAntesH, y);
+      escribirCentrado(numero(der?.tValue), columnas.derDespuesT, y, 6.7, true);
+      escribirCentrado(numero(der?.hValue), columnas.derDespuesH, y, 6.7, true);
+      escribirCentrado(numero(der ? 2.5 : null), columnas.derRa, y, 6.7, true);
       escribir(der?.observacion ?? izq?.observacion, 548, y, 5.2);
     }
 
-    // Una fila del eje está "llenada" si tiene alguna medición cargada (antes
-    // o después del reperfilado) — evita imprimir el número de coche o el
-    // código de bogie de bloques que en la cartilla real quedaron en blanco.
-    const filaLlenada = (fila: (typeof filas)[number] | undefined): boolean =>
-      Boolean(
-        fila &&
-        (fila.tValue !== null ||
-          fila.hValue !== null ||
-          fila.reperfiladoTAntes !== null ||
-          fila.reperfiladoHAntes !== null),
-      );
-    const ejeTieneDatos = (eje: number): boolean =>
-      filaLlenada(porPosicion.get(`${eje}|izquierdo`)) ||
-      filaLlenada(porPosicion.get(`${eje}|derecho`));
-
-    // La plantilla imprime el tipo de coche y deja una línea en blanco debajo
-    // para el código físico — el número debe apoyarse ARRIBA de esa línea
-    // (como cualquier campo "a completar sobre la raya"), nunca cruzarla. La
-    // línea real, medida sobre la plantilla renderizada, cae en y≈538 para el
-    // primer bloque (535 - antes usado - quedaba 3pt por debajo de la línea,
-    // atravesándola).
+    // La plantilla imprime el tipo de coche y deja una línea vacía debajo.
+    // Se completa con el código físico que corresponde al tren seleccionado.
     const coches = ['MA1', 'MB1', 'MB3', 'REM', 'MB2', 'MA2'] as const;
     coches.forEach((tipo, indice) => {
-      const ejeBase = indice * 4;
-      const tieneDatos = [1, 2, 3, 4].some((offset) =>
-        ejeTieneDatos(ejeBase + offset),
-      );
-      if (tieneDatos)
-        escribir(numerosCoche[tipo], 315, 546 - indice * 51.8, 7, true);
+      escribir(numerosCoche[tipo], 315, 535 - indice * 51.8, 7, true);
     });
     const posicionesBogie = [
       ['MA1:PB3', 1],
@@ -212,31 +213,14 @@ export class ReprofilingPdfService {
     ] as const;
     posicionesBogie.forEach(([posicion, ejeInicio]) => {
       const y =
-        561 - (ejeInicio - 1) * 12.35 - Math.floor((ejeInicio - 1) / 4) * 2.35;
-      if (ejeTieneDatos(ejeInicio) || ejeTieneDatos(ejeInicio + 1))
-        escribir(codigosBogie[posicion], 49, y, 5.8, true);
+        561 - (ejeInicio - 1) * 12.35;
+      escribirCentrado(codigosBogie[posicion], 59, y, 5.8, true);
     });
 
-    // Coordenadas de los corchetes "Si [ ] No [ ]" leídas directamente de la
-    // plantilla (pdftotext -bbox): centro entre "[" y "]" para cada opción.
-    if (ficha.todasConformes !== null) {
-      const tamanoX = 7.5;
-      const centroXConforme = ficha.todasConformes ? 386.7 : 436.5;
-      const centroYConforme = 199.25;
-      const anchoX = bold.widthOfTextAtSize('X', tamanoX);
-      escribir(
-        'X',
-        centroXConforme - anchoX / 2,
-        centroYConforme - tamanoX * 0.35,
-        tamanoX,
-        true,
-      );
-    }
-    // Filas de la tabla de instrumentos calibradas contra las líneas
-    // divisoras reales de la plantilla (167.7 / 157.6 / 147.5 / 137.4) — el
-    // valor previo (158 - indice*10.2) dejaba cada fila corrida hacia abajo.
+    if (ficha.todasConformes !== null)
+      escribir('X', ficha.todasConformes ? 390 : 438, 193, 8, true);
     ficha.instrumentos.slice(0, 4).forEach((instrumento, indice) => {
-      const y = 170.2 - indice * 10.1;
+      const y = 158 - indice * 10.2;
       escribir(instrumento.codigo, 53, y, 5.7);
       escribir(instrumento.descripcion, 112, y, 5.7);
       escribir(instrumento.modeloMarca, 293, y, 5.7);
@@ -251,20 +235,17 @@ export class ReprofilingPdfService {
       .forEach((linea, indice) =>
         escribir(linea.trim(), 45, 115 - indice * 9, 5.7),
       );
-    // Tabla CARGO | NOMBRES Y APELLIDOS | FIRMA: las 3 primeras filas están en
-    // blanco en la plantilla (el cargo lo escribe cada técnico a mano/en su
-    // campo, nunca lo completamos nosotros) — filas calibradas contra las
-    // líneas divisoras reales (60.5 / 50.8 / 41.0). La 4ª fila ya trae
-    // impreso "SUPERVISOR / COORDINADOR / TÉCNICO ESPECIALISTA", por lo que
-    // solo se completan nombre y firma del Responsable de Mantenimiento.
-    for (const [indice, tecnico] of ficha.tecnicos.slice(0, 3).entries()) {
-      const y = 63 - indice * 10;
-      escribir(tecnico.cargo, 52, y, 5.5, true);
+    for (const [indice, tecnico] of ficha.tecnicos.slice(0, 2).entries()) {
+      const y = 72 - indice * 10;
+      escribir(tecnico.cargo || 'TÉCNICO', 52, y, 5.5, true);
       escribir(tecnico.nombre, 210, y, 6.1, true);
-      await dibujarFirma(pdf, page, tecnico.firma, 505, y - 2);
+      await dibujarFirma(pdf, page, tecnico.firma, 520, y + 1);
     }
-    escribir(ficha.responsableMantenimientoNombre, 210, 30, 6.1, true);
-    await dibujarFirma(pdf, page, ficha.responsableMantenimientoFirma, 505, 28);
+    escribir('RESPONSABLE DE MANTENIMIENTO', 52, 53, 5.1, true);
+    escribir(ficha.responsableMantenimientoNombre, 210, 53, 6.1, true);
+    await dibujarFirma(pdf, page, ficha.responsableMantenimientoFirma, 520, 54);
+    escribir(ficha.ingMrNombre, 210, 34, 6.1, true);
+    await dibujarFirma(pdf, page, ficha.ingMrFirma, 520, 35);
 
     return pdf.save();
   }

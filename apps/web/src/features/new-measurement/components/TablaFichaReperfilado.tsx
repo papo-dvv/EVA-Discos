@@ -73,17 +73,6 @@ export function TablaFichaReperfilado({
     lado.tValue !== null &&
     lado.hValue !== null &&
     (lado.rugosidadRa !== null || lado.recordId !== null)
-  const ladoMedido = (lado: LadoFilaEspejo) => ladoTocado(lado) && ladoCompleto(lado)
-  const ladosCompletos = filas.reduce(
-    (total, fila) =>
-      total + Number(ladoMedido(fila.izquierdo)) + Number(ladoMedido(fila.derecho)),
-    0,
-  )
-  const ladosTocados = filas.reduce(
-    (total, fila) =>
-      total + Number(ladoTocado(fila.izquierdo)) + Number(ladoTocado(fila.derecho)),
-    0,
-  )
   const ladosPendientes = filas.reduce(
     (total, fila) =>
       total +
@@ -91,9 +80,6 @@ export function TablaFichaReperfilado({
       Number(ladoTocado(fila.derecho) && !ladoCompleto(fila.derecho)),
     0,
   )
-  const porcentaje = ladosTocados
-    ? Math.round((ladosCompletos / ladosTocados) * 100)
-    : 0
   const fueraDeLimite = filas.reduce((total, fila) => {
     const lados = [fila.izquierdo, fila.derecho]
     return total + lados.filter((lado) =>
@@ -129,22 +115,6 @@ export function TablaFichaReperfilado({
             la ficha física, incluida la rugosidad R.A. Bogie/código y
             Coche se completan automáticamente según el tren.
           </p>
-        </div>
-        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
-          <ResumenDato etiqueta="Medidos" valor={String(ladosCompletos)} />
-          <ResumenDato etiqueta="Pendientes" valor={String(ladosPendientes)} />
-          <div className="col-span-2 rounded-2xl border border-concreto/10 bg-white/45 px-3 py-2 sm:col-span-1">
-            <div className="flex items-center justify-between font-body text-[0.6875rem] text-concreto">
-              <span>Avance</span>
-              <strong className="font-data text-concreto-oscuro">{porcentaje}%</strong>
-            </div>
-            <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-concreto/10">
-              <div
-                className="h-full rounded-full bg-emerald-600 transition-[width] duration-300"
-                style={{ width: `${porcentaje}%` }}
-              />
-            </div>
-          </div>
         </div>
         {(ladosPendientes > 0 || fueraDeLimite > 0) && (
           <div role="alert" className="mt-3 flex flex-wrap gap-x-5 gap-y-1 rounded-2xl border border-amber-600/20 bg-amber-50/60 px-4 py-2.5 text-xs text-amber-900">
@@ -383,17 +353,6 @@ function CeldaEstado({ estado }: { estado: EstadoDisco | null }) {
   )
 }
 
-function ResumenDato({ etiqueta, valor }: { etiqueta: string; valor: string }) {
-  return (
-    <div className="rounded-2xl border border-concreto/10 bg-white/45 px-3 py-2">
-      <p className="font-body text-[0.6875rem] text-concreto">{etiqueta}</p>
-      <p className="mt-0.5 font-data text-base font-semibold text-concreto-oscuro">
-        {valor}
-      </p>
-    </div>
-  )
-}
-
 function LadoReperfilado({
   fichaId,
   eje,
@@ -497,6 +456,13 @@ function Campo({
   const [borrador, setBorrador] = useSyncedState(
     valor === null ? '' : String(valor),
   )
+  // Bloqueada: gris neutro, sin importar si tiene valor o no — el
+  // ámbar/esmeralda de abajo es una pista de "esto se llena a mano" y no
+  // tiene sentido mostrarla sobre un campo que ya no se puede editar.
+  let claseCampo = 'border-concreto/15 bg-white/25 opacity-70'
+  if (!disabled) {
+    claseCampo = borrador === '' ? 'border-amber-500/25 bg-amber-50/25' : 'border-emerald-700/20 bg-emerald-50/30'
+  }
   return (
     <td className="px-1.5 py-1">
       <input
@@ -511,9 +477,7 @@ function Campo({
           if (borrador !== '' && Number.isFinite(n) && n !== valor) onGuardar(n)
         }}
         placeholder="—"
-        className={`glass-field w-full min-w-0 px-1.5 py-1 text-right font-data text-xs transition ${
-          borrador === '' ? 'border-amber-500/25 bg-amber-50/25' : 'border-emerald-700/20 bg-emerald-50/30'
-        } ${invalido ? 'border-[color:var(--color-estado-critico)]' : ''}`}
+        className={`glass-field w-full min-w-0 px-1.5 py-1 text-right font-data text-xs transition ${claseCampo} ${invalido ? 'border-[color:var(--color-estado-critico)]' : ''}`}
       />
     </td>
   )

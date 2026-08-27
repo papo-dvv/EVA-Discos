@@ -177,8 +177,15 @@ export class NewMeasurementPreviewService {
     if (dto.ptCodigo !== undefined) cambios.ptCodigo = dto.ptCodigo;
     if (dto.puestoTrabajo !== undefined)
       cambios.puestoTrabajo = dto.puestoTrabajo;
-    if (dto.fechaHoraInicio !== undefined)
+    if (dto.fechaHoraInicio !== undefined) {
       cambios.fechaHoraInicio = new Date(dto.fechaHoraInicio);
+      // La fecha operativa de una ficha de reperfilado se toma de la hora de
+      // cierre cuando existe. Si todavía no se registra un fin (dato opcional),
+      // usar el inicio evita dejar la ficha con una fecha distinta o vacía.
+      if (ficha.motivo === 'Reperfilado' && dto.fechaFicha === undefined) {
+        cambios.fechaFicha = new Date(dto.fechaHoraInicio.slice(0, 10));
+      }
+    }
     if (dto.fechaHoraFin !== undefined) {
       cambios.fechaHoraFin = new Date(dto.fechaHoraFin);
       // Reperfilado no tiene un campo de Fecha propio (ver HeaderReperfilado):

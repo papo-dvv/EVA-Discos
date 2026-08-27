@@ -109,8 +109,12 @@ export function TasaDesgaste() {
 
         <main className="min-w-0 flex-1">
           {/* Barra glass: título + toggle Global/Por tren */}
-          <GlassSurface className="flex flex-wrap items-center justify-between gap-4 rounded-glass px-6 py-4">
-            <div>
+          <GlassSurface fuerte className="relative isolate flex flex-wrap items-center justify-between gap-4 overflow-hidden rounded-glass-lg bg-[linear-gradient(115deg,rgba(255,255,255,0.94),rgba(236,253,245,0.84),rgba(255,251,235,0.8))] px-6 py-5">
+            <div aria-hidden className="absolute -left-12 bottom-[-5rem] h-44 w-44 rounded-full bg-amber-300/25 blur-3xl" />
+            <div aria-hidden className="absolute right-8 top-[-4rem] h-40 w-40 rounded-full bg-emerald-400/20 blur-3xl" />
+            <img aria-hidden src="/images/ruedaiconparesmontados.png" className="pointer-events-none absolute right-36 top-1/2 hidden h-28 w-36 -translate-y-1/2 object-contain opacity-25 lg:block" />
+            <div className="relative">
+              <p className="font-body text-[0.62rem] font-bold uppercase tracking-[0.2em] text-emerald-700">Analítica predictiva</p>
               <h1 className="font-display text-2xl font-semibold tracking-tight text-concreto-oscuro">
                 Tasa de desgaste
               </h1>
@@ -119,7 +123,7 @@ export function TasaDesgaste() {
               </p>
             </div>
 
-            <div className="flex items-center gap-4">
+            <div className="relative flex items-center gap-4">
               <div className="eva-segmento" role="group" aria-label="Alcance de los datos">
                 {MODOS.map((m) => (
                   <button

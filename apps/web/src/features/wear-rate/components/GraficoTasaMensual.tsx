@@ -64,14 +64,20 @@ type Props = {
 
 export function GraficoTasaMensual({ puntos, cargando, titulo }: Props) {
   const [hover, setHover] = useState<number | null>(null)
+  const [seleccionado, setSeleccionado] = useState<number | null>(null)
   const { nodos, path, yTicks, pasoEtiqueta } = useMemo(() => calcularGeometria(puntos), [puntos])
+  const activo = hover ?? seleccionado
+  const nodosConValor = nodos.filter((n) => n.y !== null)
+  const areaPath = path
+    ? `${path} L ${nodosConValor.at(-1)?.x ?? MARGEN.left} ${ALTO - MARGEN.bottom} L ${nodosConValor[0]?.x ?? MARGEN.left} ${ALTO - MARGEN.bottom} Z`
+    : ''
 
   return (
     <GlassSurface fuerte className="mt-4 rounded-glass p-5">
       <h3 className="mb-0.5 font-display text-base font-semibold text-concreto-oscuro">
         Tasa mensual de desgaste — promedio por mes
       </h3>
-      <p className="mb-3 font-body text-xs text-concreto">{titulo} · mm/mes</p>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><p className="font-body text-xs text-concreto">{titulo} · mm/mes</p><span className="rounded-full bg-emerald-50 px-2.5 py-1 font-body text-[0.65rem] font-semibold text-emerald-700">Explora cada mes</span></div>
 
       {cargando ? (
         <div className="flex h-[280px] items-center justify-center">
@@ -90,6 +96,10 @@ export function GraficoTasaMensual({ puntos, cargando, titulo }: Props) {
             role="img"
             aria-label={`Tasa mensual de desgaste promedio por mes — ${titulo}`}
           >
+            <defs>
+              <linearGradient id="area-tasa" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stopColor="#059669" stopOpacity="0.28" /><stop offset="100%" stopColor="#059669" stopOpacity="0" /></linearGradient>
+              <filter id="glow-tasa" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="4" stdDeviation="4" floodColor="#059669" floodOpacity="0.22" /></filter>
+            </defs>
             {yTicks.map((t) => (
               <g key={t.valor}>
                 <line
@@ -131,14 +141,16 @@ export function GraficoTasaMensual({ puntos, cargando, titulo }: Props) {
                 ),
             )}
 
+            {path && <path d={areaPath} fill="url(#area-tasa)" />}
             {path && (
               <path
                 d={path}
                 fill="none"
                 stroke="var(--color-verde-institucional)"
-                strokeWidth={2.5}
+                strokeWidth={3}
                 strokeLinecap="round"
                 strokeLinejoin="round"
+                filter="url(#glow-tasa)"
               />
             )}
 
@@ -155,15 +167,16 @@ export function GraficoTasaMensual({ puntos, cargando, titulo }: Props) {
                   style={{ cursor: 'pointer' }}
                   onMouseEnter={() => setHover(i)}
                   onMouseLeave={() => setHover((h) => (h === i ? null : h))}
+                  onClick={() => setSeleccionado((actual) => actual === i ? null : i)}
                 />
                 {n.y !== null && (
                   <circle
                     cx={n.x}
                     cy={n.y}
-                    r={hover === i ? 5.5 : 3.5}
+                    r={activo === i ? 6 : 3.5}
                     fill="var(--color-verde-institucional)"
                     stroke="#fff"
-                    strokeWidth={1.5}
+                    strokeWidth={activo === i ? 2.5 : 1.5}
                     style={{ pointerEvents: 'none' }}
                   />
                 )}
@@ -171,7 +184,7 @@ export function GraficoTasaMensual({ puntos, cargando, titulo }: Props) {
             ))}
           </svg>
 
-          {hover !== null && nodos[hover] && <TooltipPunto nodo={nodos[hover]} />}
+          {activo !== null && nodos[activo] && <TooltipPunto nodo={nodos[activo]} />}
         </div>
       )}
     </GlassSurface>

@@ -99,8 +99,13 @@ function TooltipDiscoContenido({
     <GlassSurface
       fuerte
       role="tooltip"
-      className="pointer-events-none fixed z-[60] w-56 rounded-glass-sm px-3 py-2.5 font-body text-xs leading-snug"
-      style={{ left: coords.left, top: coords.top - 10, transform: 'translate(-50%, -100%)' }}
+      className="pointer-events-none z-[60] w-56 rounded-glass-sm px-3 py-2.5 font-body text-xs leading-snug"
+      // position:fixed va en el style (no en className) a propósito: la clase
+      // `.glass-surface` fija `position: relative` en tokens.css con la misma
+      // especificidad que la utilidad `fixed` de Tailwind, y gana por orden de
+      // cascada — el tooltip terminaba en flujo normal al final de <body> en
+      // vez de flotar junto al disco. El inline style siempre gana.
+      style={{ position: 'fixed', left: coords.left, top: coords.top - 10, transform: 'translate(-50%, -100%)' }}
     >
       <p className="mb-1.5 font-semibold uppercase tracking-wide text-concreto">
         {lado}
@@ -127,7 +132,7 @@ export function BogieVisualizer({ bogie, onSeleccionarDisco, posicion, total }: 
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-gradient-to-b from-slate-50 to-white p-3 shadow-[inset_0_1px_0_white]">
-      <div className="mb-2 flex items-center justify-between gap-3">
+      <div className="mb-2 flex items-center gap-3">
         <h3 className="font-display text-sm font-semibold text-concreto-oscuro">
           {bogie.bogie}
           {posicion && total ? (
@@ -137,13 +142,6 @@ export function BogieVisualizer({ bogie, onSeleccionarDisco, posicion, total }: 
             </span>
           ) : null}
         </h3>
-        <div className="flex flex-wrap justify-end gap-1.5">
-          {ejes.map((eje) => (
-            <span key={eje.eje} className="glass-chip px-2 py-0.5 text-[0.68rem]">
-              Eje {eje.eje}
-            </span>
-          ))}
-        </div>
       </div>
 
       <svg

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { PackagePlus, Undo2 } from 'lucide-react'
+import { Archive, CheckCircle2, PackagePlus, Search, TrainFront, Undo2, Warehouse } from 'lucide-react'
 import { GlassButton } from '../components/GlassButton'
 import { GlassSurface } from '../components/GlassSurface'
 import { GlassField } from '../components/GlassField'
@@ -101,40 +101,48 @@ export function Inventario() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-[1500px] px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="font-body text-xs font-semibold uppercase tracking-[0.18em] text-concreto">EVA</p>
-          <h1 className="font-display text-3xl font-semibold text-concreto-oscuro">Inventario</h1>
-          <p className="mt-1 max-w-xl font-body text-sm text-concreto">Ejes de disco de freno por etapa.</p>
+    <div className="mx-auto w-full max-w-[1500px] px-4 py-6 sm:px-6 lg:px-8">
+      <div className="relative mb-6 overflow-hidden rounded-[2rem] border border-white/70 bg-gradient-to-r from-[#052e24] via-[#075a43] to-[#099268] p-6 shadow-[0_22px_55px_rgba(6,78,59,0.20)] sm:p-8">
+        <div className="absolute -right-16 -top-24 h-64 w-64 rounded-full border-[42px] border-white/5" />
+        <div className="absolute bottom-0 right-1/4 h-24 w-24 rounded-full bg-cyan-300/10 blur-2xl" />
+        <div className="relative flex flex-wrap items-end justify-between gap-4">
+        <div className="max-w-2xl">
+          <p className="flex items-center gap-2 font-body text-xs font-bold uppercase tracking-[0.18em] text-emerald-200"><Archive size={15} /> Control de componentes</p>
+          <h1 className="mt-2 font-display text-3xl font-bold !text-white sm:text-4xl">Inventario</h1>
+          <p className="mt-2 max-w-xl font-body text-sm leading-6 text-white/75">Consulta y administra los ejes de discos por ubicación, condición y etapa de servicio.</p>
         </div>
         {stage !== 'en_servicio' && (
-          <GlassButton type="button" onClick={() => setModalAbierto(true)}>
+          <GlassButton type="button" onClick={() => setModalAbierto(true)} className="border-white/30 bg-white text-emerald-800 shadow-lg">
             <PackagePlus size={16} aria-hidden />
             Nueva rueda
           </GlassButton>
         )}
+        </div>
       </div>
 
-      <div className="mb-4">
+      <div className="mb-4 flex justify-center rounded-2xl border border-slate-200/70 bg-white/55 p-2 shadow-sm backdrop-blur sm:justify-start">
         <SegmentedControl ariaLabel="Filtrar por etapa" opciones={FILTROS_STAGE} valor={stage} onCambiar={cambiarStage} />
       </div>
 
       <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-        {INVENTORY_STAGES.map((s) => (
-          <GlassSurface key={s} className="rounded-glass px-4 py-3">
-            <p className="font-body text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-concreto">{ETIQUETA_STAGE[s]}</p>
-            <p className="mt-1 font-data text-2xl font-semibold text-concreto-oscuro">{stats.data ? stats.data[s] : '—'}</p>
+        {INVENTORY_STAGES.map((s, indice) => {
+          const Icono = [Archive, TrainFront, Warehouse][indice]
+          const tonos = ['border-sky-200 from-sky-50 text-sky-700', 'border-emerald-200 from-emerald-50 text-emerald-700', 'border-amber-200 from-amber-50 text-amber-700'][indice]
+          return <GlassSurface key={s} className={`rounded-2xl border bg-gradient-to-br to-white px-4 py-4 shadow-sm ${tonos}`}>
+            <div className="flex items-center justify-between"><p className="font-body text-[0.68rem] font-bold uppercase tracking-[0.16em] text-slate-500">{ETIQUETA_STAGE[s]}</p><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/80 shadow-sm"><Icono size={18} /></span></div>
+            <p className="mt-1 font-data text-3xl font-bold text-slate-900">{stats.data ? stats.data[s] : '—'}</p>
+            <p className="mt-1 text-xs text-slate-500">pares registrados</p>
           </GlassSurface>
-        ))}
+        })}
       </div>
 
-      <GlassSurface fuerte className="mb-4 rounded-glass p-4">
-        <p className="font-body text-sm text-concreto-oscuro">{BANNER_STAGE[stage]}</p>
+      <GlassSurface fuerte className="mb-4 rounded-2xl border-emerald-200/70 bg-emerald-50/55 p-4">
+        <p className="flex items-start gap-2 font-body text-sm text-slate-700"><CheckCircle2 size={17} className="mt-0.5 shrink-0 text-emerald-600" />{BANNER_STAGE[stage]}</p>
       </GlassSurface>
 
-      <GlassSurface fuerte className="mb-4 flex flex-wrap items-end gap-3 rounded-glass p-4">
+      <GlassSurface fuerte className="mb-4 flex flex-wrap items-end gap-3 rounded-2xl border-slate-200/80 bg-white/65 p-4 shadow-sm">
         <div className="min-w-[14rem] flex-1">
+          <p className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-500"><Search size={14} /> Filtros del inventario</p>
           <GlassField
             label="Buscar serie"
             value={search}
@@ -170,7 +178,7 @@ export function Inventario() {
         )}
       </GlassSurface>
 
-      <GlassSurface fuerte className="overflow-hidden rounded-glass-lg">
+      <GlassSurface fuerte className="overflow-hidden rounded-[1.75rem] border-slate-200/80 bg-white/70 shadow-[0_18px_45px_rgba(15,23,42,0.08)]">
         <TablaInventario
           stage={stage}
           rows={filasFiltradas}

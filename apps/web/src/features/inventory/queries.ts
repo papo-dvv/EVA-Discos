@@ -3,7 +3,9 @@ import {
   devolverAlmacen,
   editarEje,
   eliminarEje,
+  obtenerCambiosDiscoAnio,
   obtenerInventario,
+  obtenerRetirosPorMes,
   obtenerStatsInventario,
   registrarEje,
 } from './api'
@@ -12,6 +14,8 @@ import type { EditarEjeInput, InventoryQuery } from './types'
 export const clavesInventory = {
   listar: (query: InventoryQuery) => ['inventory', 'listar', query] as const,
   stats: ['inventory', 'stats'] as const,
+  retirosPorMes: ['inventory', 'retiros-por-mes'] as const,
+  cambiosDiscoAnio: ['inventory', 'cambios-disco-anio'] as const,
 }
 
 export function useInventario(query: InventoryQuery) {
@@ -26,6 +30,22 @@ export function useStatsInventario() {
   return useQuery({
     queryKey: clavesInventory.stats,
     queryFn: obtenerStatsInventario,
+    staleTime: 30 * 1000,
+  })
+}
+
+export function useRetirosPorMes() {
+  return useQuery({
+    queryKey: clavesInventory.retirosPorMes,
+    queryFn: obtenerRetirosPorMes,
+    staleTime: 30 * 1000,
+  })
+}
+
+export function useCambiosDiscoAnio() {
+  return useQuery({
+    queryKey: clavesInventory.cambiosDiscoAnio,
+    queryFn: obtenerCambiosDiscoAnio,
     staleTime: 30 * 1000,
   })
 }

@@ -1,3 +1,4 @@
+import { Check, Circle, ClipboardCheck, Disc3, PackageCheck, TrainFront, UserRound } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { GlassButton } from '../../../components/GlassButton'
 import { GlassField } from '../../../components/GlassField'
@@ -108,15 +109,23 @@ export function ModalCambioDisco({ onCerrar, trenInicial, cocheInicial }: Props)
   }
 
   const puedeConfirmar = asignaciones.length > 0 && tecnicoNombre.trim().length > 0
+  const pasos = [Boolean(trenNumero && numeroCoche), asignaciones.length > 0, tecnicoNombre.trim().length > 0]
 
   return (
     <GlassModal
-      titulo="Cambio de disco"
+      titulo={
+        <div className="flex items-center gap-3">
+          <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-400 to-emerald-700 text-white shadow-lg shadow-emerald-600/25"><Disc3 size={23} /></span>
+          <span><span className="block text-lg">Cambio de disco</span><span className="block font-body text-xs font-normal text-slate-500">Instalación guiada con trazabilidad por eje</span></span>
+        </div>
+      }
       onCerrar={onCerrar}
       ancho={1080}
       altoMaximo="90vh"
       footer={
-        <div className="mt-4 flex justify-end gap-2">
+        <div className="mt-4 flex flex-col gap-3 border-t border-slate-200/70 pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="flex items-center gap-2 text-xs font-medium text-slate-500">{puedeConfirmar ? <Check size={16} className="rounded-full bg-emerald-600 p-0.5 text-white" /> : <Circle size={15} />}{puedeConfirmar ? 'Operación lista para confirmar' : 'Completa ubicación, repuestos y técnico'}</p>
+          <div className="flex justify-end gap-2">
           <GlassButton type="button" variante="secundario" onClick={onCerrar}>
             Cancelar
           </GlassButton>
@@ -128,24 +137,30 @@ export function ModalCambioDisco({ onCerrar, trenInicial, cocheInicial }: Props)
           >
             Instalar en coche
           </GlassButton>
+          </div>
         </div>
       }
     >
       <div className="flex min-h-0 flex-1 flex-col gap-4">
-        <div className="grid shrink-0 grid-cols-3 gap-3">
-          <div className="rounded-2xl border border-concreto/10 bg-white/45 px-3 py-2">
+        <div className="rounded-3xl border border-emerald-100 bg-gradient-to-r from-emerald-50/90 via-white to-cyan-50/70 p-4">
+          <div className="mb-3 flex items-center justify-between"><div><p className="text-xs font-bold uppercase tracking-[0.15em] text-emerald-800">Progreso de instalación</p><p className="mt-0.5 text-xs text-slate-500">Completa los tres pasos para habilitar la operación</p></div><span className="rounded-full bg-white px-3 py-1 font-data text-xs font-bold text-emerald-700 shadow-sm">{pasos.filter(Boolean).length}/3</span></div>
+          <div className="grid grid-cols-3 gap-2">{['Ubicación', 'Repuestos', 'Responsable'].map((paso, i) => <div key={paso}><div className={`mb-1.5 h-1.5 rounded-full ${pasos[i] ? 'bg-emerald-500' : 'bg-slate-200'}`} /><p className={`text-[0.64rem] font-semibold ${pasos[i] ? 'text-emerald-700' : 'text-slate-400'}`}>{i + 1}. {paso}</p></div>)}</div>
+        </div>
+
+        <div className="grid shrink-0 grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="rounded-2xl border border-sky-200 bg-gradient-to-br from-sky-50 to-white px-4 py-3 shadow-sm">
             <p className="font-body text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-concreto">Discos disponibles</p>
-            <p className="mt-0.5 font-data text-xl font-semibold text-concreto-oscuro">{ejesTallerCompletos.length}</p>
+            <p className="mt-1 font-data text-2xl font-bold text-sky-800">{ejesTallerCompletos.length}</p>
             <p className="font-body text-[0.65rem] text-concreto">({ejesTallerCompletos.length * 2} discos)</p>
           </div>
-          <div className="rounded-2xl border border-concreto/10 bg-white/45 px-3 py-2">
+          <div className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white px-4 py-3 shadow-sm">
             <p className="font-body text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-concreto">Discos a instalar</p>
-            <p className="mt-0.5 font-data text-xl font-semibold text-concreto-oscuro">{asignaciones.length}</p>
+            <p className="mt-1 font-data text-2xl font-bold text-emerald-800">{asignaciones.length}</p>
             <p className="font-body text-[0.65rem] text-concreto">({asignaciones.length}/4 ejes · máx. 2 por bogie)</p>
           </div>
-          <div className="rounded-2xl border border-concreto/10 bg-white/45 px-3 py-2">
+          <div className="rounded-2xl border border-violet-200 bg-gradient-to-br from-violet-50 to-white px-4 py-3 shadow-sm">
             <p className="font-body text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-concreto">Total ruedas</p>
-            <p className="mt-0.5 font-data text-xl font-semibold text-concreto-oscuro">{asignaciones.length * 4}</p>
+            <p className="mt-1 font-data text-2xl font-bold text-violet-800">{asignaciones.length * 4}</p>
             <p className="font-body text-[0.65rem] text-concreto">({asignaciones.length} baja + {asignaciones.length} alta)</p>
           </div>
         </div>
@@ -153,10 +168,8 @@ export function ModalCambioDisco({ onCerrar, trenInicial, cocheInicial }: Props)
         <ScrollArea className="flex min-h-0 flex-1 flex-col" viewportClassName="min-h-0 flex-1">
         <div className="space-y-4 pr-1">
         <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[1fr_420px]">
-          <div className="rounded-2xl border border-concreto/10 bg-white/30 p-4">
-            <p className="mb-3 font-body text-xs font-semibold uppercase tracking-[0.1em] text-concreto">
-              Vista previa del coche
-            </p>
+          <div className="rounded-3xl border border-slate-200/80 bg-gradient-to-b from-white/80 to-slate-50/70 p-4 shadow-sm">
+            <div className="mb-3 flex items-center gap-2"><TrainFront size={18} className="text-emerald-600" /><div><p className="text-sm font-bold text-slate-800">Vista 3D del coche</p><p className="text-xs text-slate-500">Pulsa un eje para ubicar su selector</p></div></div>
             {!coche && (
               <p className="py-8 text-center font-body text-sm text-concreto">
                 Elegí un tren y un coche para ver sus ejes.
@@ -172,8 +185,8 @@ export function ModalCambioDisco({ onCerrar, trenInicial, cocheInicial }: Props)
           </div>
 
           <div className="space-y-3">
-            <div className="rounded-2xl border border-concreto/10 bg-white/45 p-3">
-              <p className="mb-2 font-body text-xs font-semibold uppercase tracking-[0.1em] text-concreto">Configuración</p>
+            <div className="rounded-3xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50/75 to-white p-4 shadow-sm">
+              <div className="mb-3 flex items-center gap-2"><TrainFront size={17} className="text-emerald-600" /><div><p className="text-sm font-bold text-slate-800">1. Ubicación</p><p className="text-xs text-slate-500">Tren y coche intervenido</p></div></div>
               <div className="space-y-3">
                 <GlassSelect
                   label="Tren"
@@ -201,10 +214,8 @@ export function ModalCambioDisco({ onCerrar, trenInicial, cocheInicial }: Props)
             </div>
 
             {coche && (
-              <div className="rounded-2xl border border-concreto/10 bg-white/45 p-3">
-                <p className="mb-2 font-body text-xs font-semibold uppercase tracking-[0.1em] text-concreto">
-                  Seleccionar discos
-                </p>
+              <div className="rounded-3xl border border-amber-200/80 bg-gradient-to-br from-amber-50/80 to-white p-4 shadow-sm">
+                <div className="mb-3 flex items-center gap-2"><PackageCheck size={17} className="text-amber-600" /><div><p className="text-sm font-bold text-slate-800">2. Asignar repuestos</p><p className="text-xs text-slate-500">Selecciona el par preparado por eje</p></div></div>
                 <div className="space-y-3">
                   {coche.bogies.flatMap((bogie) =>
                     bogie.ejes.map((ejeFila) => {
@@ -241,9 +252,9 @@ export function ModalCambioDisco({ onCerrar, trenInicial, cocheInicial }: Props)
           </div>
         </div>
 
-        <div className="space-y-3 border-t border-concreto/15 pt-4">
-          <p className="font-body text-xs font-semibold uppercase tracking-[0.1em] text-concreto">Datos de operación</p>
-          <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-3 rounded-3xl border border-sky-200/80 bg-gradient-to-br from-sky-50/75 to-white p-4 shadow-sm">
+          <div className="flex items-center gap-2"><UserRound size={18} className="text-sky-600" /><div><p className="text-sm font-bold text-slate-800">3. Responsable y trazabilidad</p><p className="text-xs text-slate-500">Registra ejecución, autorización y motivo</p></div></div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <GlassField
               label="Técnico *"
               value={tecnicoNombre}
@@ -278,11 +289,12 @@ export function ModalCambioDisco({ onCerrar, trenInicial, cocheInicial }: Props)
               id="cambio-disco-justificacion"
               value={justificacion}
               onChange={(e) => setJustificacion(e.target.value)}
-              placeholder="Opcional"
-              rows={2}
+              placeholder="Describe el motivo del cambio y cualquier hallazgo relevante…"
+              rows={3}
               className="glass-field w-full px-3 py-2 text-sm"
             />
           </div>
+          {numeroCoche && asignaciones.length > 0 && <div className="flex items-start gap-3 rounded-2xl border border-emerald-200 bg-emerald-50/80 p-3"><ClipboardCheck size={18} className="mt-0.5 shrink-0 text-emerald-700" /><p className="text-xs leading-5 text-emerald-900"><strong>Resumen:</strong> Tren {trenNumero}, coche {numeroCoche}. Se reemplazarán {asignaciones.length} eje(s), equivalentes a {asignaciones.length * 2} discos.</p></div>}
         </div>
 
         {error && (

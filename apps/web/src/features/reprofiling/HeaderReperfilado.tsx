@@ -130,13 +130,12 @@ export function HeaderReperfilado({
             htmlFor="reperfilado-fecha-hora-fin"
             className="mb-1.5 block font-body text-xs font-semibold uppercase tracking-[0.1em] text-concreto"
           >
-            Fecha / hora fin *
+            Fecha / hora fin
           </label>
           <div className="flex items-center gap-1.5">
             <input
               id="reperfilado-fecha-hora-fin"
               type="datetime-local"
-              required
               disabled={deshabilitada}
               value={fin}
               onChange={(e) => setFin(e.target.value)}

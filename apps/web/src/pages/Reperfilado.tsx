@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ClipboardPenLine, Download, RefreshCcw, Ruler } from 'lucide-react'
+import { ClipboardPenLine, Download, RefreshCcw, Ruler, TriangleAlert } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { GlassButton } from '../components/GlassButton'
@@ -110,7 +110,7 @@ function mensajeConfirmarBloqueado(
   const faltantes: string[] = []
   if (!tablaBloqueada) faltantes.push('bloquear la tabla de reperfilado')
   if (responsableVacio) faltantes.push('completar el Responsable de Mantenimiento')
-  if (cabeceraIncompleta) faltantes.push('completar el P.T. y la fecha/hora de inicio y fin')
+  if (cabeceraIncompleta) faltantes.push('completar el P.T. y la fecha/hora de inicio')
   if (problemaInstrumentosFicha) faltantes.push(problemaInstrumentosFicha)
   return `Falta ${juntarConY(faltantes)} para poder confirmar la ficha.`
 }
@@ -176,8 +176,7 @@ export function Reperfilado({
   const responsableVacio = !ficha?.responsableMantenimientoNombre?.trim()
   const cabeceraIncompleta =
     !ficha?.puestoTrabajo?.trim() ||
-    !ficha?.fechaHoraInicio ||
-    !ficha?.fechaHoraFin
+    !ficha?.fechaHoraInicio
   const problemaInstrumentosFicha = ficha ? problemaInstrumentos(ficha.instrumentos, ficha.fechaFicha) : null
   const puedeConfirmar = tablaBloqueada && !responsableVacio && !cabeceraIncompleta && !problemaInstrumentosFicha
   // Descargar PDF solo tiene sentido con la tabla ya bloqueada (Verificar) y
@@ -427,16 +426,26 @@ export function Reperfilado({
                   deshabilitada={tablaBloqueada}
                 />
               </GlassSurface>
-              <GlassSurface className="mt-4 rounded-glass px-5 py-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.1em] text-concreto">
-                  Normas de seguridad
-                </p>
-                <p className="mt-1 text-sm text-concreto-oscuro">
-                  Antes de poner en marcha el torno se deben informar los
-                  trabajos a las áreas involucradas y cumplir los controles de
-                  seguridad exigidos por la empresa.
-                </p>
-              </GlassSurface>
+              <div
+                role="alert"
+                className="mt-4 flex gap-3 rounded-glass border border-amber-600/30 bg-amber-50/80 px-5 py-4"
+              >
+                <TriangleAlert
+                  size={20}
+                  className="mt-0.5 shrink-0 text-amber-700"
+                  aria-hidden
+                />
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.1em] text-amber-800">
+                    Normas de seguridad
+                  </p>
+                  <p className="mt-1 text-sm font-medium text-amber-900">
+                    Antes de poner en marcha el torno se deben informar los
+                    trabajos a las áreas involucradas y cumplir los controles de
+                    seguridad exigidos por la empresa.
+                  </p>
+                </div>
+              </div>
               <TablaFichaReperfilado
                 fichaId={fichaId}
                 esqueleto={preview.data.esqueleto}

@@ -389,8 +389,8 @@ export function CargaInicialReperfilado({ onCreada, trenInicial }: Props) {
           )}
         </form>
       ) : (
-        <form onSubmit={crear} className="mt-5">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <form onSubmit={crear} className="mt-5 space-y-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <GlassSelect
               label="Tipo de tren *"
               opciones={OPCIONES_TIPO_TREN}
@@ -429,6 +429,15 @@ export function CargaInicialReperfilado({ onCreada, trenInicial }: Props) {
               value={puestoTrabajo}
               onChange={(e) => setPuestoTrabajo(e.target.value)}
             />
+          </div>
+          {/* Fecha/hora inicio y fin van en su propia fila, separadas de los
+              campos simples de arriba: cada una es un campo compuesto
+              (input datetime-local + botón "hoy") más ancha que un
+              GlassField/GlassSelect — compartir grid con esos apretaba el
+              layout, sobre todo en el modal angosto de
+              ModalPendientesReperfilado (560px fijos, ajenos a los
+              breakpoints sm/lg de Tailwind, que son del viewport). */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label
                 htmlFor="reperfilado-manual-inicio"

@@ -8,6 +8,7 @@ import {
 import { BrakeDiscRulesService } from '../brake-disc-rules/brake-disc-rules.service';
 import { agruparPorMes, ordenarPorMes } from '../common/agrupar-por-mes';
 import { calcularOrdenFisico } from '../common/orden-fisico';
+import { ORDEN_COCHE_FLOTA, type CocheFlota } from '../fleet/fleet.constants';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   paginarFiltrandoPorAccion,
@@ -80,6 +81,16 @@ export interface WearRateSummary {
   paresInvalidos: number;
   motivosFrecuentes: MotivoInvalidezFrecuencia[];
 }
+
+// mm/mes promedio por mes calendario, un campo por tipo de coche — Ansaldo
+// (M20/M21/M22) queda fuera a propósito, mismo criterio que
+// ProyeccionService.obtenerPromedioPorVagon (WearRatePair.tipoCoche solo
+// contribuye si está en ORDEN_COCHE_FLOTA). null cuando ese mes no tiene
+// ningún par válido de ese tipo de coche.
+export type PuntoChartTasaPorCoche = { mes: string } & Record<
+  CocheFlota,
+  number | null
+>;
 
 @Injectable()
 export class WearRateService {
@@ -341,6 +352,63 @@ export class WearRateService {
       paresValidos: d.paresValidos,
       paresInvalidos: d.paresInvalidos,
     }));
+  }
+
+  // Misma serie mensual que obtenerChart(), pero desglosada por tipo de
+  // coche en vez de agregada a toda la flota — usada por el gráfico de líneas
+  // "Tasa de desgaste mensual" del dashboard (una línea por MA1/MB1/MB3/REM/
+  // MB2/MA2). Siempre fleet-wide: no acepta filtro por tren porque un tren
+  // Alstom tiene exactamente 1 coche de cada tipo, así que ese filtro
+  // colapsaría cada serie a los mismos pares que ya devuelve obtenerChart().
+  // Acotado al AÑO CALENDARIO en curso (pedido explícito): sin este corte, un
+  // solo par histórico con una tasa fuera de rango (dato viejo de meses sin
+  // mediciones consecutivas reales) estira la escala Y del gráfico y aplana
+  // visualmente el resto de las series.
+  async obtenerChartPorTipoCoche(): Promise<PuntoChartTasaPorCoche[]> {
+    const anioActual = new Date().getUTCFullYear();
+    const pares = await this.prisma.wearRatePair.findMany({
+      where: {
+        esValido: true,
+        tipoCoche: { in: [...ORDEN_COCHE_FLOTA] },
+        fecha2: {
+          gte: new Date(Date.UTC(anioActual, 0, 1)),
+          lt: new Date(Date.UTC(anioActual + 1, 0, 1)),
+        },
+      },
+      select: { fecha2: true, tasaMensual: true, tipoCoche: true },
+    });
+
+    type Acumulado = Record<CocheFlota, { suma: number; cantidad: number }>;
+    const inicial = (): Acumulado =>
+      Object.fromEntries(
+        ORDEN_COCHE_FLOTA.map((tipo) => [tipo, { suma: 0, cantidad: 0 }]),
+      ) as Acumulado;
+
+    const porMes = agruparPorMes(
+      pares,
+      (p) => p.fecha2,
+      inicial,
+      (acumulado, p) => {
+        const balde = acumulado[p.tipoCoche as CocheFlota];
+        balde.suma += Number(p.tasaMensual);
+        balde.cantidad += 1;
+        return acumulado;
+      },
+    );
+
+    // 12 filas SIEMPRE (enero a diciembre del año en curso), no solo los
+    // meses con pares — el gráfico necesita arrancar en enero aunque las
+    // primeras mediciones del año lleguen después (ver GraficoTasaPorCoche).
+    return Array.from({ length: 12 }, (_, i) => {
+      const mes = new Date(Date.UTC(anioActual, i, 1)).toISOString().slice(0, 7);
+      const acumulado = porMes.get(mes);
+      const fila = { mes } as PuntoChartTasaPorCoche;
+      for (const tipo of ORDEN_COCHE_FLOTA) {
+        const balde = acumulado?.[tipo];
+        fila[tipo] = balde && balde.cantidad > 0 ? balde.suma / balde.cantidad : null;
+      }
+      return fila;
+    });
   }
 
   async obtenerSummary(q: WearRateSummaryQueryDto): Promise<WearRateSummary> {

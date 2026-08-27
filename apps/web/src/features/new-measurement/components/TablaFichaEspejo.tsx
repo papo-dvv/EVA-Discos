@@ -372,6 +372,14 @@ function useLadoEditable(
 const CLASE_RESALTADO =
   'ring-1 ring-inset ring-[color:var(--color-estado-seguimiento)] bg-[color:var(--color-estado-seguimiento)]/10 rounded-lg'
 
+// Pista visual de "esto se llena a mano": con la tabla desbloqueada, T y H
+// son los únicos 2 campos realmente editables de toda la fila (Rd/Estado
+// siempre los calcula el backend) — sin este resaltado quedaban visualmente
+// idénticos a una celda de solo lectura. Cede ante CLASE_RESALTADO (ámbar,
+// prioridad de validación) cuando ambos aplicarían a la vez.
+const CLASE_EDITABLE =
+  'ring-1 ring-inset ring-[color:var(--color-verde-institucional)]/30 bg-[color:var(--color-verde-institucional)]/[0.06] rounded-lg'
+
 function serieBogie(codigo: string): string {
   return codigo.includes('/')
     ? codigo.split('/').at(-1)?.trim() || codigo
@@ -558,6 +566,9 @@ function CampoNumero({
   const [borrador, setBorrador] = useSyncedState(
     valor === null ? '' : String(valor),
   )
+  let claseCelda = 'rounded-lg border-transparent bg-transparent'
+  if (resaltado) claseCelda = CLASE_RESALTADO
+  else if (!deshabilitada) claseCelda = CLASE_EDITABLE
 
   return (
     <td className="whitespace-nowrap px-1 py-1 text-right">
@@ -575,11 +586,7 @@ function CampoNumero({
           }}
           placeholder="—"
           // +2pt sobre los 12px (9pt) originales — mismo ajuste que el resto de la tabla de datos
-          className={`w-full min-w-0 border px-1 py-1 text-right font-data text-[0.9167rem] text-concreto-oscuro transition-colors hover:border-concreto/25 focus:border-verde-institucional focus:bg-white/70 focus:outline-none disabled:opacity-50 ${
-            resaltado
-              ? CLASE_RESALTADO
-              : 'rounded-lg border-transparent bg-transparent'
-          }`.trim()}
+          className={`w-full min-w-0 border px-1 py-1 text-right font-data text-[0.9167rem] text-concreto-oscuro transition-colors hover:border-concreto/25 focus:border-verde-institucional focus:bg-white/70 focus:outline-none disabled:opacity-50 ${claseCelda}`.trim()}
         />
         {pendiente && (
           <WarningTooltip texto="Completa Espesor (T) y Desgaste (H) para guardar esta fila.">

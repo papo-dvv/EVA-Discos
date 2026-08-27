@@ -669,7 +669,17 @@ export class ProyeccionService {
     };
 
     for (const disco of discos) {
-      conteo[this.estadoProyectadoEnMes(disco, mes, evaluador, hoy)] += 1;
+      const estado = this.estadoProyectadoEnMes(disco, mes, evaluador, hoy);
+      // CRITICO es un estado del PRESENTE (el disco YA necesita intervención
+      // ahora), no algo que tenga sentido proyectar a futuro como Reperfilado
+      // o Cambio — un disco que se prevé crítico en un mes venidero ya
+      // aparece ahí como evento de Cambio (ver esPendiente/resolverEventos-
+      // Pronostico). Sin este corte, el mes en curso también arrastraba
+      // discos interpolados hasta SU ÚLTIMO día (mes.fechaReferencia), de
+      // modo que el conteo "Crítico ahora" del pronóstico no coincidía con
+      // el estado real actual (/projection/discos?estado=CRITICO).
+      if (estado === 'CRITICO' && !fechaCaeEnMes(hoy, mes)) continue;
+      conteo[estado] += 1;
     }
 
     return {
@@ -712,6 +722,14 @@ export class ProyeccionService {
     // REPERFILADO — limitación del motor de proyección, no de este parche.
     if (disco.estado === 'REPERFILADO' && fechaCaeEnMes(hoy, mes)) {
       return 'REPERFILADO';
+    }
+    // Mismo criterio que el override de REPERFILADO de arriba: en el mes en
+    // curso hay un dato real (la última medición) que no debería perderse
+    // frente a la interpolación a fin de mes — un disco YA crítico ahora
+    // sigue siéndolo, sin esperar a que mes.fechaReferencia (fin de mes) lo
+    // "confirme" con unos días más de desgaste interpolado.
+    if (disco.estado === 'CRITICO' && fechaCaeEnMes(hoy, mes)) {
+      return 'CRITICO';
     }
 
     const punto = interpolarEnFecha(

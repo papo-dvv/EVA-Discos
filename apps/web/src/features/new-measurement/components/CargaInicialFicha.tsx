@@ -192,17 +192,24 @@ export function CargaInicialFicha({
           </div>
         </form>
       ) : (
-        <form onSubmit={crearManual} className="mt-5">
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="flex items-end gap-1.5">
-              <GlassDatePicker
-                label="Fecha"
-                value={fecha}
-                onChange={(iso) => setFecha(iso)}
-                className="flex-1"
-              />
-              <BotonFechaHoy onClick={() => setFecha(fechaHoyCorta())} />
-            </div>
+        <form onSubmit={crearManual} className="mt-5 space-y-3">
+          {/* Fecha va en su propia fila, fuera del grid de abajo: es un
+              campo compuesto (datepicker + botón "hoy") más ancho que un
+              GlassField simple — dentro del mismo grid de 3-4 columnas
+              quedaba apretado hasta romper el layout, sobre todo en el
+              modal angosto de ModalCargaInicialMedicion (480px fijos, que
+              no se relaciona con los breakpoints sm/lg de Tailwind — esos
+              son del viewport, no del ancho real del modal). */}
+          <div className="flex items-end gap-1.5">
+            <GlassDatePicker
+              label="Fecha"
+              value={fecha}
+              onChange={(iso) => setFecha(iso)}
+              className="flex-1"
+            />
+            <BotonFechaHoy onClick={() => setFecha(fechaHoyCorta())} />
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <GlassField
               label="Tren"
               type="number"
