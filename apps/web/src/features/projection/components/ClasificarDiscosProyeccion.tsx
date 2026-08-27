@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { GlassSurface } from '../../../components/GlassSurface'
 import { PaginacionNumerica } from '../../scan-records/components/PaginacionNumerica'
 import { ESTADO_META } from '../../fleet/components/estadoVisual'
+import { fabricanteDeTren } from '../../fleet/components/fabricante'
 import { ICONO_ESTADO_TREN } from '../../fleet/components/semaforoTren'
 import { useFleetSummary } from '../../fleet/queries'
 import type { EstadoDisco } from '../../scan-records/types'
@@ -56,7 +57,9 @@ export function ClasificarDiscosProyeccion() {
 
   const conteo = useMemo(() => {
     const acumulado: Record<EstadoDisco, number> = { OK: 0, SEGUIMIENTO: 0, CAMBIO: 0, CRITICO: 0, REPERFILADO: 0 }
-    for (const t of fleet.data ?? []) {
+    // Solo Alstom (ver ResumenAnalisisProyeccion) — useFleetSummary() es
+    // fleet-wide, pero esta pantalla es exclusivamente Proyección/Alstom.
+    for (const t of (fleet.data ?? []).filter((t) => fabricanteDeTren(t.tren) === 'ALSTOM')) {
       acumulado.OK += t.conteoEstado.ok
       acumulado.SEGUIMIENTO += t.conteoEstado.seguimiento
       acumulado.CAMBIO += t.conteoEstado.cambio

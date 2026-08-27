@@ -69,6 +69,13 @@ export class InventoryService {
           gte: new Date(Date.UTC(anioActual, 0, 1)),
           lt: new Date(Date.UTC(anioActual + 1, 0, 1)),
         },
+        // Solo Alstom: la otra mitad de este mismo gráfico ("Cambios/
+        // Reperfilados proyectados") sale de Proyección, que es exclusivamente
+        // Alstom (ver ProyeccionService.resolverDiscosEnScope — Ansaldo
+        // todavía no está soportado ahí). Sin este filtro, un retiro Ansaldo
+        // se sumaba a la serie pasada del gráfico sin tener ningún
+        // contrapunto proyectado con el que compararse.
+        brakeDisc: { fabricante: 'alstom_metropolis9000' },
       },
       select: { fecha: true },
     });

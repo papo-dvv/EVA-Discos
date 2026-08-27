@@ -2,6 +2,7 @@ import { CalendarClock, CheckCircle2, Package, TrainFront, type LucideIcon } fro
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { GlassSurface } from '../../../components/GlassSurface'
+import { fabricanteDeTren } from '../../fleet/components/fabricante'
 import { useFleetSummary } from '../../fleet/queries'
 import { useCambiosDiscoAnio, useStatsInventario } from '../../inventory/queries'
 import { usePronostico, useProyeccionDiscos } from '../queries'
@@ -74,7 +75,13 @@ export function ResumenAnalisisProyeccion() {
   const proximoMes = meses[1]
   const nombreProximoMes = proximoMes ? FORMATO_MES.format(new Date(`${proximoMes.mes}-01T12:00:00`)) : '—'
 
-  const trenesCriticos = (fleet.data ?? []).filter((t) => t.conteoEstado.critico > 0)
+  // Proyección es exclusivamente Alstom (ver ProyeccionService.resolverDiscosEnScope
+  // — Ansaldo queda fuera a propósito, ese modelo no está soportado acá).
+  // useFleetSummary() es fleet-wide (incluye Ansaldo, T01-T05), así que se
+  // filtra acá antes de contar — sin este filtro, un disco Ansaldo en Cambio/
+  // Crítico inflaría estas KPIs de una pantalla que no puede operarlo.
+  const flotaAlstom = (fleet.data ?? []).filter((t) => fabricanteDeTren(t.tren) === 'ALSTOM')
+  const trenesCriticos = flotaAlstom.filter((t) => t.conteoEstado.critico > 0)
   const discosCriticos = trenesCriticos.reduce((total, t) => total + t.conteoEstado.critico, 0)
 
   const discosNecesarios = necesarios.data?.total ?? 0
