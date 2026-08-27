@@ -6,7 +6,9 @@ import type { FleetSummaryItem } from '../types'
 // Dashboard/Proyecciones). Orden de severidad, alineado con el tipo
 // AccionRecomendada del backend (CRITICO > CAMBIO > REPERFILADO > NINGUNA):
 // un disco en reperfilado sigue pidiendo atención aunque su Rd ya lea OK.
-export function getEstadoDominanteTren(conteoEstado: FleetSummaryItem['conteoEstado']): EstadoDisco {
+export function getEstadoDominanteTren(conteoEstado: FleetSummaryItem['conteoEstado'] | null | undefined): EstadoDisco {
+  // Compatibilidad con APIs antiguas que todavía no devolvían el resumen del tren.
+  if (!conteoEstado) return 'OK'
   if (conteoEstado.critico > 0) return 'CRITICO'
   if (conteoEstado.cambio > 0) return 'CAMBIO'
   if (conteoEstado.reperfilado > 0) return 'REPERFILADO'
