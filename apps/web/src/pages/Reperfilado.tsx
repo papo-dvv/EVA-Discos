@@ -314,11 +314,12 @@ export function Reperfilado({
     )
   }
 
+  const fichaCargada = Boolean(ficha && preview.data)
   return (
-    <div className={fichaId ? 'px-2 py-4 sm:px-3' : 'px-3 py-6 sm:px-5'}>
-      <div className={fichaId ? 'w-full' : 'mx-auto flex max-w-[75rem] flex-col gap-4 xl:max-w-[96rem] xl:flex-row xl:items-start'}>
-        <div className={fichaId ? 'min-w-0' : 'min-w-0 flex-1'}>
-          <GlassSurface className="flex flex-wrap items-center justify-between gap-4 rounded-glass px-6 py-4">
+    <div className={fichaCargada ? 'px-2 py-4 sm:px-3' : 'px-3 py-5 sm:px-5'}>
+      <div className={fichaCargada ? 'w-full' : 'mx-auto w-full max-w-[72rem]'}>
+        <div className="min-w-0">
+          <GlassSurface className="rounded-glass px-5 py-4 sm:px-6">
             <div>
               <h1 className="font-display text-2xl font-semibold tracking-tight text-concreto-oscuro">
                 Reperfilado
@@ -327,38 +328,22 @@ export function Reperfilado({
                 Control de trabajos en torno fosa - discos de freno Tren Alstom
               </p>
             </div>
-          </GlassSurface>
-
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <p className="font-body text-xs font-semibold uppercase tracking-[0.1em] text-concreto">
-            Motivo
-          </p>
-          <SegmentedControl
-            ariaLabel="Motivo de la ficha"
-            opciones={MOTIVO_OPCIONES.map((opcion) =>
-              fichaId && opcion.valor !== 'Reperfilado'
-                ? {
-                    ...opcion,
-                    deshabilitada: true,
-                    tooltip: 'Cancela o confirma la ficha actual para cambiar de motivo.',
-                    tooltipPosicion: 'abajo' as const,
+            <div className="mt-3 flex flex-col gap-2 border-t border-concreto/10 pt-3 sm:flex-row sm:items-center">
+              <p className="font-body text-xs font-semibold uppercase tracking-[0.1em] text-concreto">Motivo de la ficha</p>
+              <SegmentedControl
+                ariaLabel="Motivo de la ficha"
+                opciones={MOTIVO_OPCIONES.map((opcion) => fichaId && opcion.valor !== 'Reperfilado' ? { ...opcion, deshabilitada: true, tooltip: 'Cancela o confirma la ficha actual para cambiar de motivo.', tooltipPosicion: 'abajo' as const } : opcion)}
+                valor="Reperfilado"
+                onCambiar={(valor) => {
+                  if (valor === 'Medición') {
+                    const activa = obtenerFichaActiva('medicion')
+                    onCambiarMotivo?.('Medición')
+                    navigate(activa ? `/nuevas-mediciones/${activa}` : '/nuevas-mediciones')
                   }
-                : opcion,
-            )}
-            valor="Reperfilado"
-            onCambiar={(valor) => {
-              if (valor === 'Medición') {
-                const activa = obtenerFichaActiva('medicion')
-                onCambiarMotivo?.('Medición')
-                navigate(
-                  activa
-                    ? `/nuevas-mediciones/${activa}`
-                    : '/nuevas-mediciones',
-                )
-              }
-            }}
-          />
-        </div>
+                }}
+              />
+            </div>
+          </GlassSurface>
 
         {!fichaId && (
           <GlassSurface fuerte className="mt-4 rounded-glass-lg p-6 sm:p-8">
