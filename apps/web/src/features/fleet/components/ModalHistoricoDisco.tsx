@@ -1,5 +1,6 @@
 import { Activity, CalendarDays, Disc3, Rotate3D } from 'lucide-react'
-import { useState } from 'react'
+import { animate } from 'animejs'
+import { useEffect, useRef, useState } from 'react'
 import { GlassModal } from '../../../components/GlassModal'
 import { ScrollArea } from '../../../components/ScrollArea'
 import { useFleetHistorico } from '../queries'
@@ -123,6 +124,19 @@ function DiscoInteractivo3D({
   const [giro, setGiro] = useState({ x: 0, y: 0 })
   const [girando, setGirando] = useState(false)
   const [vista, setVista] = useState<'3d' | '2d'>('3d')
+  const modeloRef = useRef<HTMLSpanElement>(null)
+  useEffect(() => {
+    if (disco.posicion !== 'unica' || vista !== '3d' || !modeloRef.current) return
+    const animacion = animate(modeloRef.current, {
+      rotateY: '1turn',
+      duration: 9000,
+      ease: 'linear',
+      loop: true,
+    })
+    return () => {
+      animacion.pause()
+    }
+  }, [disco.posicion, vista])
   const metrica = {
     rd: { etiqueta: 'Radio de desgaste (Rd)', color: '#34d399', halo: 'rgba(52,211,153,.75)' },
     h: { etiqueta: 'Altura de pestaña (H)', color: '#f97316', halo: 'rgba(249,115,22,.75)' },
@@ -175,9 +189,11 @@ function DiscoInteractivo3D({
       >
         <span className="absolute left-1/2 top-1/2 h-8 w-52 -translate-x-1/2 translate-y-9 rounded-full bg-black/60 blur-xl" />
         <span
+          ref={modeloRef}
           className="absolute left-1/2 top-1/2 block h-32 w-32 -translate-x-1/2 -translate-y-1/2 transition-transform duration-200 ease-out"
           style={{ transform: vista === '3d' ? `translate(-50%, -50%) perspective(650px) rotateX(${giro.x}deg) rotateY(${giro.y}deg)` : 'translate(-50%, -50%)' }}
         >
+          {disco.posicion === 'unica' && <span className="absolute left-1/2 top-1/2 h-8 w-52 -translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-b from-slate-300 via-slate-500 to-slate-700 shadow-[0_6px_12px_rgba(0,0,0,.5)]" />}
           <span className={`absolute inset-0 rounded-full ${vista === '3d' ? 'bg-gradient-to-br from-slate-100 via-slate-500 to-slate-950 shadow-[inset_-12px_-10px_24px_rgba(0,0,0,.55),inset_9px_8px_18px_rgba(255,255,255,.8),10px_15px_20px_rgba(0,0,0,.45)]' : 'border-2 border-slate-300 bg-slate-950/80 shadow-[0_0_0_8px_rgba(255,255,255,.08)]'}`} />
           <span className={`absolute inset-[9px] rounded-full border ${vista === '3d' ? 'border-white/40 bg-[repeating-conic-gradient(from_0deg,#9ca3af_0deg,#e5e7eb_3deg,#6b7280_6deg)] opacity-80' : 'border-emerald-400/70'}`} />
           <span className="absolute inset-[22px] rounded-full border-[5px] border-slate-700 bg-gradient-to-br from-slate-300 via-slate-600 to-slate-900 shadow-inner" />
