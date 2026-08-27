@@ -269,16 +269,45 @@ export class ReprofilingPdfService {
       escribirCentrado(fecha(instrumento.fechaVencimientoCalibracion), 471, y, 5.2);
       escribir(ajustarTexto(instrumento.observaciones, 55, 5.2), 508, y, 5.2);
     });
-    const comentarios =
-      (ficha.comentariosActividad ?? '').match(/.{1,115}(?:\s|$)/g) ?? [];
-    comentarios
-      .slice(0, 5)
-      .forEach((linea, indice) =>
-        escribir(linea.trim(), 45, 110.5 - indice * 8.7, 5.7),
-      );
-    for (const [indice, tecnico] of ficha.tecnicos.slice(0, 2).entries()) {
+    // El área de comentarios termina antes de la tabla de firmas. Se ajusta
+    // por ancho real y se limita a tres renglones para que nunca invada los
+    // encabezados de CARGO / NOMBRES / FIRMA.
+    const palabrasComentario = (ficha.comentariosActividad ?? '')
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+    const comentarios: string[] = [];
+    let lineaComentario = '';
+    for (const palabra of palabrasComentario) {
+      const candidata = lineaComentario
+        ? `${lineaComentario} ${palabra}`
+        : palabra;
+      if (
+        lineaComentario &&
+        font.widthOfTextAtSize(candidata, 5.2) > 510
+      ) {
+        comentarios.push(lineaComentario);
+        lineaComentario = palabra;
+      } else {
+        lineaComentario = candidata;
+      }
+    }
+    if (lineaComentario) comentarios.push(lineaComentario);
+    comentarios.slice(0, 3).forEach((linea, indice) =>
+      escribir(ajustarTexto(linea, 510, 5.2), 45, 111 - indice * 8.5, 5.2),
+    );
+    // Las posiciones vacías se crean como placeholders al abrir una ficha.
+    // Sólo se imprimen técnicos que realmente hayan sido registrados.
+    const tecnicosConDatos = ficha.tecnicos.filter(
+      (tecnico) =>
+        tecnico.cargo?.trim() ||
+        tecnico.nombre?.trim() ||
+        tecnico.firma?.startsWith('data:image/') ||
+        tecnico.fecha,
+    );
+    for (const [indice, tecnico] of tecnicosConDatos.slice(0, 2).entries()) {
       const y = 62 - indice * 10;
-      escribirCentrado(tecnico.cargo || 'TÉCNICO', 95, y, 5.5, true);
+      escribirCentrado(tecnico.cargo, 95, y, 5.5, true);
       escribirCentrado(ajustarTexto(tecnico.nombre, 325, 6.1), 310, y, 6.1, true);
       await dibujarFirma(pdf, page, tecnico.firma, 520, y + 1);
     }

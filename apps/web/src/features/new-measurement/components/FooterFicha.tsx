@@ -55,7 +55,7 @@ export function FooterFicha({ ficha, onGuardar, limiteTecnicos, variante = 'medi
   return (
     <div className="mt-6 space-y-5">
       <GlassSurface fuerte className="rounded-glass p-5">
-        <h2 className="mb-3 font-display text-base font-semibold text-concreto-oscuro">
+        <h2 className="mb-2 font-display text-sm font-semibold text-concreto-oscuro">
           Lista de instrumentos
         </h2>
         <TablaInstrumentos
@@ -66,7 +66,7 @@ export function FooterFicha({ ficha, onGuardar, limiteTecnicos, variante = 'medi
       </GlassSurface>
 
       <GlassSurface fuerte className="rounded-glass p-5">
-        <h2 className="mb-3 font-display text-base font-semibold text-concreto-oscuro">
+        <h2 className="mb-2 font-display text-sm font-semibold text-concreto-oscuro">
           Comentarios respecto de la actividad
         </h2>
         <ComentariosActividad
@@ -80,7 +80,6 @@ export function FooterFicha({ ficha, onGuardar, limiteTecnicos, variante = 'medi
           tecnicos={ficha.tecnicos.slice(0, limiteTecnicos)}
           responsableNombre={ficha.responsableMantenimientoNombre ?? ''}
           responsableFirma={ficha.responsableMantenimientoFirma ?? ''}
-          responsableFecha={aFechaCorta(ficha.responsableMantenimientoFecha)}
           onGuardar={onGuardar}
         />
       ) : (
@@ -142,24 +141,22 @@ function TablaFirmasReperfilado({
   tecnicos,
   responsableNombre,
   responsableFirma,
-  responsableFecha,
   onGuardar,
 }: {
   tecnicos: FichaTecnico[]
   responsableNombre: string
   responsableFirma: string
-  responsableFecha: string
   onGuardar: (cambios: CambiosFicha) => void
 }) {
   return (
-    <GlassSurface fuerte className="rounded-glass p-5">
+    <GlassSurface fuerte className="rounded-glass p-4">
       <div className="w-full overflow-x-auto">
-        <table className="w-full min-w-[42rem] border-collapse text-left font-body text-xs">
+        <table className="w-full min-w-[36rem] border-collapse text-left font-body text-[0.6875rem]">
           <thead>
-            <tr className="border-b border-concreto/20 text-[0.6875rem] font-semibold uppercase tracking-wide text-concreto">
-              <th className="w-1/4 px-2 py-2">Cargo</th>
-              <th className="w-2/5 px-2 py-2">Nombres y apellidos</th>
-              <th className="px-2 py-2">Firma</th>
+            <tr className="border-b border-concreto/20 text-[0.625rem] font-semibold uppercase tracking-wide text-concreto">
+              <th className="w-1/4 px-1.5 py-1.5">Cargo</th>
+              <th className="w-2/5 px-1.5 py-1.5">Nombres y apellidos</th>
+              <th className="px-1.5 py-1.5">Firma</th>
             </tr>
           </thead>
           <tbody>
@@ -170,13 +167,11 @@ function TablaFirmasReperfilado({
               cargo="SUPERVISOR / COORDINADOR / TÉCNICO ESPECIALISTA:"
               nombre={responsableNombre}
               firma={responsableFirma}
-              fecha={responsableFecha}
               nombreObligatorio
               onGuardar={(cambios) =>
                 onGuardar({
                   responsableMantenimientoNombre: cambios.nombre,
                   responsableMantenimientoFirma: cambios.firma,
-                  responsableMantenimientoFecha: cambios.fecha,
                 })
               }
             />
@@ -196,15 +191,14 @@ function FilaFirmaTecnico({
 }) {
   const [cargo, setCargo] = useSyncedState(tecnico.cargo ?? '')
   const [nombre, setNombre] = useSyncedState(tecnico.nombre ?? '')
-  const [fecha, setFecha] = useSyncedState(aFechaCorta(tecnico.fecha))
 
-  function guardarCampo(campo: 'cargo' | 'nombre' | 'firma' | 'fecha', valor: string) {
+  function guardarCampo(campo: 'cargo' | 'nombre' | 'firma', valor: string) {
     onGuardar({ tecnicos: [{ posicion: tecnico.posicion, [campo]: valor }] })
   }
 
   return (
     <tr className="border-b border-concreto/10 align-top">
-      <td className="px-2 py-1.5">
+      <td className="px-1.5 py-1">
         <input
           className={CLASE_INPUT}
           placeholder="Cargo"
@@ -214,7 +208,7 @@ function FilaFirmaTecnico({
           onBlur={(e) => guardarCampo('cargo', e.target.value)}
         />
       </td>
-      <td className="px-2 py-1.5">
+      <td className="px-1.5 py-1">
         <input
           className={CLASE_INPUT}
           placeholder="Nombre"
@@ -224,31 +218,13 @@ function FilaFirmaTecnico({
           onBlur={(e) => guardarCampo('nombre', e.target.value)}
         />
       </td>
-      <td className="px-2 py-1.5">
+      <td className="px-1.5 py-1">
         <div className="flex items-center gap-2">
           <FirmaDigital
             etiqueta={`Fila ${tecnico.posicion}`}
             valor={tecnico.firma ?? ''}
             onGuardar={(firma) => guardarCampo('firma', firma)}
           />
-          <div className="flex items-center gap-1">
-            <input
-              type="date"
-              className={`${CLASE_INPUT} w-32`}
-              aria-label={`Fecha fila ${tecnico.posicion}`}
-              value={fecha}
-              onChange={(e) => {
-                setFecha(e.target.value)
-                guardarCampo('fecha', e.target.value)
-              }}
-            />
-            <BotonFechaHoy
-              onClick={() => {
-                setFecha(fechaHoyCorta())
-                guardarCampo('fecha', fechaHoyCorta())
-              }}
-            />
-          </div>
         </div>
       </td>
     </tr>
@@ -259,34 +235,31 @@ function FilaFirmaFija({
   cargo,
   nombre,
   firma,
-  fecha,
   nombreObligatorio = false,
   onGuardar,
 }: {
   cargo: string
   nombre: string
   firma: string
-  fecha: string
   nombreObligatorio?: boolean
-  onGuardar: (cambios: { nombre?: string; firma?: string; fecha?: string }) => void
+  onGuardar: (cambios: { nombre?: string; firma?: string }) => void
 }) {
   const [borradorNombre, setBorradorNombre] = useSyncedState(nombre)
-  const [borradorFecha, setBorradorFecha] = useSyncedState(fecha)
   const vacio = nombreObligatorio && borradorNombre.trim() === ''
 
   return (
     <tr className="border-t-2 border-concreto/25 align-top">
-      <td className="px-2 py-1.5 font-semibold text-concreto-oscuro">
+      <td className="px-1.5 py-1 text-[0.6875rem] font-semibold text-concreto-oscuro">
         <span className="inline-flex items-center gap-1.5">
           {cargo}
           {nombreObligatorio && (
-            <WarningTooltip texto="Debe tener nombre, firma y fecha para poder confirmar la ficha.">
+            <WarningTooltip texto="Debe tener nombre y firma para poder confirmar la ficha.">
               <span className="text-[color:var(--color-estado-critico)]">*</span>
             </WarningTooltip>
           )}
         </span>
       </td>
-      <td className="px-2 py-1.5">
+      <td className="px-1.5 py-1">
         <input
           className={`${CLASE_INPUT} ${vacio ? 'ring-1 ring-[color:var(--color-estado-critico)]/50' : ''}`.trim()}
           placeholder="Nombre"
@@ -297,31 +270,13 @@ function FilaFirmaFija({
           onBlur={(e) => onGuardar({ nombre: e.target.value })}
         />
       </td>
-      <td className="px-2 py-1.5">
+      <td className="px-1.5 py-1">
         <div className="flex items-center gap-2">
           <FirmaDigital
             etiqueta={cargo}
             valor={firma}
             onGuardar={(valor) => onGuardar({ firma: valor })}
           />
-          <div className="flex items-center gap-1">
-            <input
-              type="date"
-              className={`${CLASE_INPUT} w-32`}
-              aria-label={`Fecha ${cargo}`}
-              value={borradorFecha}
-              onChange={(e) => {
-                setBorradorFecha(e.target.value)
-                onGuardar({ fecha: e.target.value })
-              }}
-            />
-            <BotonFechaHoy
-              onClick={() => {
-                setBorradorFecha(fechaHoyCorta())
-                onGuardar({ fecha: fechaHoyCorta() })
-              }}
-            />
-          </div>
         </div>
       </td>
     </tr>
@@ -511,7 +466,7 @@ function ComentariosActividad({
         onBlur={() => {
           if (borrador !== valor) onGuardar({ comentariosActividad: borrador })
         }}
-        className="glass-field resize-y px-3 py-2.5 text-sm"
+        className="glass-field resize-y px-3 py-2 text-xs"
         placeholder="Observaciones generales de la actividad…"
       />
       <p className="text-right font-body text-[0.6875rem] text-concreto">
