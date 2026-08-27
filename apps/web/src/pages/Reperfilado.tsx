@@ -314,11 +314,10 @@ export function Reperfilado({
     )
   }
 
-  const fichaCargada = Boolean(ficha && preview.data)
   return (
-    <div className={fichaCargada ? 'px-2 py-4 sm:px-3' : 'px-3 py-5 sm:px-5'}>
-      <div className={fichaCargada ? 'w-full' : 'mx-auto w-full max-w-[72rem]'}>
-        <div className="min-w-0">
+    <div className={fichaId ? 'px-2 py-4 sm:px-3' : 'px-3 py-5 sm:px-5'}>
+      <div className={fichaId ? 'w-full' : 'mx-auto flex w-full max-w-[72rem] flex-col gap-4 xl:max-w-[96rem] xl:flex-row xl:items-start'}>
+        <div className={fichaId ? 'min-w-0' : 'min-w-0 flex-1'}>
           <GlassSurface className="rounded-glass px-5 py-4 sm:px-6">
             <div>
               <h1 className="font-display text-2xl font-semibold tracking-tight text-concreto-oscuro">

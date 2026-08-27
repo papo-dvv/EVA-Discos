@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { ChevronDown, ChevronUp } from 'lucide-react'
 import { GlassSurface } from '../../../components/GlassSurface'
 import { WarningTooltip } from '../../../components/WarningTooltip'
 import { useSyncedState } from '../../../hooks/useSyncedState'
@@ -100,22 +101,44 @@ export function TablaFichaReperfilado({
       (lado.reperfiladoTAntes !== null && lado.tValue !== null && lado.tValue >= lado.reperfiladoTAntes) ||
       (lado.reperfiladoHAntes !== null && lado.hValue !== null && lado.hValue >= lado.reperfiladoHAntes) ||
       (lado.recordId !== null && lado.rugosidadRa !== RUGOSIDAD_RA_OBJETIVO) ||
-      lado.tInvalido || lado.rdInvalido,
+      lado.tInvalido || lado.rdInvalido || lado.antesInvalido,
     ).length
   }, 0)
   function motivosVisiblesLado(lado: LadoFilaEspejo): MotivoInvalido[] {
-    return (
+    const motivos = (
       (lado.recordId ? motivosVerificadosPorRecord.get(lado.recordId) : undefined) ??
       lado.motivos
     )
+    // Después de editar, el preview puede actualizar los flags antes que el
+    // resumen de la última verificación. En ese breve estado no ocultamos la
+    // columna lateral: generamos el mismo aviso a partir del flag persistido.
+    if (motivos.length > 0) return motivos
+    if (lado.antesInvalido) {
+      return [{
+        campo: 'antes',
+        motivo: 'Los valores antes del reperfilado no pueden reflejar menos desgaste que la última medición registrada de este disco.',
+      }]
+    }
+    if (lado.tInvalido) {
+      return [{ campo: 't', motivo: 'El espesor no puede ser mayor que la última medición registrada.' }]
+    }
+    if (lado.rdInvalido) {
+      return [{ campo: 'rd', motivo: 'El desgaste no puede ser mayor que la última medición registrada.' }]
+    }
+    return []
   }
-  const mostrarColumnaMotivo =
-    resaltarInvalidos &&
-    filas.some(
+  const hayMotivosVisibles = filas.some(
       (fila) =>
         motivosVisiblesLado(fila.izquierdo).length > 0 ||
         motivosVisiblesLado(fila.derecho).length > 0,
     )
+  const hayFlagsInvalidos = filas.some(
+    (fila) =>
+      fila.izquierdo.tInvalido || fila.izquierdo.rdInvalido || fila.izquierdo.antesInvalido ||
+      fila.derecho.tInvalido || fila.derecho.rdInvalido || fila.derecho.antesInvalido,
+  )
+  const mostrarColumnaMotivo =
+    (resaltarInvalidos && hayMotivosVisibles) || hayFlagsInvalidos
 
   return (
     <GlassSurface fuerte className="mt-4 overflow-hidden rounded-glass">
@@ -147,7 +170,14 @@ export function TablaFichaReperfilado({
           </div>
         </div>
         {(ladosPendientes > 0 || fueraDeLimite > 0) && (
-          <div role="alert" className="mt-3 flex flex-wrap gap-x-5 gap-y-1 rounded-2xl border border-amber-600/20 bg-amber-50/60 px-4 py-2.5 text-xs text-amber-900">
+          <div
+            role="alert"
+            className={`mt-3 flex flex-wrap gap-x-5 gap-y-1 rounded-2xl px-4 py-2.5 text-xs ${
+              fueraDeLimite > 0
+                ? 'border border-red-500/30 bg-red-50/80 text-red-900'
+                : 'border border-amber-600/20 bg-amber-50/60 text-amber-900'
+            }`}
+          >
             {ladosPendientes > 0 && <span>⚠ Hay {ladosPendientes} posición(es) iniciadas sin completar.</span>}
             {fueraDeLimite > 0 && <span>⚠ {fueraDeLimite} posiciones necesitan revisión.</span>}
           </div>
@@ -494,27 +524,79 @@ function Campo({
   disabled: boolean
   invalido?: boolean
 }) {
+  const formatear = (numero: number | null) =>
+    numero === null ? '' : numero.toFixed(2)
   const [borrador, setBorrador] = useSyncedState(
-    valor === null ? '' : String(valor),
+    formatear(valor),
   )
+
+  function ajustar(delta: number) {
+    const actual = Number(borrador)
+    const siguiente = Math.max(
+      0,
+      Math.round(((Number.isFinite(actual) ? actual : 0) + delta) * 100) /
+        100,
+    )
+    setBorrador(formatear(siguiente))
+    if (siguiente !== valor) onGuardar(siguiente)
+  }
+
   return (
-    <td className="px-1.5 py-1">
-      <input
-        type="number"
-        data-reperfilado-invalido={invalido ? 'true' : undefined}
-        step="0.01"
-        disabled={disabled}
-        value={borrador}
-        onChange={(e) => setBorrador(e.target.value)}
-        onBlur={() => {
-          const n = Number(borrador)
-          if (borrador !== '' && Number.isFinite(n) && n !== valor) onGuardar(n)
-        }}
-        placeholder="—"
-        className={`glass-field w-full min-w-0 px-1.5 py-1 text-right font-data text-xs transition ${
-          borrador === '' ? 'border-amber-500/25 bg-amber-50/25' : 'border-emerald-700/20 bg-emerald-50/30'
-        } ${invalido ? 'border-[color:var(--color-estado-critico)]' : ''}`}
-      />
+    <td className={`px-1.5 py-1 ${invalido ? 'bg-red-50/70' : ''}`}>
+      <div className="relative min-w-[4.5rem]">
+        <input
+          type="text"
+          inputMode="decimal"
+          data-reperfilado-invalido={invalido ? 'true' : undefined}
+          aria-invalid={invalido || undefined}
+          disabled={disabled}
+          value={borrador}
+          onChange={(e) => {
+            const siguiente = e.target.value.replace(',', '.')
+            if (/^\d*(?:\.\d{0,2})?$/.test(siguiente)) setBorrador(siguiente)
+          }}
+          onFocus={(e) => e.currentTarget.select()}
+          onBlur={() => {
+            const n = Number(borrador)
+            if (borrador !== '' && Number.isFinite(n)) {
+              setBorrador(formatear(n))
+              if (n !== valor) onGuardar(n)
+            }
+          }}
+          placeholder="—"
+          className={`glass-field block w-full px-1.5 py-1 pr-5 text-center font-data text-sm tabular-nums transition ${
+            borrador === '' ? 'border-amber-500/25 bg-amber-50/25' : 'border-emerald-700/20 bg-emerald-50/30'
+          } ${
+            invalido
+              ? '!border-2 !border-red-500 !bg-red-50/95 !text-red-950 ring-2 ring-red-500/25 shadow-[0_0_0_3px_rgba(239,68,68,0.10)]'
+              : ''
+          }`}
+        />
+        <span className="absolute inset-y-1 right-1 flex w-3.5 flex-col overflow-hidden rounded-sm border border-concreto/15 bg-white/80">
+          <button
+            type="button"
+            aria-label="Aumentar 0.01"
+            title="Aumentar 0.01"
+            disabled={disabled}
+            onMouseDown={(evento) => evento.preventDefault()}
+            onClick={() => ajustar(0.01)}
+            className="flex min-h-0 flex-1 items-center justify-center text-concreto hover:bg-emerald-50 hover:text-emerald-800 disabled:opacity-40"
+          >
+            <ChevronUp size={10} strokeWidth={2.5} aria-hidden />
+          </button>
+          <button
+            type="button"
+            aria-label="Disminuir 0.01"
+            title="Disminuir 0.01"
+            disabled={disabled}
+            onMouseDown={(evento) => evento.preventDefault()}
+            onClick={() => ajustar(-0.01)}
+            className="flex min-h-0 flex-1 items-center justify-center border-t border-concreto/15 text-concreto hover:bg-emerald-50 hover:text-emerald-800 disabled:opacity-40"
+          >
+            <ChevronDown size={10} strokeWidth={2.5} aria-hidden />
+          </button>
+        </span>
+      </div>
     </td>
   )
 }
