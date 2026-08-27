@@ -68,7 +68,7 @@ function calcularRangoYTecnico(estado: EstadoDisco, u: Record<ClaveUmbral, numbe
 export function LeyendaRangosDiscos() {
   const params = useSystemParams()
 
-  const umbrales = { ...UMBRALES_POR_DEFECTO }
+  const umbrales: Record<ClaveUmbral, number> = { ...UMBRALES_POR_DEFECTO }
   for (const clave of Object.keys(UMBRALES_POR_DEFECTO) as ClaveUmbral[]) {
     const entrada = params.data?.find((p) => p.clave === clave)
     const valor = entrada ? Number(entrada.valor) : NaN
