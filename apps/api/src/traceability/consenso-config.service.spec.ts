@@ -1,13 +1,9 @@
 import { Test } from '@nestjs/testing';
-import { PrismaService } from '../prisma/prisma.service';
+import { SystemParamsCacheService } from '../system-params/system-params-cache.service';
 import {
   ConsensoConfigService,
   esClavePercentil,
 } from './consenso-config.service';
-
-interface PrismaMock {
-  systemParam: Record<'findMany' | 'findUnique', jest.Mock>;
-}
 
 describe('esClavePercentil', () => {
   it('true para los 4 parámetros de percentil', () => {
@@ -29,16 +25,14 @@ describe('esClavePercentil', () => {
 
 describe('ConsensoConfigService', () => {
   let service: ConsensoConfigService;
-  let prisma: PrismaMock;
+  let systemParamsCache: { obtenerTodos: jest.Mock };
 
   beforeEach(async () => {
-    prisma = {
-      systemParam: { findMany: jest.fn(), findUnique: jest.fn() },
-    };
+    systemParamsCache = { obtenerTodos: jest.fn() };
     const moduleRef = await Test.createTestingModule({
       providers: [
         ConsensoConfigService,
-        { provide: PrismaService, useValue: prisma },
+        { provide: SystemParamsCacheService, useValue: systemParamsCache },
       ],
     }).compile();
     service = moduleRef.get(ConsensoConfigService);
@@ -46,7 +40,7 @@ describe('ConsensoConfigService', () => {
 
   describe('obtenerFracciones', () => {
     it('sin filas en system_params -> defaults P25/P75/P10/P90 en fracción 0..1', async () => {
-      prisma.systemParam.findMany.mockResolvedValue([]);
+      systemParamsCache.obtenerTodos.mockResolvedValue(new Map());
 
       const fracciones = await service.obtenerFracciones();
 
@@ -59,12 +53,14 @@ describe('ConsensoConfigService', () => {
     });
 
     it('con las 4 filas configuradas -> usa esos valores (÷100)', async () => {
-      prisma.systemParam.findMany.mockResolvedValue([
-        { clave: 'percentil_limite_inferior', valor: '25' },
-        { clave: 'percentil_limite_superior', valor: '75' },
-        { clave: 'percentil_extremo_inferior', valor: '5' },
-        { clave: 'percentil_extremo_superior', valor: '95' },
-      ]);
+      systemParamsCache.obtenerTodos.mockResolvedValue(
+        new Map([
+          ['percentil_limite_inferior', '25'],
+          ['percentil_limite_superior', '75'],
+          ['percentil_extremo_inferior', '5'],
+          ['percentil_extremo_superior', '95'],
+        ]),
+      );
 
       const fracciones = await service.obtenerFracciones();
 
@@ -77,10 +73,12 @@ describe('ConsensoConfigService', () => {
     });
 
     it('valor no numérico en una fila -> cae al default de ESA clave, no rompe las demás', async () => {
-      prisma.systemParam.findMany.mockResolvedValue([
-        { clave: 'percentil_limite_inferior', valor: 'no-numero' },
-        { clave: 'percentil_limite_superior', valor: '75' },
-      ]);
+      systemParamsCache.obtenerTodos.mockResolvedValue(
+        new Map([
+          ['percentil_limite_inferior', 'no-numero'],
+          ['percentil_limite_superior', '75'],
+        ]),
+      );
 
       const fracciones = await service.obtenerFracciones();
 
@@ -91,24 +89,28 @@ describe('ConsensoConfigService', () => {
 
   describe('obtenerEpsilon', () => {
     it('sin fila -> default 0.001', async () => {
-      prisma.systemParam.findUnique.mockResolvedValue(null);
+      systemParamsCache.obtenerTodos.mockResolvedValue(new Map());
       expect(await service.obtenerEpsilon()).toBe(0.001);
     });
 
     it('con fila configurada -> ese valor', async () => {
-      prisma.systemParam.findUnique.mockResolvedValue({ valor: '0.005' });
+      systemParamsCache.obtenerTodos.mockResolvedValue(
+        new Map([['consenso_extremo_epsilon', '0.005']]),
+      );
       expect(await service.obtenerEpsilon()).toBe(0.005);
     });
   });
 
   describe('obtenerFraccionesConCandidato', () => {
     it('reemplaza SOLO la fracción de la clave que está cambiando', async () => {
-      prisma.systemParam.findMany.mockResolvedValue([
-        { clave: 'percentil_limite_inferior', valor: '20' },
-        { clave: 'percentil_limite_superior', valor: '60' },
-        { clave: 'percentil_extremo_inferior', valor: '10' },
-        { clave: 'percentil_extremo_superior', valor: '90' },
-      ]);
+      systemParamsCache.obtenerTodos.mockResolvedValue(
+        new Map([
+          ['percentil_limite_inferior', '20'],
+          ['percentil_limite_superior', '60'],
+          ['percentil_extremo_inferior', '10'],
+          ['percentil_extremo_superior', '90'],
+        ]),
+      );
 
       const fracciones = await service.obtenerFraccionesConCandidato(
         'percentil_limite_inferior',
@@ -126,22 +128,28 @@ describe('ConsensoConfigService', () => {
 
   describe('obtenerAmplitudMaximaExtremo', () => {
     it('sin fila -> null (sin restricción activa)', async () => {
-      prisma.systemParam.findUnique.mockResolvedValue(null);
+      systemParamsCache.obtenerTodos.mockResolvedValue(new Map());
       expect(await service.obtenerAmplitudMaximaExtremo()).toBeNull();
     });
 
     it('fila con valor vacío -> null (así se representa "sin restricción" en una columna NOT NULL)', async () => {
-      prisma.systemParam.findUnique.mockResolvedValue({ valor: '' });
+      systemParamsCache.obtenerTodos.mockResolvedValue(
+        new Map([['amplitud_maxima_extremo', '']]),
+      );
       expect(await service.obtenerAmplitudMaximaExtremo()).toBeNull();
     });
 
     it('fila con valor no numérico -> null (defensivo, nunca revienta)', async () => {
-      prisma.systemParam.findUnique.mockResolvedValue({ valor: 'no-numero' });
+      systemParamsCache.obtenerTodos.mockResolvedValue(
+        new Map([['amplitud_maxima_extremo', 'no-numero']]),
+      );
       expect(await service.obtenerAmplitudMaximaExtremo()).toBeNull();
     });
 
     it('fila configurada -> ese valor numérico', async () => {
-      prisma.systemParam.findUnique.mockResolvedValue({ valor: '0.3' });
+      systemParamsCache.obtenerTodos.mockResolvedValue(
+        new Map([['amplitud_maxima_extremo', '0.3']]),
+      );
       expect(await service.obtenerAmplitudMaximaExtremo()).toBe(0.3);
     });
   });

@@ -78,6 +78,16 @@ export interface InventoryStats {
   en_servicio: number
 }
 
+export interface PuntoRetirosMes {
+  mes: string // YYYY-MM
+  retirados: number
+}
+
+export interface CambiosDiscoAnio {
+  anio: number
+  total: number
+}
+
 export interface InventoryQuery {
   page: number
   pageSize: number

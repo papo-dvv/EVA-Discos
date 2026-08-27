@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { UMBRALES_POR_DEFECTO } from '../brake-disc-rules/umbrales';
-import { PrismaService } from '../prisma/prisma.service';
+import { SystemParamsCacheService } from '../system-params/system-params-cache.service';
 
 export const CLAVES_UMBRALES_PROYECCION = {
   hUmbralReperfilado: 'proyeccion_h_umbral_reperfilado',
@@ -19,14 +19,10 @@ export interface UmbralesProyeccion {
 // altera el resultado histórico ni las acciones operativas.
 @Injectable()
 export class ProyeccionUmbralesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly systemParamsCache: SystemParamsCacheService) {}
 
   async obtener(): Promise<UmbralesProyeccion> {
-    const claves = Object.values(CLAVES_UMBRALES_PROYECCION);
-    const filas = await this.prisma.systemParam.findMany({
-      where: { clave: { in: claves } },
-    });
-    const valores = new Map(filas.map((fila) => [fila.clave, fila.valor]));
+    const valores = await this.systemParamsCache.obtenerTodos();
 
     return {
       hUmbralReperfilado: this.leer(

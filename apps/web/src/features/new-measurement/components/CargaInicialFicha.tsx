@@ -1,13 +1,22 @@
 import { useRef, useState, type FormEvent } from 'react'
 import { ClipboardPenLine, Upload } from 'lucide-react'
 import { GlassButton } from '../../../components/GlassButton'
+import { GlassDatePicker } from '../../../components/GlassDatePicker'
 import { GlassField } from '../../../components/GlassField'
 import { GlassModal } from '../../../components/GlassModal'
 import { SegmentedControl } from '../../../components/SegmentedControl'
 import { extraerMensajeError } from '../../../lib/extraerMensajeError'
-import { crearFichaManual, subirCsvMedicion } from '../api'
-import { useInvalidarHistorialMediciones } from '../queries'
+import { fabricanteDeTren } from '../../fleet/components/fabricante'
+import { crearFichaManual, editarFicha, subirCsvMedicion } from '../api'
+import { aFechaCorta, fechaHoyCorta } from '../fecha'
+import { useInvalidarHistorialMediciones, useReferenciaFicha } from '../queries'
 import type { ResultadoDuplicadoDetectado } from '../types'
+import { BotonFechaHoy } from './BotonFechaHoy'
+
+// Fichas de medición aún no habilitadas para la flota Ansaldo (sin catálogo
+// de discos sembrado — ver fabricanteDeTren) — mientras eso no exista, tanto
+// CSV como registro manual quedan deshabilitados para esos trenes.
+const TOOLTIP_ANSALDO_DESHABILITADO = 'Fichas de medición aún no habilitadas para trenes Ansaldo.'
 
 // Punto de entrada de una ficha nueva (motivo 'Medición'): subir el .csv de
 // Nextsense/cpo (autocompleta todo el header) o registrar manualmente
@@ -23,15 +32,45 @@ type Props = {
   // "Verificar", sin esperar a que el usuario la pida.
   onCreada: (fichaId: string, autoVerificar?: boolean) => void
   deshabilitada?: boolean
+  // Preselección desde el botón que abrió este formulario (card de tren en
+  // Mediciones → ModalCargaInicialMedicion): "csv"/"manual" arrancan el
+  // SegmentedControl en el modo elegido en vez de siempre "csv", y
+  // trenInicial precarga el campo Tren del modo manual (el usuario ya lo
+  // eligió en la card, no tiene sentido pedírselo de nuevo). Ambos opcionales
+  // — sin ellos, el comportamiento es idéntico al de antes (embebido en
+  // NuevasMediciones, sin preselección).
+  modoInicial?: 'csv' | 'manual'
+  trenInicial?: number
 }
 
-export function CargaInicialFicha({ onCreada, deshabilitada = false }: Props) {
-  const [modo, setModo] = useState<'csv' | 'manual'>('csv')
+export function CargaInicialFicha({
+  onCreada,
+  deshabilitada = false,
+  modoInicial = 'csv',
+  trenInicial,
+}: Props) {
+  const [modo, setModo] = useState<'csv' | 'manual'>(modoInicial)
   const [file, setFile] = useState<File | null>(null)
-  const [trenNumero, setTrenNumero] = useState('')
+  const [trenNumero, setTrenNumero] = useState(
+    trenInicial !== undefined ? String(trenInicial) : '',
+  )
   const [kilometraje, setKilometraje] = useState('')
+  const [fecha, setFecha] = useState(fechaHoyCorta())
+  const [ptCodigo, setPtCodigo] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [cargando, setCargando] = useState(false)
+
+  const trenNumeroInt = Number(trenNumero)
+  const trenValido = trenNumero.trim() !== '' && Number.isInteger(trenNumeroInt)
+  const esAnsaldo = trenValido && fabricanteDeTren(trenNumeroInt) === 'ANSALDO'
+
+  // Misma query/caché que HeaderFicha ya usa para el banner "Última
+  // registrada" del header de una ficha en curso (ver NuevasMediciones.tsx) —
+  // acá se reutiliza para mostrarlo también ANTES de crear la ficha, apenas
+  // se conoce el Tren.
+  const referencia = useReferenciaFicha(trenValido ? trenNumeroInt : undefined, 'ultima_medicion')
+  const referenciaDisponible =
+    referencia.data?.disponible && 'fecha' in referencia.data ? referencia.data : undefined
   // POST .../upload puede responder duplicadoDetectado en vez de crear la
   // ficha — se guarda acá para mostrar el aviso. Es definitivo: no existe
   // ningún camino para forzar esta carga puntual, solo cerrar el aviso y
@@ -73,14 +112,22 @@ export function CargaInicialFicha({ onCreada, deshabilitada = false }: Props) {
 
   async function crearManual(event: FormEvent) {
     event.preventDefault()
-    if (deshabilitada) return
+    if (deshabilitada || esAnsaldo) return
     setError(null)
     setCargando(true)
     try {
       const resumen = await crearFichaManual({
         trenNumero: Number(trenNumero),
         kilometraje: Number(kilometraje),
+        fecha: fecha || undefined,
       })
+      // crearFichaManual no acepta P.T. (no forma parte de CrearManualDto,
+      // ver backend) — se guarda con un PATCH aparte apenas se conoce el
+      // fichaId, para no obligar al usuario a volver a escribirlo en el
+      // header de la ficha recién creada.
+      if (ptCodigo.trim()) {
+        await editarFicha(resumen.fichaId, { ptCodigo: ptCodigo.trim() })
+      }
       invalidarHistorial()
       onCreada(resumen.fichaId)
     } catch (err) {
@@ -95,8 +142,20 @@ export function CargaInicialFicha({ onCreada, deshabilitada = false }: Props) {
       <SegmentedControl
         ariaLabel="Origen de la ficha"
         opciones={[
-          { valor: 'csv', etiqueta: 'Subir archivo .csv', icono: <Upload size={15} aria-hidden /> },
-          { valor: 'manual', etiqueta: 'Registrar manualmente', icono: <ClipboardPenLine size={15} aria-hidden /> },
+          {
+            valor: 'csv',
+            etiqueta: 'Subir archivo .csv',
+            icono: <Upload size={15} aria-hidden />,
+            deshabilitada: esAnsaldo,
+            tooltip: esAnsaldo ? TOOLTIP_ANSALDO_DESHABILITADO : undefined,
+          },
+          {
+            valor: 'manual',
+            etiqueta: 'Registrar manualmente',
+            icono: <ClipboardPenLine size={15} aria-hidden />,
+            deshabilitada: esAnsaldo,
+            tooltip: esAnsaldo ? TOOLTIP_ANSALDO_DESHABILITADO : undefined,
+          },
         ]}
         valor={modo}
         onCambiar={setModo}
@@ -133,33 +192,67 @@ export function CargaInicialFicha({ onCreada, deshabilitada = false }: Props) {
           </div>
         </form>
       ) : (
-        <form onSubmit={crearManual} className="mt-5">
-          <div className="grid grid-cols-2 gap-3">
+        <form onSubmit={crearManual} className="mt-5 space-y-3">
+          {/* Fecha va en su propia fila, fuera del grid de abajo: es un
+              campo compuesto (datepicker + botón "hoy") más ancho que un
+              GlassField simple — dentro del mismo grid de 3-4 columnas
+              quedaba apretado hasta romper el layout, sobre todo en el
+              modal angosto de ModalCargaInicialMedicion (480px fijos, que
+              no se relaciona con los breakpoints sm/lg de Tailwind — esos
+              son del viewport, no del ancho real del modal). */}
+          <div className="flex items-end gap-1.5">
+            <GlassDatePicker
+              label="Fecha"
+              value={fecha}
+              onChange={(iso) => setFecha(iso)}
+              className="flex-1"
+            />
+            <BotonFechaHoy onClick={() => setFecha(fechaHoyCorta())} />
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <GlassField
               label="Tren"
               type="number"
-              min={6}
+              min={1}
               max={44}
               required
               value={trenNumero}
               onChange={(e) => setTrenNumero(e.target.value)}
             />
             <GlassField
-              label="Kilometraje"
-              type="number"
-              step="any"
-              required
-              value={kilometraje}
-              onChange={(e) => setKilometraje(e.target.value)}
+              label="P.T."
+              type="text"
+              value={ptCodigo}
+              onChange={(e) => setPtCodigo(e.target.value)}
             />
+            <div>
+              <GlassField
+                label="Kilometraje"
+                type="number"
+                step="any"
+                required
+                value={kilometraje}
+                onChange={(e) => setKilometraje(e.target.value)}
+              />
+              {referenciaDisponible && (
+                <p className="mt-1.5 font-body text-[0.6875rem] font-medium leading-snug text-concreto">
+                  Última registrada: {aFechaCorta(referenciaDisponible.fecha)} · {referenciaDisponible.kilometraje} km
+                </p>
+              )}
+            </div>
           </div>
+          {esAnsaldo && (
+            <p className="mt-3 font-body text-xs text-[color:var(--color-estado-critico)]">
+              {TOOLTIP_ANSALDO_DESHABILITADO}
+            </p>
+          )}
           {error && (
             <p role="alert" className="mt-3 font-body text-sm text-[color:var(--color-estado-critico)]">
               {error}
             </p>
           )}
           <div className="mt-4 flex justify-end">
-            <GlassButton type="submit" cargando={cargando} disabled={!trenNumero || !kilometraje}>
+            <GlassButton type="submit" cargando={cargando} disabled={!trenNumero || !kilometraje || esAnsaldo}>
               {cargando ? 'Creando…' : 'Crear ficha vacía'}
             </GlassButton>
           </div>

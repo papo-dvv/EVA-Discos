@@ -54,6 +54,18 @@ export class InventoryController {
     return this.inventory.obtenerStats();
   }
 
+  @Get('retiros-por-mes')
+  @Roles(...ROLES_LECTURA)
+  retirosPorMes() {
+    return this.inventory.obtenerRetirosPorMes();
+  }
+
+  @Get('cambios-disco-anio')
+  @Roles(...ROLES_LECTURA)
+  cambiosDiscoAnio() {
+    return this.inventory.obtenerCambiosDiscoAnio();
+  }
+
   @Post()
   @Roles(...ROLES_ESCRITURA)
   registrar(@Body() dto: RegistrarEjeDto) {

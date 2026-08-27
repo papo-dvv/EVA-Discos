@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ClipboardPenLine, Download, RefreshCcw, Ruler } from 'lucide-react'
-import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { GlassButton } from '../components/GlassButton'
 import { GlassSurface } from '../components/GlassSurface'
@@ -172,18 +172,25 @@ function mensajeEstadoVerificacion(
   return 'Verifica la ficha antes de poder bloquear la tabla de mediciones.'
 }
 
-// Ficha de medición individual (punto 1-6 del enunciado). Una sola pantalla:
-// sin fichaId en la URL se ve el toggle de Motivo + el punto de entrada
-// (subir CSV / registrar manualmente); al crearse la ficha, la URL pasa a
-// /nuevas-mediciones/:fichaId (mismo patrón que /migracion → /migracion/:fileId)
-// y acá mismo se renderiza el formulario completo ya poblado.
+// Ficha de medición individual (punto 1-6 del enunciado). Sin fichaId en la
+// URL ya no hay pantalla propia acá (el punto de entrada real es Mediciones
+// > Tarjetas, ver TrenSemaforoCard/ModalCargaInicialMedicion, y Operaciones
+// para Reperfilado) — esta ruta solo renderiza el formulario cuando ya existe
+// /nuevas-mediciones/:fichaId (mismo patrón que /migracion → /migracion/:fileId).
 export function NuevasMediciones() {
   const { fichaId } = useParams<{ fichaId?: string }>()
   const location = useLocation()
   const [motivoActivo, setMotivoActivo] = useState<MotivoFicha>(() => {
     const state = location.state as { motivo?: MotivoFicha } | null
     if (state?.motivo === 'Reperfilado') return 'Reperfilado'
-    if (fichaId && fichaId === obtenerFichaActiva('reperfilado')) return 'Reperfilado'
+    if (fichaId) {
+      // Con un fichaId concreto en la URL, el motivo lo decide ESA ficha, no
+      // el último tab que haya quedado guardado en localStorage — sin este
+      // corte, crear una Medición nueva (desde Mediciones > Tarjetas) justo
+      // después de haber trabajado un Reperfilado abría la ficha recién
+      // creada como si fuera Reperfilado, con la tabla equivocada.
+      return fichaId === obtenerFichaActiva('reperfilado') ? 'Reperfilado' : 'Medición'
+    }
     if (localStorage.getItem(CLAVE_MOTIVO_ACTIVO) === 'Reperfilado') return 'Reperfilado'
     return 'Medición'
   })
@@ -193,7 +200,26 @@ export function NuevasMediciones() {
   }, [motivoActivo])
 
   if (motivoActivo === 'Reperfilado') {
+    // El punto de entrada de un reperfilado NUEVO vive en Operaciones (ver
+    // ModalPendientesReperfilado) — acá solo se renderiza la ficha si ya hay
+    // una en curso (fichaId en la URL o guardada en fichaActiva). Sin eso,
+    // motivoActivo='Reperfilado' solo puede venir de una visita directa/vieja
+    // (localStorage), así que redirige en vez de mostrar el formulario
+    // embebido de antes.
+    if (!fichaId && !obtenerFichaActiva('reperfilado')) {
+      return <Navigate to="/operaciones" replace />
+    }
     return <Reperfilado onCambiarMotivo={setMotivoActivo} />
+  }
+
+  // El punto de entrada de una Medición NUEVA vive en Mediciones > Tarjetas
+  // (ver TrenSemaforoCard.onAbrirCarga/ModalCargaInicialMedicion) — acá solo
+  // se renderiza el formulario si ya hay un fichaId concreto en la URL. Sin
+  // eso, esta pantalla base (toggle de Motivo + CargaInicialFicha) quedó sin
+  // uso real, así que redirige en vez de mostrarla — mismo criterio que la
+  // rama Reperfilado de arriba.
+  if (!fichaId) {
+    return <Navigate to="/mediciones" replace />
   }
 
   return <NuevasMedicionesMedicion onCambiarMotivo={setMotivoActivo} />
@@ -282,8 +308,10 @@ function NuevasMedicionesMedicion({
   // Un reinicio conserva el fichaId para que la nueva carga CSV reutilice la
   // misma ficha, pero ya no hay datos en curso. A nivel de interfaz debe
   // comportarse como la entrada: permite cambiar de motivo y mantiene visible
-  // el historial mientras se elige el archivo de reemplazo.
-  const mostrarHistorial = !fichaId || mostrarPromptRecarga
+  // el historial mientras se elige el archivo de reemplazo. (Este componente
+  // solo se monta con fichaId ya presente en la URL — ver NuevasMediciones,
+  // que redirige a /mediciones sin uno — así que ese caso ya no aplica acá.)
+  const mostrarHistorial = mostrarPromptRecarga
 
   async function confirmar() {
     await confirmarFicha.mutateAsync()
@@ -446,12 +474,11 @@ function NuevasMedicionesMedicion({
     )
   }
 
-  // Punto 1 de la ampliación: la vista previa de la ficha (una vez creada)
-  // usa un layout full-bleed, sin los márgenes/max-width habituales del
-  // resto de la app — le da a la tabla el máximo espacio horizontal
-  // disponible, y NO lleva el panel de historial (solo vive en la pantalla
-  // de entrada, ver aside/fallback más abajo). La pantalla de entrada
-  // (motivo + CargaInicialFicha, sin fichaId todavía) conserva el layout
+  // Punto 1 de la ampliación: la vista previa de la ficha usa un layout
+  // full-bleed, sin los márgenes/max-width habituales del resto de la app —
+  // le da a la tabla el máximo espacio horizontal disponible, y NO lleva el
+  // panel de historial (solo vive durante el reupload tras un reset, ver
+  // mostrarPromptRecarga/aside más abajo). Ese caso conserva el layout
   // centrado de siempre: el ancho máximo (75rem) se aplica al CONTENEDOR de
   // la fila completa (contenido + historial), no a la columna de contenido,
   // para que la card recupere su ancho/forma original en vez de quedar
@@ -502,13 +529,13 @@ function NuevasMedicionesMedicion({
               valor={motivo}
               onCambiar={(valor) => {
                 if (valor === 'Reperfilado') {
+                  // Con una ficha de reperfilado ya en curso, continúa ahí
+                  // como siempre. Sin ficha en curso, el punto de entrada es
+                  // Operaciones (ver ModalPendientesReperfilado) — ya no se
+                  // muestra el formulario de creación embebido acá.
                   const activa = obtenerFichaActiva('reperfilado')
                   onCambiarMotivo('Reperfilado')
-                  navigate(
-                    activa
-                      ? `/nuevas-mediciones/${activa}`
-                      : '/nuevas-mediciones',
-                  )
+                  navigate(activa ? `/nuevas-mediciones/${activa}` : '/operaciones')
                   return
                 }
                 onCambiarMotivo(valor)
@@ -516,17 +543,6 @@ function NuevasMedicionesMedicion({
               }}
             />
           </div>
-
-          {!fichaId && (
-            <GlassSurface fuerte className="mt-4 rounded-glass-lg p-6 sm:p-8">
-              <CargaInicialFicha
-                deshabilitada={motivo !== 'Medición'}
-                onCreada={(id, autoVerificar) =>
-                  manejarFichaCreada(id, autoVerificar)
-                }
-              />
-            </GlassSurface>
-          )}
 
           {fichaId && (
             <>

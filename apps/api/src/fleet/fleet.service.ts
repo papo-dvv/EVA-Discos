@@ -142,12 +142,31 @@ export class FleetService {
     return [...porTren.values()].sort((a, b) => a.tren - b.tren);
   }
 
+  // Trenes con al menos un disco cuya medición confirmada más reciente
+  // clasifica como REPERFILADO (ver clasificarEstadoConReperfilado) — la
+  // fuente de "reperfilado pendiente" que consume Operaciones. Reutiliza
+  // summary() en vez de duplicar la consulta: es el mismo conteo por estado
+  // que ya alimenta el semáforo de Flota, solo filtrado.
+  async pendientesReperfilado() {
+    const resumen = await this.summary();
+    return resumen
+      .filter((fila) => fila.conteoEstado.reperfilado > 0)
+      .map((fila) => ({
+        tren: fila.tren,
+        discosReperfilado: fila.conteoEstado.reperfilado,
+        fechaUltimaMedicion: fila.fechaUltimaMedicion,
+        kilometrajeActual: fila.kilometrajeActual,
+      }));
+  }
+
   async detalle(trenNumero: number) {
+    const evaluador = await this.reglas.obtenerEvaluador();
     const tren = await this.prisma.train.findUnique({
       where: { numero: trenNumero },
       select: {
         numero: true,
         modelo: true,
+        estado: true,
         wagonUnits: {
           orderBy: { numeroCoche: 'asc' },
           select: {
@@ -177,6 +196,40 @@ export class FleetService {
       coche.brakeDiscs.map((disco) => disco.id),
     );
     const ultimas = await this.buscarUltimasPorDisco(discIds);
+    const ultimoCambioPorDisco = await this.buscarUltimoCambioPorDisco(discIds);
+    const ultimoReperfiladoPorDisco =
+      await this.buscarUltimoReperfiladoPorDisco(discIds);
+
+    // Resumen operacional del tren (header de Flota › Detalle) — mismo
+    // criterio que summary() (fecha/km de la medición confirmada más
+    // reciente, conteoEstado vía clasificarEstadoConReperfilado), pero
+    // acotado a los discos de ESTE tren, ya cargados en `ultimas` — sin
+    // repetir la consulta de toda la flota.
+    let fechaUltimaMedicion: string | null = null;
+    let kilometrajeActual: number | null = null;
+    const conteoEstado = {
+      ok: 0,
+      seguimiento: 0,
+      cambio: 0,
+      critico: 0,
+      reperfilado: 0,
+    };
+    for (const registro of ultimas.values()) {
+      const fecha = fechaIso(registro.fecha);
+      if (fecha && (!fechaUltimaMedicion || fecha > fechaUltimaMedicion)) {
+        fechaUltimaMedicion = fecha;
+        kilometrajeActual = numero(registro.kilometraje);
+      }
+      const estado = evaluador.clasificarEstadoConReperfilado(
+        Number(registro.rdValue),
+        Number(registro.hValue),
+      );
+      if (estado === 'OK') conteoEstado.ok += 1;
+      if (estado === 'SEGUIMIENTO') conteoEstado.seguimiento += 1;
+      if (estado === 'CAMBIO') conteoEstado.cambio += 1;
+      if (estado === 'CRITICO') conteoEstado.critico += 1;
+      if (estado === 'REPERFILADO') conteoEstado.reperfilado += 1;
+    }
     // Ansaldo (4 discos por eje: lado x posición interior/exterior) vs
     // Alstom (2, un disco por lado — posicion siempre 'unica').
     const esAnsaldo = tren.modelo === 'ansaldo_mb300';
@@ -234,6 +287,12 @@ export class FleetService {
                     lado,
                     posicion,
                     ...this.mapearMedicion(ultima),
+                    fechaUltimoCambio: disco
+                      ? (ultimoCambioPorDisco.get(disco.id) ?? null)
+                      : null,
+                    fechaUltimoReperfilado: disco
+                      ? (ultimoReperfiladoPorDisco.get(disco.id) ?? null)
+                      : null,
                   };
                 }),
               ),
@@ -258,7 +317,14 @@ export class FleetService {
           return construirCoche(wagon, tipo);
         });
 
-    return { tren: tren.numero, coches };
+    return {
+      tren: tren.numero,
+      estado: tren.estado,
+      kilometrajeActual,
+      fechaUltimaMedicion,
+      conteoEstado,
+      coches,
+    };
   }
 
   async historicoDisco(codigoDisco: string, lado: string) {
@@ -320,6 +386,49 @@ export class FleetService {
     };
   }
 
+  // Fecha en que ESTA pieza física (brakeDiscId) pasó a stage 'en_servicio'
+  // por última vez — cambio_disco (Operaciones) es hoy el único flujo que
+  // genera ese movimiento; la migración inicial de piezas ya montadas no
+  // deja rastro en inventory_movement, así que null ahí es "sin registro",
+  // no "nunca se cambió". Tooltip de disco en BogieVisualizer.
+  private async buscarUltimoCambioPorDisco(
+    discIds: string[],
+  ): Promise<Map<string, string | null>> {
+    if (discIds.length === 0) return new Map();
+    const movimientos = await this.prisma.inventoryMovement.findMany({
+      where: { brakeDiscId: { in: discIds }, etapaDestino: 'en_servicio' },
+      orderBy: { fecha: 'desc' },
+      distinct: ['brakeDiscId'],
+      select: { brakeDiscId: true, fecha: true },
+    });
+    return new Map(
+      movimientos.map((m) => [m.brakeDiscId, fechaIso(m.fecha)]),
+    );
+  }
+
+  // Fecha de la última medición CONFIRMADA con motivo='Reperfilado' de este
+  // disco — mismo criterio de "más reciente" que buscarRegistrosUltimos.
+  private async buscarUltimoReperfiladoPorDisco(
+    discIds: string[],
+  ): Promise<Map<string, string | null>> {
+    if (discIds.length === 0) return new Map();
+    const registros = await this.prisma.scanRecord.findMany({
+      where: {
+        discId: { in: discIds },
+        motivo: 'Reperfilado',
+        file: { status: 'committed' },
+      },
+      orderBy: [{ fecha: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
+      distinct: ['discId'],
+      select: { discId: true, fecha: true },
+    });
+    const porDisco = new Map<string, string | null>();
+    for (const registro of registros) {
+      if (registro.discId) porDisco.set(registro.discId, fechaIso(registro.fecha));
+    }
+    return porDisco;
+  }
+
   private async buscarUltimasPorDisco(discIds: string[]) {
     if (discIds.length === 0)
       return new Map<
@@ -350,6 +459,7 @@ export class FleetService {
         tValue: true,
         rdValue: true,
         estadoCalculado: true,
+        kilometraje: true,
       },
     });
   }

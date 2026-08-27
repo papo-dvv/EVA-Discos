@@ -26,6 +26,11 @@ export interface FleetDiscoDetalle {
   t: number | null
   estadoCalculado: EstadoDisco | null
   fechaUltimaMedicion: string | null
+  // null = sin registro de cambio_disco (Operaciones) para esta pieza física
+  // — no necesariamente "nunca se cambió" (la migración inicial de piezas ya
+  // montadas no genera ese movimiento).
+  fechaUltimoCambio: string | null
+  fechaUltimoReperfilado: string | null
 }
 
 export interface FleetEjeDetalle {
@@ -44,8 +49,14 @@ export interface FleetCocheDetalle {
   bogies: FleetBogieDetalle[]
 }
 
+export type EstadoTren = 'operativo' | 'mantenimiento' | 'baja'
+
 export interface FleetDetalle {
   tren: number
+  estado: EstadoTren
+  kilometrajeActual: number | null
+  fechaUltimaMedicion: string | null
+  conteoEstado: FleetSummaryItem['conteoEstado']
   coches: FleetCocheDetalle[]
 }
 

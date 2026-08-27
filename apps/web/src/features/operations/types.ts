@@ -31,3 +31,10 @@ export interface ResultadoOperacion {
   discosRemovidos?: string[]
   discosMontados?: string[]
 }
+
+export interface TrenPendienteReperfilado {
+  tren: number
+  discosReperfilado: number
+  fechaUltimaMedicion: string | null
+  kilometrajeActual: number | null
+}

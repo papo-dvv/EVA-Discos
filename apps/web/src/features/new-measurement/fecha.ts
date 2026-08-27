@@ -20,3 +20,14 @@ export function fechaHoyCorta(): string {
   const dia = String(hoy.getDate()).padStart(2, '0')
   return `${hoy.getFullYear()}-${mes}-${dia}`
 }
+
+// 'YYYY-MM-DDTHH:mm' de ahora en huso horario local — mismo criterio que
+// fechaHoyCorta (NO usar toISOString() directo: convierte a UTC primero),
+// pero con minutos para los campos <input type="datetime-local"> de
+// Reperfilado (fecha/hora inicio y fin).
+export function fechaHoraHoyLocal(): string {
+  const ahora = new Date()
+  ahora.setSeconds(0, 0)
+  ahora.setMinutes(ahora.getMinutes() - ahora.getTimezoneOffset())
+  return ahora.toISOString().slice(0, 16)
+}

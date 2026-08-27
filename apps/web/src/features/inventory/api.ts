@@ -1,9 +1,11 @@
 import { apiClient } from '../../lib/apiClient'
 import type {
+  CambiosDiscoAnio,
   EditarEjeInput,
   InventoryQuery,
   InventoryResult,
   InventoryStats,
+  PuntoRetirosMes,
   RegistrarEjeInput,
 } from './types'
 
@@ -14,6 +16,16 @@ export async function obtenerInventario(query: InventoryQuery): Promise<Inventor
 
 export async function obtenerStatsInventario(): Promise<InventoryStats> {
   const { data } = await apiClient.get<InventoryStats>('/inventory/stats')
+  return data
+}
+
+export async function obtenerRetirosPorMes(): Promise<PuntoRetirosMes[]> {
+  const { data } = await apiClient.get<PuntoRetirosMes[]>('/inventory/retiros-por-mes')
+  return data
+}
+
+export async function obtenerCambiosDiscoAnio(): Promise<CambiosDiscoAnio> {
+  const { data } = await apiClient.get<CambiosDiscoAnio>('/inventory/cambios-disco-anio')
   return data
 }
 

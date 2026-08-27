@@ -25,12 +25,13 @@ export function usePromedioPorVagon() {
   })
 }
 
-// El pronóstico respeta el mismo `tren` del toggle General/Por tren, pero
-// nunca los filtros de la tabla principal (estado/H/T/Rd/fechas) — es un
-// query independiente, mismo criterio que useWearRateChart/useWearRateSummary
-// en features/wear-rate/queries.ts. `meses` es el rango elegido en el
-// selector de TablaPronostico (12/24/36/48/60) — cambiarlo dispara un nuevo
-// fetch, con su propia entrada de caché por rango.
+// El pronóstico es siempre fleet-wide (ver ProyeccionGraficoBarras — la
+// pestaña Gráfico de Barras no tiene alcance por tren), nunca respeta los
+// filtros de la tabla principal (estado/H/T/Rd/fechas) — es un query
+// independiente, mismo criterio que useWearRateChart/useWearRateSummary en
+// features/wear-rate/queries.ts. `meses` es el rango pedido (77 para cubrir
+// todos los años del gráfico de barras) — cambiarlo dispara un nuevo fetch,
+// con su propia entrada de caché por rango.
 export function usePronostico(tren: number | undefined, meses: RangoPronosticoMeses, enabled = true) {
   return useQuery({
     queryKey: claves.pronostico(tren, meses),

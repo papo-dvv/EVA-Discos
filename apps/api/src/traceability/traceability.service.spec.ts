@@ -1,7 +1,11 @@
 import 'reflect-metadata';
 import type { PrismaService } from '../prisma/prisma.service';
 import { TraceabilitySeriesQueryDto } from './dto/traceability-series-query.dto';
-import { TraceabilityStatsService } from './traceability-stats.service';
+import {
+  calcularLimitesGauss,
+  calcularLimitesPercentiles,
+  TraceabilityStatsService,
+} from './traceability-stats.service';
 import {
   TraceabilityService,
   type PromedioPorTrenItem,
@@ -27,6 +31,121 @@ function coincide(fila: Fila, where: Fila): boolean {
   return Object.entries(where).every(([clave, valor]) => fila[clave] === valor);
 }
 
+// Interpreta un Prisma.Sql (obtenerSeries usa $queryRaw, no findMany — ver
+// TraceabilityService.obtenerSeries/condicionesScopeSql) reconstruyendo QUÉ
+// representa cada valor interpolado a partir del fragmento de texto
+// INMEDIATAMENTE anterior (mismo orden en que Prisma.sql los intercala,
+// verificado a mano: los fragmentos `Prisma.sql` anidados de condicionesScopeSql
+// se aplanan preservando texto y orden). No parsea SQL de verdad — solo
+// reconoce los marcadores exactos que la propia implementación produce, así
+// que un cambio de columna/orden ahí rompe este fake tan ruidosamente como
+// rompería la query real (a propósito).
+interface SqlLike {
+  strings: readonly string[];
+  values: readonly unknown[];
+}
+
+interface ValoresInterpretados {
+  tren?: number;
+  tipoCoche?: string;
+  bogieCodigo?: string;
+  kmMin?: number;
+  kmMax?: number;
+  desde?: Date;
+  fracciones: number[];
+}
+
+function interpretarSql(sql: SqlLike): ValoresInterpretados {
+  const resultado: ValoresInterpretados = { fracciones: [] };
+  for (let i = 0; i < sql.values.length; i++) {
+    const antes = sql.strings[i].trimEnd();
+    const valor = sql.values[i];
+    if (antes.endsWith('tren_numero =')) resultado.tren = valor as number;
+    else if (antes.endsWith('tipo_coche ='))
+      resultado.tipoCoche = valor as string;
+    else if (antes.endsWith('bogie_codigo ='))
+      resultado.bogieCodigo = valor as string;
+    else if (antes.endsWith('diferencia_km BETWEEN'))
+      resultado.kmMin = valor as number;
+    else if (
+      antes.endsWith('AND') &&
+      resultado.kmMin !== undefined &&
+      resultado.kmMax === undefined
+    )
+      resultado.kmMax = valor as number;
+    else if (antes.endsWith('fecha_2 >='))
+      resultado.desde = valor as Date;
+    else if (antes.endsWith('PERCENTILE_CONT('))
+      resultado.fracciones.push(valor as number);
+  }
+  return resultado;
+}
+
+function filasDelScope(filas: Fila[], v: ValoresInterpretados): Fila[] {
+  return filas.filter((f) => {
+    if (f.esValido !== true) return false;
+    if (v.tren !== undefined && f.trenNumero !== v.tren) return false;
+    if (v.tipoCoche !== undefined && f.tipoCoche !== v.tipoCoche) return false;
+    if (v.bogieCodigo !== undefined && f.bogieCodigo !== v.bogieCodigo)
+      return false;
+    if (v.kmMin !== undefined || v.kmMax !== undefined) {
+      const km = Number(f.diferenciaKm);
+      if (v.kmMin !== undefined && km < v.kmMin) return false;
+      if (v.kmMax !== undefined && km > v.kmMax) return false;
+    }
+    if (v.desde !== undefined && (f.fecha2 as Date) < v.desde) return false;
+    return true;
+  });
+}
+
+// Réplica del agregado SQL de obtenerSeries pero calculada con las mismas
+// funciones puras y ya probadas de traceability-stats.service.ts — verificado
+// a mano contra la base real que PERCENTILE_CONT/AVG/STDDEV_SAMP coinciden
+// con esta interpolación (ver commit que introdujo esta reescritura).
+function agregadoSqlFake(valores: number[], fracciones: number[]) {
+  if (valores.length === 0) {
+    return {
+      conteo: 0,
+      media: null,
+      desviacion: null,
+      pctLi: null,
+      pctLs: null,
+      pctEi: null,
+      pctEs: null,
+      q1: null,
+      q3: null,
+    };
+  }
+  const gauss = calcularLimitesGauss(valores);
+  const media = (gauss.limiteInferior + gauss.limiteSuperior) / 2;
+  const desviacion = (gauss.limiteSuperior - gauss.limiteInferior) / 4;
+  const [limiteInferior, limiteSuperior, extremoInferior, extremoSuperior] =
+    fracciones;
+  const percentiles = calcularLimitesPercentiles(valores, {
+    limiteInferior,
+    limiteSuperior,
+    extremoInferior,
+    extremoSuperior,
+  });
+  const cuartiles = calcularLimitesPercentiles(valores, {
+    limiteInferior: 0.25,
+    limiteSuperior: 0.75,
+    extremoInferior: 0,
+    extremoSuperior: 1,
+  });
+  return {
+    conteo: valores.length,
+    media,
+    desviacion,
+    pctLi: percentiles.limiteInferior,
+    pctLs: percentiles.limiteSuperior,
+    pctEi: percentiles.extremoInferior,
+    pctEs: percentiles.extremoSuperior,
+    q1: cuartiles.limiteInferior,
+    q3: cuartiles.limiteSuperior,
+  };
+}
+
 function crearPrismaConFixture(filas: Fila[]) {
   const findManyMock = jest.fn(
     ({
@@ -48,10 +167,33 @@ function crearPrismaConFixture(filas: Fila[]) {
       return Promise.resolve(resultado);
     },
   );
+  const queryRawMock = jest.fn((sql: SqlLike) => {
+    const v = interpretarSql(sql);
+    const delScope = filasDelScope(filas, v);
+
+    // La consulta de agregado es la única que interpola fracciones de
+    // percentil (PERCENTILE_CONT(${...})) — la de puntos del periodo no.
+    if (v.fracciones.length > 0) {
+      const valores = delScope.map((f) => Number(f.tasaMensual));
+      return Promise.resolve([agregadoSqlFake(valores, v.fracciones)]);
+    }
+
+    const ordenadas = [...delScope].sort(
+      (a, b) =>
+        (a.fecha2 as Date).getTime() - (b.fecha2 as Date).getTime(),
+    );
+    return Promise.resolve(
+      ordenadas.map((f) => ({
+        fecha2: f.fecha2,
+        tasaMensual: Number(f.tasaMensual),
+      })),
+    );
+  });
   const prisma = {
     wearRatePair: { findMany: findManyMock },
+    $queryRaw: queryRawMock,
   } as unknown as PrismaService;
-  return { prisma, findManyMock };
+  return { prisma, findManyMock, queryRawMock };
 }
 
 function fila(overrides: Fila = {}): Fila {

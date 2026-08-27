@@ -13,11 +13,13 @@ import { Inventario } from './pages/Inventario'
 import { Login } from './pages/Login'
 import { Mediciones } from './pages/Mediciones'
 import { MedicionesHistorico } from './pages/MedicionesHistorico'
+import { MedicionesTabla } from './pages/MedicionesTabla'
 import { MigracionPreview } from './pages/MigracionPreview'
 import { MigracionUpload } from './pages/MigracionUpload'
 import { NuevasMediciones } from './pages/NuevasMediciones'
 import { Operaciones } from './pages/Operaciones'
 import { Proyeccion } from './pages/Proyeccion'
+import { ProyeccionTabla } from './pages/ProyeccionTabla'
 import { RelacionBogies } from './pages/RelacionBogies'
 import { TasaDesgaste } from './pages/TasaDesgaste'
 import { Trazabilidad } from './pages/Trazabilidad'
@@ -91,11 +93,13 @@ function App() {
         <Route path="/" element={<Inicio />} />
         <Route path="/mediciones" element={<Mediciones />} />
         <Route path="/mediciones/historico" element={<MedicionesHistorico />} />
+        <Route path="/mediciones/tabla" element={<MedicionesTabla />} />
         <Route path="/fleet" element={<Flota />} />
         <Route path="/fleet/:tren" element={<FlotaDetalle />} />
         <Route path="/tasa-desgaste" element={<TasaDesgaste />} />
         <Route path="/trazabilidad" element={<Trazabilidad />} />
         <Route path="/proyeccion" element={<Proyeccion />} />
+        <Route path="/proyeccion/tabla" element={<ProyeccionTabla />} />
         <Route path="/relacion-bogies" element={<RelacionBogies />} />
         <Route path="/operaciones" element={<Operaciones />} />
         <Route path="/inventario" element={<Inventario />} />

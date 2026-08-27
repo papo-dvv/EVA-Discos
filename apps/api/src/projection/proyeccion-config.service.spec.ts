@@ -1,23 +1,17 @@
 import { Test } from '@nestjs/testing';
-import { PrismaService } from '../prisma/prisma.service';
+import { SystemParamsCacheService } from '../system-params/system-params-cache.service';
 import { ProyeccionConfigService } from './proyeccion-config.service';
-
-interface PrismaMock {
-  systemParam: Record<'findMany', jest.Mock>;
-}
 
 describe('ProyeccionConfigService', () => {
   let service: ProyeccionConfigService;
-  let prisma: PrismaMock;
+  let systemParamsCache: { obtenerTodos: jest.Mock };
 
   beforeEach(async () => {
-    prisma = {
-      systemParam: { findMany: jest.fn() },
-    };
+    systemParamsCache = { obtenerTodos: jest.fn() };
     const moduleRef = await Test.createTestingModule({
       providers: [
         ProyeccionConfigService,
-        { provide: PrismaService, useValue: prisma },
+        { provide: SystemParamsCacheService, useValue: systemParamsCache },
       ],
     }).compile();
     service = moduleRef.get(ProyeccionConfigService);
@@ -25,7 +19,7 @@ describe('ProyeccionConfigService', () => {
 
   describe('obtenerRangoKm', () => {
     it('sin filas -> defaults 7000/15000', async () => {
-      prisma.systemParam.findMany.mockResolvedValue([]);
+      systemParamsCache.obtenerTodos.mockResolvedValue(new Map());
       expect(await service.obtenerRangoKm()).toEqual({
         kmMin: 7000,
         kmMax: 15000,
@@ -33,10 +27,12 @@ describe('ProyeccionConfigService', () => {
     });
 
     it('con filas configuradas -> esos valores', async () => {
-      prisma.systemParam.findMany.mockResolvedValue([
-        { clave: 'proyeccion_km_rango_min', valor: '5000' },
-        { clave: 'proyeccion_km_rango_max', valor: '20000' },
-      ]);
+      systemParamsCache.obtenerTodos.mockResolvedValue(
+        new Map([
+          ['proyeccion_km_rango_min', '5000'],
+          ['proyeccion_km_rango_max', '20000'],
+        ]),
+      );
       expect(await service.obtenerRangoKm()).toEqual({
         kmMin: 5000,
         kmMax: 20000,
@@ -44,10 +40,12 @@ describe('ProyeccionConfigService', () => {
     });
 
     it('valor no numérico -> cae al default de esa clave, la otra se respeta', async () => {
-      prisma.systemParam.findMany.mockResolvedValue([
-        { clave: 'proyeccion_km_rango_min', valor: 'no-numero' },
-        { clave: 'proyeccion_km_rango_max', valor: '18000' },
-      ]);
+      systemParamsCache.obtenerTodos.mockResolvedValue(
+        new Map([
+          ['proyeccion_km_rango_min', 'no-numero'],
+          ['proyeccion_km_rango_max', '18000'],
+        ]),
+      );
       expect(await service.obtenerRangoKm()).toEqual({
         kmMin: 7000,
         kmMax: 18000,

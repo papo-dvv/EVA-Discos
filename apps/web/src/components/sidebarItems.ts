@@ -1,11 +1,9 @@
 import {
   ClipboardList,
-  Database,
-  FolderUp,
   Gauge,
+  LayoutDashboard,
   LineChart,
   PackageSearch,
-  PenLine,
   Settings,
   TrainFront,
   TrendingUp,
@@ -36,11 +34,9 @@ export const SECCIONES_SIDEBAR: SeccionSidebar[] = [
   {
     titulo: 'Mediciones',
     items: [
-      { etiqueta: 'Nuevas mediciones', ruta: '/nuevas-mediciones', icono: PenLine },
+      { etiqueta: 'Dashboard', ruta: '/', icono: LayoutDashboard },
       { etiqueta: 'Mediciones', ruta: '/mediciones', icono: ClipboardList },
       { etiqueta: 'Flota', ruta: '/fleet', icono: TrainFront, soloAdministrador: true },
-      { etiqueta: 'Relación de bogies', ruta: '/relacion-bogies', icono: Database },
-      { etiqueta: 'Migración', ruta: '/migracion', icono: FolderUp, soloAdministrador: true },
     ],
   },
   {

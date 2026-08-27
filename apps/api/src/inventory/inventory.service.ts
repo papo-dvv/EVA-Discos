@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import type { LadoDisco } from '../../generated/prisma';
+import { agruparPorMes } from '../common/agrupar-por-mes';
 import { PrismaService } from '../prisma/prisma.service';
 import type { DevolverAlmacenDto } from './dto/devolver-almacen.dto';
 import type { EditarEjeDto } from './dto/editar-eje.dto';
@@ -18,6 +19,16 @@ import {
 } from './inventory-query';
 
 const LADOS = ['izquierdo', 'derecho'] as const satisfies readonly LadoDisco[];
+
+export interface PuntoRetirosMes {
+  mes: string;
+  retirados: number;
+}
+
+export interface CambiosDiscoAnio {
+  anio: number;
+  total: number;
+}
 
 function esViolacionUnicidad(err: unknown): boolean {
   return (
@@ -38,6 +49,61 @@ export class InventoryService {
 
   async obtenerStats(): Promise<InventoryStats> {
     return obtenerStatsInventory(this.prisma);
+  }
+
+  // Serie mensual de discos retirados de Almacén (Almacén -> Taller, ver
+  // OperationsRetiroMasivoService — un InventoryMovement con
+  // tipo='retiro_masivo' es siempre 1 disco físico, no un par), usada por el
+  // gráfico "Flujo mensual de discos" del dashboard. Siempre los 12 meses del
+  // AÑO CALENDARIO en curso (enero a diciembre, pedido explícito — mismo
+  // criterio que WearRateService.obtenerChartPorTipoCoche), con 0 explícito
+  // en los meses sin ningún retiro (incluidos los futuros, todavía sin
+  // ocurrir) — "sin retiros" es un dato real, no la ausencia de dato.
+  async obtenerRetirosPorMes(): Promise<PuntoRetirosMes[]> {
+    const anioActual = new Date().getUTCFullYear();
+
+    const movimientos = await this.prisma.inventoryMovement.findMany({
+      where: {
+        tipo: 'retiro_masivo',
+        fecha: {
+          gte: new Date(Date.UTC(anioActual, 0, 1)),
+          lt: new Date(Date.UTC(anioActual + 1, 0, 1)),
+        },
+      },
+      select: { fecha: true },
+    });
+    const porMes = agruparPorMes(
+      movimientos,
+      (m) => m.fecha,
+      () => 0,
+      (acumulado) => acumulado + 1,
+    );
+
+    return Array.from({ length: 12 }, (_, i) => {
+      const mes = new Date(Date.UTC(anioActual, i, 1))
+        .toISOString()
+        .slice(0, 7);
+      return { mes, retirados: porMes.get(mes) ?? 0 };
+    });
+  }
+
+  // Total de InventoryMovement tipo='cambio_disco' (reemplazo físico real en
+  // el tren, ver OperationsCambioDiscoService) del AÑO CALENDARIO en curso —
+  // distinto de obtenerRetirosPorMes (retiro_masivo = Almacén->Taller, no es
+  // un cambio ejecutado). Usado por la card "Avance del año" de Análisis de
+  // Proyección para comparar contra el total proyectado del año.
+  async obtenerCambiosDiscoAnio(): Promise<CambiosDiscoAnio> {
+    const anioActual = new Date().getUTCFullYear();
+    const total = await this.prisma.inventoryMovement.count({
+      where: {
+        tipo: 'cambio_disco',
+        fecha: {
+          gte: new Date(Date.UTC(anioActual, 0, 1)),
+          lt: new Date(Date.UTC(anioActual + 1, 0, 1)),
+        },
+      },
+    });
+    return { anio: anioActual, total };
   }
 
   // Alta de un EJE nuevo (izquierdo + derecho juntos) — wagonUnitId/

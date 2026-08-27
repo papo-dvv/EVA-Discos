@@ -9,6 +9,7 @@ import {
   type EstadoDiscoAmpliado,
 } from '../brake-disc-rules/brake-disc-rules.engine';
 import { BrakeDiscRulesService } from '../brake-disc-rules/brake-disc-rules.service';
+import type { Umbrales } from '../brake-disc-rules/umbrales';
 import { PrismaService } from '../prisma/prisma.service';
 import { ORDEN_MAS_RECIENTE } from '../scan-records/accion-recomendada.query';
 import {
@@ -19,7 +20,19 @@ import {
   type ResultadoProyeccionCiclos,
 } from './proyeccion-calculator.engine';
 import { ProyeccionRateService } from './proyeccion-rate.service';
-import { ProyeccionUmbralesService } from './proyeccion-umbrales.service';
+import {
+  ProyeccionUmbralesService,
+  type UmbralesProyeccion,
+} from './proyeccion-umbrales.service';
+
+// Umbrales (BrakeDiscRules + Proyección) ya resueltos por el caller — mismo
+// criterio que `tasasPorTipoCoche`: quien proyecta MUCHOS discos a la vez los
+// resuelve UNA sola vez (son globales, no dependen del disco) y los pasa acá,
+// en vez de que cada disco dispare sus propias 2 consultas a system_params.
+export interface UmbralesProyectarDisco {
+  umbrales: Umbrales;
+  configuracionProyeccion: UmbralesProyeccion;
+}
 
 export interface PosicionDisco {
   tipoCoche: TipoCoche;
@@ -77,12 +90,14 @@ export class ProyeccionCalculatorService {
     private readonly umbralesProyeccion: ProyeccionUmbralesService,
   ) {}
 
-  // `tasasPorTipoCoche` es opcional: sin él, resuelve la tasa del tipo de
-  // coche de ESTE disco con una consulta propia (uso puntual / tests). Quien
-  // proyecta MUCHOS discos a la vez (ProyeccionService, /discos y
-  // /pronostico-12-meses) debe resolver los 6 valores UNA sola vez (ver
-  // ProyeccionRateService.calcularTasasPorTipoCoche) y pasarlos acá, para no
-  // repetir la misma consulta de wear_rate_pairs por cada disco de la flota.
+  // `tasasPorTipoCoche` y `umbralesPrecalculados` son opcionales: sin ellos,
+  // resuelve la tasa/umbrales con consultas propias (uso puntual / tests).
+  // Quien proyecta MUCHOS discos a la vez (ProyeccionService, /discos,
+  // /pronostico y /pronostico/detalle) debe resolver ambos UNA sola vez (ver
+  // ProyeccionRateService.calcularTasasPorTipoCoche y
+  // ProyeccionService.resolverUmbralesProyeccion) y pasarlos acá, para no
+  // repetir la misma consulta de wear_rate_pairs/system_params por cada disco
+  // de la flota.
   //
   // Devuelve null solo si el disco no tiene NINGUNA medición confirmada
   // (nada que proyectar todavía) — distinto del caso "sin tasa de desgaste
@@ -91,6 +106,7 @@ export class ProyeccionCalculatorService {
   async proyectarDisco(
     discId: string,
     tasasPorTipoCoche?: Partial<Record<TipoCoche, number | null>>,
+    umbralesPrecalculados?: UmbralesProyectarDisco,
   ): Promise<ProyeccionDisco | null> {
     const disco = await this.prisma.brakeDisc.findUnique({
       where: { id: discId },
@@ -130,13 +146,24 @@ export class ProyeccionCalculatorService {
     const t = Number(ultimaMedicion.tValue);
     const rd = ultimaMedicion.rdValue;
 
-    const [umbrales, configuracionProyeccion, tasaMensual] = await Promise.all([
-      this.brakeDiscRules.obtenerUmbrales(),
-      this.umbralesProyeccion.obtener(),
-      tasasPorTipoCoche
-        ? Promise.resolve(tasasPorTipoCoche[posicion.tipoCoche] ?? null)
-        : this.rate.calcularTasaPromedioPorTipoCoche(posicion.tipoCoche),
-    ]);
+    const [umbrales, configuracionProyeccion, tasaMensual] =
+      umbralesPrecalculados
+        ? [
+            umbralesPrecalculados.umbrales,
+            umbralesPrecalculados.configuracionProyeccion,
+            tasasPorTipoCoche
+              ? (tasasPorTipoCoche[posicion.tipoCoche] ?? null)
+              : await this.rate.calcularTasaPromedioPorTipoCoche(
+                  posicion.tipoCoche,
+                ),
+          ]
+        : await Promise.all([
+            this.brakeDiscRules.obtenerUmbrales(),
+            this.umbralesProyeccion.obtener(),
+            tasasPorTipoCoche
+              ? Promise.resolve(tasasPorTipoCoche[posicion.tipoCoche] ?? null)
+              : this.rate.calcularTasaPromedioPorTipoCoche(posicion.tipoCoche),
+          ]);
     const evaluador = new BrakeDiscRulesEngine({
       ...umbrales,
       hUmbralReperfilado: configuracionProyeccion.hUmbralReperfilado,
