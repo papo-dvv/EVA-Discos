@@ -168,7 +168,7 @@ function DiscoInteractivo3D({
       <button
         type="button"
         aria-label={`${vista === '3d' ? 'Rotar modelo tridimensional' : 'Vista técnica bidimensional'} del disco; métrica activa ${metrica.etiqueta}`}
-        className={`group relative z-10 mx-auto mt-5 block h-36 w-full select-none ${vista === '3d' ? 'cursor-grab touch-none active:cursor-grabbing' : 'cursor-default'}`}
+        className={`group relative z-10 mx-auto mt-5 block h-52 w-full select-none ${vista === '3d' ? 'cursor-grab touch-none active:cursor-grabbing' : 'cursor-default'}`}
         onPointerMove={(event) => {
           if (vista !== '3d') return
           if (event.pointerType !== 'mouse' && !girando) return
@@ -190,16 +190,16 @@ function DiscoInteractivo3D({
         <span className="absolute left-1/2 top-1/2 h-8 w-52 -translate-x-1/2 translate-y-9 rounded-full bg-black/60 blur-xl" />
         <span
           ref={modeloRef}
-          className="absolute left-1/2 top-1/2 block h-32 w-32 -translate-x-1/2 -translate-y-1/2 transition-transform duration-200 ease-out"
+          className="absolute left-1/2 top-1/2 block h-44 w-44 -translate-x-1/2 -translate-y-1/2 transition-transform duration-200 ease-out"
           style={{ transform: vista === '3d' ? `translate(-50%, -50%) perspective(650px) rotateX(${giro.x}deg) rotateY(${giro.y}deg)` : 'translate(-50%, -50%)' }}
         >
-          {disco.posicion === 'unica' && <span className="absolute left-1/2 top-1/2 h-8 w-52 -translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-b from-slate-300 via-slate-500 to-slate-700 shadow-[0_6px_12px_rgba(0,0,0,.5)]" />}
+          {disco.posicion === 'unica' && <span className="absolute left-1/2 top-1/2 h-9 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-b from-slate-200 via-slate-500 to-slate-800 shadow-[0_8px_16px_rgba(0,0,0,.55)]" />}
           <span className={`absolute inset-0 rounded-full ${vista === '3d' ? 'bg-gradient-to-br from-slate-100 via-slate-500 to-slate-950 shadow-[inset_-12px_-10px_24px_rgba(0,0,0,.55),inset_9px_8px_18px_rgba(255,255,255,.8),10px_15px_20px_rgba(0,0,0,.45)]' : 'border-2 border-slate-300 bg-slate-950/80 shadow-[0_0_0_8px_rgba(255,255,255,.08)]'}`} />
           <span className={`absolute inset-[9px] rounded-full border ${vista === '3d' ? 'border-white/40 bg-[repeating-conic-gradient(from_0deg,#9ca3af_0deg,#e5e7eb_3deg,#6b7280_6deg)] opacity-80' : 'border-emerald-400/70'}`} />
           <span className="absolute inset-[22px] rounded-full border-[5px] border-slate-700 bg-gradient-to-br from-slate-300 via-slate-600 to-slate-900 shadow-inner" />
           <span className="absolute inset-[42px] rounded-full border-4 bg-slate-950 shadow-[inset_5px_4px_10px_#000] transition-colors" style={{ borderColor: metrica.color, boxShadow: `inset 5px 4px 10px #000, 0 0 0 7px ${metrica.halo.replace('.75', '.22')}` }} />
           <span className="absolute inset-[54px] rounded-full transition-colors" style={{ background: `radial-gradient(circle at 35% 30%, #fff8, ${metrica.color} 35%, #082f2a)`, boxShadow: `0 0 20px ${metrica.halo}` }} />
-          {vista === '3d' && [0, 60, 120, 180, 240, 300].map((angulo) => <span key={angulo} className="absolute left-1/2 top-1/2 h-2.5 w-2.5 rounded-full border border-white/50 bg-slate-900 shadow-inner" style={{ transform: `translate(-50%, -50%) rotate(${angulo}deg) translateY(-45px)` }} />)}
+          {vista === '3d' && [0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330].map((angulo) => <span key={angulo} className="absolute left-1/2 top-1/2 h-3 w-1.5 rounded-full border border-amber-100/50 bg-amber-900/80 shadow-inner" style={{ transform: `translate(-50%, -50%) rotate(${angulo}deg) translateY(-72px)` }} />)}
         </span>
       </button>
 
