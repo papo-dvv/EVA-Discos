@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { GlassButton } from '../components/GlassButton'
 import { GlassSurface } from '../components/GlassSurface'
+import { EstadoApiNoDisponible } from '../components/EstadoApiNoDisponible'
 import { SegmentedControl } from '../components/SegmentedControl'
 import { EVENTO_COLAPSAR_SIDEBAR } from '../components/Sidebar'
 import { WarningTooltip } from '../components/WarningTooltip'
@@ -374,12 +375,7 @@ export function Reperfilado({
           (preview.isLoading ? (
             <p className="mt-6 text-sm text-concreto">Cargando ficha…</p>
           ) : preview.isError ? (
-            <p
-              role="alert"
-              className="mt-6 text-sm text-[color:var(--color-estado-critico)]"
-            >
-              {extraerMensajeError(preview.error)}
-            </p>
+            <EstadoApiNoDisponible detalle={extraerMensajeError(preview.error)} />
           ) : ficha && preview.data ? (
             <>
               <div className="mt-4 flex flex-wrap justify-end gap-2">
