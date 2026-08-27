@@ -8,6 +8,10 @@ import { isAxiosError } from 'axios'
 // las devuelve el backend, nunca recalculadas en el cliente.
 export function extraerMensajeError(error: unknown, fallback = 'Ocurrió un error inesperado.'): string {
   if (isAxiosError(error)) {
+    if (!error.response) {
+      return 'No se puede conectar con la API. Inicia el servidor backend en http://localhost:3000 y verifica que PostgreSQL esté activo.'
+    }
+
     const data = error.response?.data as
       | { message?: string | string[]; combinaciones?: { scope: string; amplitud: number }[] }
       | undefined

@@ -110,7 +110,7 @@ function mensajeConfirmarBloqueado(
   const faltantes: string[] = []
   if (!tablaBloqueada) faltantes.push('bloquear la tabla de reperfilado')
   if (responsableVacio) faltantes.push('completar el Responsable de Mantenimiento')
-  if (cabeceraIncompleta) faltantes.push('completar el P.T. y la fecha/hora de inicio y fin')
+  if (cabeceraIncompleta) faltantes.push('completar el P.T. y la fecha/hora de inicio')
   if (problemaInstrumentosFicha) faltantes.push(problemaInstrumentosFicha)
   return `Falta ${juntarConY(faltantes)} para poder confirmar la ficha.`
 }
@@ -176,8 +176,7 @@ export function Reperfilado({
   const responsableVacio = !ficha?.responsableMantenimientoNombre?.trim()
   const cabeceraIncompleta =
     !ficha?.puestoTrabajo?.trim() ||
-    !ficha?.fechaHoraInicio ||
-    !ficha?.fechaHoraFin
+    !ficha?.fechaHoraInicio
   const problemaInstrumentosFicha = ficha ? problemaInstrumentos(ficha.instrumentos, ficha.fechaFicha) : null
   const puedeConfirmar = tablaBloqueada && !responsableVacio && !cabeceraIncompleta && !problemaInstrumentosFicha
   // Descargar PDF solo tiene sentido con la tabla ya bloqueada (Verificar) y

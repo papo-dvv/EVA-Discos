@@ -76,7 +76,7 @@ export function PanelParametros({ modulo, soloTodos = false }: Props) {
   const editables = (params.data ?? []).filter(
     (param) => param.editable && param.clave !== 'outlier_metodo' && param.clave !== 'measurement_gap_umbral_meses',
   )
-  const grupoActual = soloTodos ? undefined : GRUPOS[modulo]
+  const grupoActual = soloTodos || !modulo ? undefined : GRUPOS[modulo]
   const opcionesVista: { valor: 'modulo' | 'todos'; etiqueta: string }[] = grupoActual
     ? [
         { valor: 'modulo', etiqueta: grupoActual.nombre },
@@ -117,7 +117,7 @@ export function PanelParametros({ modulo, soloTodos = false }: Props) {
               {gruposVisibles.filter((grupo) => grupo.params.length > 0).map((grupo) => (
                 <section key={grupo.nombre} className="space-y-2.5">
                   {mostrarEncabezadoGrupo && <p className="font-body text-[0.6875rem] font-semibold uppercase tracking-[0.1em] text-concreto">{grupo.nombre}</p>}
-                  {grupo.params.map((param) => (
+                  {grupo.params.map((param: SystemParamItem) => (
                     <FilaParametro key={claveFilaConEstado(param, actualizar)} param={param} permitirVacio={CLAVES_PERMITEN_VACIO.has(param.clave)} onGuardar={(nuevo) => setConfirmando({ clave: param.clave, anterior: param.valor, nuevo })} />
                   ))}
                 </section>

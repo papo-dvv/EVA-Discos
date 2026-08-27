@@ -94,7 +94,7 @@ funcional de la app.
 
    ```bash
    # apps/api/.env
-   DATABASE_URL="postgresql://postgres:123456789@localhost:5432/eva?schema=public"
+   DATABASE_URL="postgresql://postgres:123456789@localhost:5433/eva?schema=public"
    JWT_SECRET="<un secreto aleatorio largo>"
    JWT_EXPIRES_IN="8h"
 

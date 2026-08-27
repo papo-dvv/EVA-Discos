@@ -129,8 +129,7 @@ export class NewMeasurementCommitService {
     const puestoIncompleto =
       ficha.motivo === 'Reperfilado'
         ? !ficha.puestoTrabajo?.trim() ||
-          !ficha.fechaHoraInicio ||
-          !ficha.fechaHoraFin
+          !ficha.fechaHoraInicio
         : !ficha.ptCodigo?.trim();
     if (puestoIncompleto) {
       throw new UnprocessableEntityException(
