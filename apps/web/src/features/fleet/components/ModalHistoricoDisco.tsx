@@ -54,7 +54,7 @@ export function ModalHistoricoDisco({ disco, onCerrar }: Props) {
             </div>
 
             {historico.data.historico.length === 0 ? (
-              <div className="rounded-glass border border-concreto/15 bg-white/35 px-4 py-8 text-center font-body text-sm text-concreto">
+              <div className="rounded-glass border border-concreto/15 bg-white px-4 py-8 text-center font-body text-sm text-concreto shadow-sm">
                 Este disco no tiene mediciones confirmadas.
               </div>
             ) : (

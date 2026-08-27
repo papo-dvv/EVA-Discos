@@ -38,9 +38,10 @@
   --duracion-base: 320ms;
   --duracion-lenta: 520ms;
 
-  /* Liquid glass (§4) — burbuja MARCADA con textura, no panel opaco */
-  --glass-bg: rgba(255, 255, 255, 0.20);
-  --glass-bg-strong: rgba(255, 255, 255, 0.36);
+  /* Superficies sólidas con textura: el contenido debe seguir siendo legible
+     incluso sobre fondos complejos y en modales con backdrop desenfocado. */
+  --glass-bg: #eef4f2;
+  --glass-bg-strong: #f8fbfa;
   --glass-border: rgba(255, 255, 255, 0.60);
   --glass-border-inner: rgba(5, 150, 105, 0.12);
   --glass-blur: 34px;

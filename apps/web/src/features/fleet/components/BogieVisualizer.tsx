@@ -279,7 +279,7 @@ function MitadDisco({ x, y, lado, disco, onSeleccionarDisco }: MitadDiscoProps) 
         <path
           d={path}
           fill={colorEstado(disco?.estadoCalculado ?? null)}
-          opacity={disco?.estadoCalculado ? 0.92 : 0.32}
+          opacity={disco?.estadoCalculado ? 1 : 0.72}
           stroke="rgba(255,255,255,0.82)"
           strokeWidth="2"
           style={{ filter: 'drop-shadow(0 8px 8px rgba(15,23,42,0.12))' }}
@@ -341,7 +341,7 @@ function CuartoDisco({ x, y, lado, posicion, disco, onSeleccionarDisco }: Cuarto
         <path
           d={path}
           fill={colorEstado(disco?.estadoCalculado ?? null)}
-          opacity={disco?.estadoCalculado ? 0.92 : 0.32}
+          opacity={disco?.estadoCalculado ? 1 : 0.72}
           stroke="rgba(255,255,255,0.82)"
           strokeWidth="1.5"
           style={{ filter: 'drop-shadow(0 6px 6px rgba(15,23,42,0.1))' }}
