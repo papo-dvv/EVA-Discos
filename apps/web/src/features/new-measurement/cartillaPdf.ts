@@ -247,16 +247,16 @@ export async function descargarCartillaPdf(
   // en la celda a la izquierda del borde (termina en x≈58), por eso la
   // primera línea arranca sobre la línea después de la etiqueta; las
   // siguientes continúan debajo con el mismo margen izquierdo.
-  // Si el comentario no entra en una sola línea, se reparte hasta en 3
-  // (135 / 127.5 / 120 — la última deja ~5pt de aire sobre el borde
-  // inferior) y, si aun así sobra texto, la 3ª línea se recorta con "…".
+  // Si el comentario no entra en una sola línea, se reparte hasta en 4
+  // (139 / 131.5 / 124 / 116.5 — la última deja ~5pt de aire sobre el borde
+  // inferior) y, si aun así sobra texto, la 4ª línea se recorta con "…".
   const comentario = texto(ficha.comentariosActividad)
   if (comentario) {
     const tamanoObs = 6
     const yObservaciones = 139 // antes 129 — despeja la línea subrayada en y≈136.8
     const anchoMaximoObs = 488 // 558 (borde derecho usable) - 70 (x de la primera línea)
     const interlineado = 7.5 // antes 8
-    const maximoLineas = 3
+    const maximoLineas = 4
     const lineas = dividirEnLineas(
       fuente,
       comentario,

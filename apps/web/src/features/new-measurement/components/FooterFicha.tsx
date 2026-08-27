@@ -459,7 +459,7 @@ function ComentariosActividad({
   return (
     <div className="space-y-1.5">
       <textarea
-        rows={3}
+        rows={4}
         maxLength={MAX_CARACTERES_COMENTARIOS_ACTIVIDAD}
         value={borrador}
         onChange={(e) => setBorrador(e.target.value)}

@@ -270,7 +270,7 @@ export class ReprofilingPdfService {
       escribir(ajustarTexto(instrumento.observaciones, 55, 5.2), 508, y, 5.2);
     });
     // El área de comentarios termina antes de la tabla de firmas. Se ajusta
-    // por ancho real y se limita a tres renglones para que nunca invada los
+    // por ancho real y se limita a cuatro renglones para que nunca invada los
     // encabezados de CARGO / NOMBRES / FIRMA.
     const palabrasComentario = (ficha.comentariosActividad ?? '')
       .trim()
@@ -293,7 +293,7 @@ export class ReprofilingPdfService {
       }
     }
     if (lineaComentario) comentarios.push(lineaComentario);
-    comentarios.slice(0, 3).forEach((linea, indice) =>
+    comentarios.slice(0, 4).forEach((linea, indice) =>
       escribir(ajustarTexto(linea, 510, 5.2), 45, 111 - indice * 8.5, 5.2),
     );
     // Las posiciones vacías se crean como placeholders al abrir una ficha.
