@@ -244,6 +244,7 @@ type MitadDiscoProps = {
 
 function MitadDisco({ x, y, lado, disco, onSeleccionarDisco }: MitadDiscoProps) {
   const disponible = Boolean(disco?.codigoDisco && disco.estadoCalculado)
+  const color = disco?.estadoCalculado ? colorEstado(disco.estadoCalculado) : '#cbd5e1'
   const etiqueta = disco ? `${lado}: ${textoEstado(disco)} · ${formatoRd(disco.rd)}` : `${lado}: Sin datos`
   const cx = lado === 'izquierdo' ? x + 90 : x
   const arriba = y + 4
@@ -278,8 +279,8 @@ function MitadDisco({ x, y, lado, disco, onSeleccionarDisco }: MitadDiscoProps) 
         <title>{etiqueta}</title>
         <path
           d={path}
-          fill={colorEstado(disco?.estadoCalculado ?? null)}
-          opacity={disco?.estadoCalculado ? 1 : 0.72}
+          fill={color}
+          opacity={1}
           stroke="rgba(255,255,255,0.82)"
           strokeWidth="2"
           style={{ filter: 'drop-shadow(0 8px 8px rgba(15,23,42,0.12))' }}
@@ -304,6 +305,11 @@ type CuartoDiscoProps = {
 // cada cuarto es una media elipse de la mitad de alto (RY/2).
 function CuartoDisco({ x, y, lado, posicion, disco, onSeleccionarDisco }: CuartoDiscoProps) {
   const disponible = Boolean(disco?.codigoDisco && disco.estadoCalculado)
+  const color = disco?.estadoCalculado
+    ? colorEstado(disco.estadoCalculado)
+    : posicion === 'exterior'
+      ? '#dbeafe'
+      : '#c4b5fd'
   const etiqueta = disco
     ? `${lado} ${posicion}: ${textoEstado(disco)} · ${formatoRd(disco.rd)}`
     : `${lado} ${posicion}: Sin datos`
@@ -340,8 +346,8 @@ function CuartoDisco({ x, y, lado, posicion, disco, onSeleccionarDisco }: Cuarto
         <title>{etiqueta}</title>
         <path
           d={path}
-          fill={colorEstado(disco?.estadoCalculado ?? null)}
-          opacity={disco?.estadoCalculado ? 1 : 0.72}
+          fill={color}
+          opacity={1}
           stroke="rgba(255,255,255,0.82)"
           strokeWidth="1.5"
           style={{ filter: 'drop-shadow(0 6px 6px rgba(15,23,42,0.1))' }}
