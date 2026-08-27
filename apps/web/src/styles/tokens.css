@@ -153,6 +153,12 @@ body {
   background-color: var(--glass-bg-strong);
   backdrop-filter: blur(var(--glass-blur-strong)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
   -webkit-backdrop-filter: blur(var(--glass-blur-strong)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
+  animation: eva-superficie-entrada 420ms var(--ease-apple) both;
+}
+
+@keyframes eva-superficie-entrada {
+  from { opacity: 0; transform: translateY(8px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 /* Iridiscencia jabón (opt-in) — brillo cónico tenue sobre los focos especulares */
@@ -202,7 +208,8 @@ body {
 @keyframes eva-borde-girar { to { --eva-angulo-borde: 360deg; } }
 
 .glass-button-primary {
-  background: linear-gradient(180deg, #10B981 0%, #059669 100%);
+  background: linear-gradient(110deg, #059669 0%, #10B981 45%, #059669 75%);
+  background-size: 220% 100%;
   color: var(--color-texto-invertido);
   border: 1px solid rgba(255, 255, 255, 0.4);
   border-radius: 999px;
@@ -213,6 +220,7 @@ body {
 }
 .glass-button-primary:hover {
   transform: translateY(-2px);
+  background-position: 100% 0;
   box-shadow: 0 12px 32px rgba(5, 150, 105, 0.40), inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 .glass-button-primary:active {
@@ -227,6 +235,7 @@ body {
 }
 .glass-button-secondary:hover {
   transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(30, 41, 59, 0.12);
 }
 .glass-button-secondary:active {
   transform: scale(0.97);
@@ -588,6 +597,9 @@ body {
   box-shadow: var(--glass-shadow-ambient), 0 18px 36px rgba(30, 41, 59, 0.16);
 }
 
+.eva-disco-anim { transition: transform 240ms var(--ease-apple), filter 240ms var(--ease-apple); }
+.eva-disco-anim:hover { transform: scale(1.08) rotateY(8deg); filter: brightness(1.08) saturate(1.12); }
+
 .eva-brillo { position: relative; overflow: hidden; }
 .eva-brillo__barrido {
   position: absolute;
@@ -736,6 +748,7 @@ body {
     transition: none;
   }
   .eva-entrada-ruta { animation: none; }
+  .glass-surface--strong { animation: none; }
 }
 
 /* --- Fondo, cuadrícula y degradado (§7) --- */

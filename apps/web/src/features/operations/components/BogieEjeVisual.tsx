@@ -16,7 +16,7 @@ function DiscoVisual({ disco, lado, vista }: { disco?: FleetDiscoDetalle; lado: 
   return (
     <div className="flex min-w-20 flex-col items-center gap-1">
       <div
-        className={vista === '3d' ? 'relative h-16 w-8 rounded-[50%] border border-white/80 shadow-[7px_9px_15px_rgba(15,23,42,0.22),inset_-5px_-4px_8px_rgba(0,0,0,0.28),inset_4px_3px_7px_rgba(255,255,255,0.5)]' : 'relative h-14 w-14 rounded-full border-4 border-slate-200 shadow-md'}
+        className={`${vista === '3d' ? 'relative h-16 w-8 rounded-[50%] border border-white/80 shadow-[7px_9px_15px_rgba(15,23,42,0.22),inset_-5px_-4px_8px_rgba(0,0,0,0.28),inset_4px_3px_7px_rgba(255,255,255,0.5)]' : 'relative h-14 w-14 rounded-full border-4 border-slate-200 shadow-md'} eva-disco-anim`}
         style={{ background: vista === '3d' ? `linear-gradient(105deg, ${color}, color-mix(in_srgb, ${color} 48%, #172033))` : `radial-gradient(circle, #0f172a 0 22%, ${color} 24% 43%, #e2e8f0 45% 58%, ${color} 60% 66%, #334155 68%)` }}
       >
         {vista === '3d' && <><span className="absolute left-1/2 top-1/2 h-5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-[50%] bg-slate-800/75 shadow-inner" /><span className="absolute inset-y-1.5 left-1 w-1 rounded-full bg-white/35" /></>}
