@@ -110,6 +110,15 @@ export class ReprofilingPdfService {
           color: tinta,
         });
     };
+    // Todo texto que entra en un recuadro se recorta a su ancho útil. La
+    // plantilla es muy densa: sin este límite un P.T., observación o nombre
+    // largo invade la celda siguiente al exportar el PDF.
+    const ajustarTexto = (valor: unknown, ancho: number, size: number) => {
+      let contenido = String(valor ?? '').trim();
+      while (contenido && font.widthOfTextAtSize(`${contenido}...`, size) > ancho)
+        contenido = contenido.slice(0, -1);
+      return contenido === String(valor ?? '').trim() ? contenido : `${contenido}...`;
+    };
     const escribirCentrado = (
       valor: unknown,
       centroX: number,
@@ -154,7 +163,7 @@ export class ReprofilingPdfService {
       });
       escribir('ANSALDO MB300', 181, 707, 6.3, true);
     }
-    escribir(ficha.puestoTrabajo, 315, 708, 7.2, true);
+    escribir(ajustarTexto(ficha.puestoTrabajo, 104, 7.2), 315, 708, 7.2, true);
     escribir(ficha.kilometraje, 442, 708, 7.2, true);
     escribir(fechaHora(ficha.fechaHoraInicio), 116, 691, 6.2, true);
     escribir(fechaHora(ficha.fechaHoraFin), 302, 691, 6.2, true);
@@ -188,7 +197,7 @@ export class ReprofilingPdfService {
       escribirCentrado(numero(der?.tValue), columnas.derDespuesT, y, 6.7, true);
       escribirCentrado(numero(der?.hValue), columnas.derDespuesH, y, 6.7, true);
       escribirCentrado(numero(der ? 2.5 : null), columnas.derRa, y, 6.7, true);
-      escribir(der?.observacion ?? izq?.observacion, 548, y, 5.2);
+      escribir(ajustarTexto(der?.observacion ?? izq?.observacion, 42, 5.2), 548, y, 5.2);
     }
 
     // La plantilla imprime el tipo de coche y deja una línea vacía debajo.
@@ -222,11 +231,11 @@ export class ReprofilingPdfService {
     ficha.instrumentos.slice(0, 4).forEach((instrumento, indice) => {
       const y = 158 - indice * 10.2;
       escribir(instrumento.codigo, 53, y, 5.7);
-      escribir(instrumento.descripcion, 112, y, 5.7);
-      escribir(instrumento.modeloMarca, 293, y, 5.7);
+      escribir(ajustarTexto(instrumento.descripcion, 170, 5.7), 112, y, 5.7);
+      escribir(ajustarTexto(instrumento.modeloMarca, 82, 5.7), 293, y, 5.7);
       escribir(fecha(instrumento.fechaCalibracion), 387, y, 5.4);
       escribir(fecha(instrumento.fechaVencimientoCalibracion), 460, y, 5.4);
-      escribir(instrumento.observaciones, 532, y, 5.2);
+      escribir(ajustarTexto(instrumento.observaciones, 46, 5.2), 532, y, 5.2);
     });
     const comentarios =
       (ficha.comentariosActividad ?? '').match(/.{1,115}(?:\s|$)/g) ?? [];
@@ -242,9 +251,9 @@ export class ReprofilingPdfService {
       await dibujarFirma(pdf, page, tecnico.firma, 520, y + 1);
     }
     escribir('RESPONSABLE DE MANTENIMIENTO', 52, 53, 5.1, true);
-    escribir(ficha.responsableMantenimientoNombre, 210, 53, 6.1, true);
+    escribir(ajustarTexto(ficha.responsableMantenimientoNombre, 275, 6.1), 210, 53, 6.1, true);
     await dibujarFirma(pdf, page, ficha.responsableMantenimientoFirma, 520, 54);
-    escribir(ficha.ingMrNombre, 210, 34, 6.1, true);
+    escribir(ajustarTexto(ficha.ingMrNombre, 275, 6.1), 210, 34, 6.1, true);
     await dibujarFirma(pdf, page, ficha.ingMrFirma, 520, 35);
 
     return pdf.save();

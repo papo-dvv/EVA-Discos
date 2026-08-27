@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ClipboardPenLine, Download, RefreshCcw, Ruler } from 'lucide-react'
+import { BellRing, ClipboardPenLine, Download, RefreshCcw, Ruler, TriangleAlert } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { GlassButton } from '../components/GlassButton'
@@ -33,6 +33,7 @@ import type {
 } from '../features/new-measurement/types'
 import { CargaInicialReperfilado } from '../features/reprofiling/CargaInicialReperfilado'
 import { HeaderReperfilado } from '../features/reprofiling/HeaderReperfilado'
+import { CodigosCocheReperfilado } from '../features/reprofiling/CodigosCocheReperfilado'
 import { extraerMensajeError } from '../lib/extraerMensajeError'
 
 const MOTIVO_OPCIONES: {
@@ -436,6 +437,20 @@ export function Reperfilado({
                   seguridad exigidos por la empresa.
                 </p>
               </GlassSurface>
+              <AlertasTecnicasReperfilado
+                ficha={ficha}
+                filas={rows.length}
+                tieneCodigos={Object.keys(ficha.codigosCoche ?? {}).length >= 6}
+                tieneCodigosBogie={Object.keys(ficha.codigosBogie ?? {}).length > 0}
+                resultado={resultado}
+              />
+              <CodigosCocheReperfilado
+                trenNumero={ficha.trenNumero}
+                esqueleto={preview.data.esqueleto}
+                codigos={ficha.codigosCoche}
+                deshabilitado={tablaBloqueada}
+                onGuardar={(codigosCoche) => editar.mutate({ codigosCoche })}
+              />
               <TablaFichaReperfilado
                 fichaId={fichaId}
                 esqueleto={preview.data.esqueleto}
@@ -607,4 +622,18 @@ export function Reperfilado({
       )}
     </div>
   )
+}
+
+function AlertasTecnicasReperfilado({ ficha, filas, tieneCodigos, tieneCodigosBogie, resultado }: { ficha: import('../features/new-measurement/types').FichaMedicion; filas: number; tieneCodigos: boolean; tieneCodigosBogie: boolean; resultado: ResumenVerificacion | null }) {
+  const alertas = [
+    !filas ? 'Aún no hay mediciones leídas: subí una fotografía o completa una posición manual.' : null,
+    !ficha.puestoTrabajo?.trim() ? 'Falta el P.T. (puesto de trabajo).' : null,
+    !ficha.fechaHoraInicio ? 'Falta la fecha/hora de inicio.' : null,
+    !tieneCodigos ? 'Revisá la lista de códigos de coches antes de bloquear.' : null,
+    !tieneCodigosBogie ? 'Faltan códigos de bogie; la IA puede sugerirlos desde la fotografía.' : null,
+    ficha.todasConformes === null ? 'Indicá si todas las medidas son conformes.' : null,
+    ...(resultado?.alertasReperfilado ?? []),
+  ].filter((alerta): alerta is string => Boolean(alerta))
+  if (!alertas.length) return <div className="mt-4 flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-800"><BellRing size={17} />Sin pendientes técnicos detectados. La ficha está lista para verificar.</div>
+  return <section role="alert" className="mt-4 rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 to-white px-4 py-3"><div className="flex items-center gap-2 font-display text-sm font-semibold text-amber-900"><TriangleAlert size={17} />Alertas y datos pendientes</div><ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-amber-900">{alertas.map((alerta) => <li key={alerta}>{alerta}</li>)}</ul></section>
 }

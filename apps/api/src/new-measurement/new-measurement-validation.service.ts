@@ -145,6 +145,16 @@ export class NewMeasurementValidationService {
       throw new NotFoundException('Ficha de medición no encontrada.');
     }
 
+    // La R.A. posterior del formato UT-UF-MTO-FR-414 es operativa y fija:
+    // aunque una lectura antigua/OCR venga vacía o con otra cifra, al revisar
+    // la ficha se normaliza a 2,5 µm. Esto evita falsos bloqueos durante la
+    // carga de pruebas y garantiza un único valor técnico en tabla y PDF.
+    if (ficha.motivo === 'Reperfilado' && ficha.uploadedFileId) {
+      await this.prisma.scanRecord.updateMany({
+        where: { fileId: ficha.uploadedFileId },
+        data: { rugosidadRa: 2.5 },
+      });
+    }
     const filas = await this.recalcularFlags(fichaId);
     const alertasReperfilado =
       ficha.motivo === 'Reperfilado'
