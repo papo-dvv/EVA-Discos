@@ -4,13 +4,15 @@ import { RequireAuth } from './auth/RequireAuth'
 import { MainLayout } from './components/MainLayout'
 import { DevComponentes } from './pages/dev/DevComponentes'
 import { CambiarPasswordObligatorio } from './pages/CambiarPasswordObligatorio'
+import { Configuracion } from './pages/Configuracion'
 import { Galeria } from './pages/Galeria'
 import { Flota } from './pages/Flota'
 import { FlotaDetalle } from './pages/FlotaDetalle'
 import { Inicio } from './pages/Inicio'
 import { Inventario } from './pages/Inventario'
 import { Login } from './pages/Login'
-import { MedicionesConfirmadas } from './pages/MedicionesConfirmadas'
+import { Mediciones } from './pages/Mediciones'
+import { MedicionesHistorico } from './pages/MedicionesHistorico'
 import { MigracionPreview } from './pages/MigracionPreview'
 import { MigracionUpload } from './pages/MigracionUpload'
 import { NuevasMediciones } from './pages/NuevasMediciones'
@@ -87,7 +89,8 @@ function App() {
         }
       >
         <Route path="/" element={<Inicio />} />
-        <Route path="/mediciones" element={<MedicionesConfirmadas />} />
+        <Route path="/mediciones" element={<Mediciones />} />
+        <Route path="/mediciones/historico" element={<MedicionesHistorico />} />
         <Route path="/fleet" element={<Flota />} />
         <Route path="/fleet/:tren" element={<FlotaDetalle />} />
         <Route path="/tasa-desgaste" element={<TasaDesgaste />} />
@@ -98,6 +101,7 @@ function App() {
         <Route path="/inventario" element={<Inventario />} />
         <Route path="/migracion" element={<MigracionUpload />} />
         <Route path="/migracion/:fileId" element={<MigracionPreview />} />
+        <Route path="/configuracion" element={<Configuracion />} />
         <Route path="/nuevas-mediciones" element={<NuevasMediciones />} />
         <Route path="/nuevas-mediciones/:fichaId" element={<NuevasMediciones />} />
         <Route path="/reperfilado" element={<RedirigirReperfilado />} />

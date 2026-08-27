@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom'
 import { GlassButton } from '../../../components/GlassButton'
 import { GlassModal } from '../../../components/GlassModal'
 import { ScrollArea } from '../../../components/ScrollArea'
@@ -32,6 +33,14 @@ function etiquetaEvento(evento: Pick<EventoPronostico, 'tipo' | 'pendiente'>): s
 
 export function ModalDetallePronostico({ tren, periodo, tipo, onCerrar }: Props) {
   const detalle = useDetallePronostico(tren, periodo, tipo)
+  const navigate = useNavigate()
+
+  function irAOperaciones(evento: EventoPronostico) {
+    const numeroCoche = evento.posiciones[0]?.numeroCoche
+    if (numeroCoche == null) return
+    navigate(`/operaciones?tren=${evento.trenNumero}&coche=${numeroCoche}`)
+    onCerrar()
+  }
 
   return (
     <GlassModal
@@ -67,6 +76,7 @@ export function ModalDetallePronostico({ tren, periodo, tipo, onCerrar }: Props)
                   <th className="px-2 py-2 text-right">Días hasta evento</th>
                   <th className="px-2 py-2">Fecha proyectada</th>
                   <th className="px-2 py-2">Tipo</th>
+                  <th className="px-2 py-2">Acción</th>
                 </tr>
               </thead>
               <tbody>
@@ -94,6 +104,17 @@ export function ModalDetallePronostico({ tren, periodo, tipo, onCerrar }: Props)
                       <span className={evento.pendiente ? 'text-[color:var(--color-estado-seguimiento)]' : undefined}>
                         {etiquetaEvento(evento)}
                       </span>
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <GlassButton
+                        type="button"
+                        variante="secundario"
+                        className="px-2 py-1 text-xs"
+                        onClick={() => irAOperaciones(evento)}
+                        disabled={evento.posiciones[0]?.numeroCoche == null}
+                      >
+                        Ir a Operaciones →
+                      </GlassButton>
                     </td>
                   </tr>
                 ))}

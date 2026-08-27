@@ -29,6 +29,15 @@ const GRUPOS: Record<ModuloParametros, Grupo> = {
   },
 }
 
+// Grupo adicional, SOLO visible en modo `soloTodos` (Configuración) — no
+// tiene página propia que lo embeba con `modulo`, a diferencia de los 4 de
+// arriba. Antes vivía como panel embebido en Mediciones; con Configuración
+// centralizando todo, se retiró de ahí (ver Mediciones.tsx).
+const GRUPO_SEMAFORO_MEDICIONES: Grupo = {
+  nombre: 'Semáforo de mediciones (tarjetas)',
+  claves: ['dias_semaforo_alerta', 'dias_semaforo_critico', 'dias_semaforo_prioridad'],
+}
+
 const CLAVES_PERMITEN_VACIO = new Set(['amplitud_maxima_extremo'])
 
 function filasPorClaves(params: SystemParamItem[], claves: readonly string[]) {
@@ -37,11 +46,24 @@ function filasPorClaves(params: SystemParamItem[], claves: readonly string[]) {
   )
 }
 
-export function PanelParametros({ modulo }: { modulo: ModuloParametros }) {
-  const [vista, setVista] = useState<'modulo' | 'todos'>('modulo')
+// `soloTodos` = modo centralizado (página Configuración): siempre muestra
+// todos los grupos, sin el toggle módulo/todos y sin "modulo" propio — ver
+// Configuracion.tsx. El resto de páginas sigue pasando `modulo` como antes
+// (panel embebido, foco en su propio grupo con opción de ver "Todos").
+type Props = { modulo: ModuloParametros; soloTodos?: false } | { soloTodos: true; modulo?: undefined }
+
+export function PanelParametros({ modulo, soloTodos = false }: Props) {
+  const [vista, setVista] = useState<'modulo' | 'todos'>(soloTodos ? 'todos' : 'modulo')
   const queryClient = useQueryClient()
   const params = useSystemParams()
   const { actualizar, confirmando, setConfirmando, avisoAjuste, setAvisoAjuste, confirmar } = useConfirmacionParametro(() => {
+    if (soloTodos) {
+      queryClient.invalidateQueries({ queryKey: ['scan-records'] })
+      queryClient.invalidateQueries({ queryKey: ['wear-rate'] })
+      queryClient.invalidateQueries({ queryKey: ['traceability'] })
+      queryClient.invalidateQueries({ queryKey: ['projection'] })
+      return
+    }
     const queryKey = modulo === 'tasa-desgaste'
       ? ['wear-rate']
       : modulo === 'trazabilidad'
@@ -54,16 +76,20 @@ export function PanelParametros({ modulo }: { modulo: ModuloParametros }) {
   const editables = (params.data ?? []).filter(
     (param) => param.editable && param.clave !== 'outlier_metodo' && param.clave !== 'measurement_gap_umbral_meses',
   )
-  const grupoActual = GRUPOS[modulo]
-  const opcionesVista: { valor: 'modulo' | 'todos'; etiqueta: string }[] = [
-    { valor: 'modulo', etiqueta: grupoActual.nombre },
-    { valor: 'todos', etiqueta: 'Todos' },
-  ]
-  const gruposVisibles = vista === 'modulo'
+  const grupoActual = soloTodos ? undefined : GRUPOS[modulo]
+  const opcionesVista: { valor: 'modulo' | 'todos'; etiqueta: string }[] = grupoActual
+    ? [
+        { valor: 'modulo', etiqueta: grupoActual.nombre },
+        { valor: 'todos', etiqueta: 'Todos' },
+      ]
+    : []
+  const gruposCompletos = soloTodos ? [...Object.values(GRUPOS), GRUPO_SEMAFORO_MEDICIONES] : Object.values(GRUPOS)
+  const gruposVisibles = !soloTodos && vista === 'modulo' && grupoActual
     ? [{ ...grupoActual, params: filasPorClaves(editables, grupoActual.claves) }]
-    : Object.values(GRUPOS).map((grupo) => ({ ...grupo, params: filasPorClaves(editables, grupo.claves) }))
-  const clavesAsignadas = new Set(Object.values(GRUPOS).flatMap((grupo) => grupo.claves))
+    : gruposCompletos.map((grupo) => ({ ...grupo, params: filasPorClaves(editables, grupo.claves) }))
+  const clavesAsignadas = new Set(gruposCompletos.flatMap((grupo) => grupo.claves))
   const otros = editables.filter((param) => !clavesAsignadas.has(param.clave))
+  const mostrarEncabezadoGrupo = soloTodos || vista === 'todos'
 
   return (
     <>
@@ -72,10 +98,12 @@ export function PanelParametros({ modulo }: { modulo: ModuloParametros }) {
           <div>
             <h3 className="font-display text-base font-semibold text-concreto-oscuro">Parámetros</h3>
             <p className="mt-0.5 font-body text-xs text-concreto">
-              {vista === 'modulo' ? `Configuración de ${grupoActual.nombre}.` : 'Configuración agrupada por módulo.'}
+              {soloTodos ? 'Todos los parámetros configurables, agrupados por módulo.' : vista === 'modulo' ? `Configuración de ${grupoActual!.nombre}.` : 'Configuración agrupada por módulo.'}
             </p>
           </div>
-          <SegmentedControl ariaLabel="Parámetros del módulo actual o todos los módulos" opciones={opcionesVista} valor={vista} onCambiar={setVista} />
+          {!soloTodos && (
+            <SegmentedControl ariaLabel="Parámetros del módulo actual o todos los módulos" opciones={opcionesVista} valor={vista} onCambiar={(v) => setVista(v)} />
+          )}
         </div>
 
         {avisoAjuste && <AvisoAjusteConsenso clave={avisoAjuste.clave} ajustes={avisoAjuste.ajustes} onCerrar={() => setAvisoAjuste(null)} />}
@@ -88,13 +116,13 @@ export function PanelParametros({ modulo }: { modulo: ModuloParametros }) {
             <div className="space-y-4">
               {gruposVisibles.filter((grupo) => grupo.params.length > 0).map((grupo) => (
                 <section key={grupo.nombre} className="space-y-2.5">
-                  {vista === 'todos' && <p className="font-body text-[0.6875rem] font-semibold uppercase tracking-[0.1em] text-concreto">{grupo.nombre}</p>}
+                  {mostrarEncabezadoGrupo && <p className="font-body text-[0.6875rem] font-semibold uppercase tracking-[0.1em] text-concreto">{grupo.nombre}</p>}
                   {grupo.params.map((param) => (
                     <FilaParametro key={claveFilaConEstado(param, actualizar)} param={param} permitirVacio={CLAVES_PERMITEN_VACIO.has(param.clave)} onGuardar={(nuevo) => setConfirmando({ clave: param.clave, anterior: param.valor, nuevo })} />
                   ))}
                 </section>
               ))}
-              {vista === 'todos' && otros.length > 0 && (
+              {mostrarEncabezadoGrupo && otros.length > 0 && (
                 <section className="space-y-2.5">
                   <p className="font-body text-[0.6875rem] font-semibold uppercase tracking-[0.1em] text-concreto">Otros</p>
                   {otros.map((param) => (

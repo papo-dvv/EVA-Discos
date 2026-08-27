@@ -33,10 +33,14 @@ export const CONTEO_MINIMO = 20;
 // puntos no aporta nada y solo perdería granularidad para nada a cambio.
 const UMBRAL_AGREGACION_MENSUAL = 100;
 
-// Rango de trenes de la flota (T06–T44, ver seed.ts) — GET
+// Rango de trenes de la flota Alstom (T06–T44, ver seed.ts) — GET
 // /traceability/promedio-por-tren siempre recorre los 39, sin importar qué
 // trenes tengan pares válidos hoy (un tren sin datos responde promedio:null,
-// no se omite de la lista).
+// no se omite de la lista). Deja fuera a propósito los trenes Ansaldo (1-5)
+// y el pseudo-tren Reserva (0): ese modelo tiene 4 discos por eje y este
+// módulo asume 2 — generalizarlo queda para un trabajo futuro dedicado (ver
+// mismo criterio en WearRateService.recalcularDisco y
+// ProyeccionService.resolverDiscosEnScope).
 const TREN_MINIMO = 6;
 const TREN_MAXIMO = 44;
 

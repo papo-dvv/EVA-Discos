@@ -39,22 +39,22 @@
   --duracion-lenta: 520ms;
 
   /* Liquid glass (§4) — burbuja MARCADA con textura, no panel opaco */
-  --glass-bg: rgba(255, 255, 255, 0.88);
-  --glass-bg-strong: rgba(255, 255, 255, 0.96);
-  --glass-border: rgba(203, 213, 225, 0.72);
+  --glass-bg: rgba(255, 255, 255, 0.20);
+  --glass-bg-strong: rgba(255, 255, 255, 0.36);
+  --glass-border: rgba(255, 255, 255, 0.60);
   --glass-border-inner: rgba(5, 150, 105, 0.12);
-  --glass-blur: 16px;
-  --glass-blur-strong: 20px;
+  --glass-blur: 34px;
+  --glass-blur-strong: 48px;
   --glass-saturate: 200%;
   --glass-brightness: 1.07;
-  --glass-shadow-ambient: 0 18px 45px -30px rgba(15, 23, 42, 0.28);
-  --glass-shadow-contact: 0 5px 16px rgba(15, 23, 42, 0.045);
+  --glass-shadow-ambient: 0 44px 96px -26px rgba(4, 120, 87, 0.18);
+  --glass-shadow-contact: 0 12px 28px rgba(30, 41, 59, 0.12);
   --glass-highlight-top: rgba(255, 255, 255, 0.95);
   --glass-highlight-bottom: rgba(255, 255, 255, 0.42);
   /* Radios squircle — esquinas continuas, más generosas (widgets Apple) */
-  --glass-radius: 18px;
-  --glass-radius-lg: 22px;
-  --glass-radius-sm: 14px;
+  --glass-radius: 34px;
+  --glass-radius-lg: 44px;
+  --glass-radius-sm: 26px;
 
   /* Textura de vidrio esmerilado (grano). Tileado, se mezcla con soft-light
      sobre el fondo translúcido para dar la textura de burbuja "marcada". */
@@ -104,7 +104,9 @@ body {
   overflow: hidden;
   /* Fondo translúcido + grano esmerilado mezclado con soft-light = textura */
   background-color: var(--glass-bg);
-  background-image: none;
+  background-image: var(--glass-grano);
+  background-size: var(--glass-grano-size) var(--glass-grano-size);
+  background-blend-mode: var(--glass-grano-blend);
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)) brightness(var(--glass-brightness));
   border: 1px solid var(--glass-border);
@@ -112,7 +114,9 @@ body {
   box-shadow:
     var(--glass-shadow-ambient),
     var(--glass-shadow-contact),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    var(--glass-menisco),
+    inset 0 1px 0 var(--glass-highlight-top),
+    inset 0 -1px 0 var(--glass-highlight-bottom);
   transition: transform var(--duracion-base) var(--ease-apple), box-shadow var(--duracion-base) var(--ease-apple);
 }
 
@@ -125,29 +129,9 @@ body {
   border-radius: inherit;
   pointer-events: none;
   z-index: 0;
-  background: linear-gradient(180deg, rgba(255,255,255,0.5), transparent 28%);
-}
-
-.eva-panel {
-  border: 1px solid rgba(203, 213, 225, 0.72);
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 10px 30px -22px rgba(15, 23, 42, 0.3);
-}
-
-.eva-control {
-  min-height: 38px;
-  border: 1px solid #dbe3e8;
-  border-radius: 10px;
-  background: #fff;
-  color: #1e293b;
-  outline: none;
-  transition: border-color 180ms ease, box-shadow 180ms ease;
-}
-
-.eva-control:focus {
-  border-color: #10b981;
-  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.12);
+  background:
+    radial-gradient(135% 100% at 14% -8%, rgba(255, 255, 255, 0.80) 0%, rgba(255, 255, 255, 0) 46%),
+    radial-gradient(95% 75% at 90% 112%, rgba(255, 255, 255, 0.42) 0%, rgba(255, 255, 255, 0) 52%);
 }
 
 /* El contenido va por encima de los brillos/grano */
@@ -365,6 +349,13 @@ body {
   font-family: var(--font-body);
   font-weight: 600;
   font-size: 14.67px; /* +2pt sobre los 12px (9pt) originales — pedido explícito para la tabla de mediciones/estado */
+}
+/* Variante compacta — usada en la card de flota, donde el chip acompaña una
+   imagen grande y no debe competir en tamaño con el título "Tren #n". */
+.tabla-chip--pequeno {
+  padding: 2px 8px;
+  gap: 4px;
+  font-size: 11px;
 }
 .tabla-chip--ok { background: var(--tabla-estado-ok-bg); color: var(--tabla-estado-ok-text); }
 .tabla-chip--seguimiento { background: var(--tabla-estado-seguimiento-bg); color: var(--tabla-estado-seguimiento-text); }
@@ -634,9 +625,12 @@ body {
   animation: eva-entrada-ruta var(--duracion-rapida) var(--ease-apple) both;
 }
 
-/* Sidebar oscura cinemática (styles.md §4) — SIEMPRE oscura, independiente
-   del tema claro del resto de la app: gradiente vertical + radiales verdes
-   tenues (iluminación ambiental) + scanlines sutiles en screen blend. */
+/* Sidebar oscura cinemática (styles.md §4, calcada de EVA-Aldy —
+   ver styles-eva/sidebar-styles.md) — SIEMPRE oscura, independiente del
+   tema claro del resto de la app: 3 capas (base + ::before + ::after):
+   base con glow verde institucional en la esquina inferior, ::before con
+   un realce diagonal + radial verde tenue, ::after con scanlines
+   verticales sutiles en screen blend. */
 .metro-sidebar-cinematic {
   /* Sin position acá a propósito: el consumidor (Sidebar.tsx) siempre la
      usa junto con `absolute inset-0` de Tailwind — si esta clase también
@@ -645,27 +639,84 @@ body {
      `absolute`, colapsando el div a tamaño cero. */
   overflow: hidden;
   background:
-    radial-gradient(60% 45% at 15% 10%, rgba(16, 185, 129, 0.10) 0%, transparent 60%),
-    radial-gradient(50% 40% at 90% 85%, rgba(16, 185, 129, 0.07) 0%, transparent 65%),
-    linear-gradient(180deg, #080b13 0%, #0a1020 35%, #0d1728 68%, #14283a 100%);
+    radial-gradient(120% 75% at 50% 104%, rgba(5, 150, 105, 0.42) 0%, rgba(4, 120, 87, 0.20) 24%, rgba(4, 85, 61, 0.08) 50%, rgb(0, 0, 0) 72%),
+    radial-gradient(90% 52% at 72% 38%, rgb(0, 0, 0) 0%, rgb(0, 0, 0) 68%),
+    linear-gradient(180deg, #080b13 0%, #0a1020 28%, #0d1728 62%, #14283a 100%);
+}
+.metro-sidebar-cinematic::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0) 18%, rgba(255, 255, 255, 0.025) 100%),
+    radial-gradient(70% 45% at 50% 86%, rgba(5, 150, 105, 0.20), rgba(185, 229, 238, 0) 68%);
+  opacity: 0.85;
 }
 .metro-sidebar-cinematic::after {
   content: '';
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: repeating-linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.035) 0px,
-    rgba(255, 255, 255, 0.035) 1px,
-    transparent 1px,
-    transparent 3px
-  );
+  background:
+    linear-gradient(180deg, rgb(0, 0, 0) 0%, rgba(0, 0, 0, 0) 32%, rgb(0, 200, 120) 100%),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.018) 0 1px, transparent 1px 5px);
   mix-blend-mode: screen;
+  opacity: 0.28;
+}
+
+/* Indicador activo del item de nav (barra celeste con glow), animado al
+   montar — mismo lenguaje que EVA-Aldy (metroSidebarIndicator*). */
+@keyframes eva-sidebar-indicador-in {
+  0% { opacity: 0; transform: translate(-2rem, -50%) scaleX(0.25); filter: blur(1px); }
+  58% { opacity: 1; transform: translate(0.12rem, -50%) scaleX(1); filter: blur(0); }
+  100% { opacity: 1; transform: translate(0, -50%) scaleX(1); filter: blur(0); }
+}
+@keyframes eva-sidebar-indicador-glow {
+  0%, 100% { box-shadow: 0 0 12px rgba(186, 230, 253, 0.72); }
+  50% { box-shadow: 0 0 20px rgba(186, 230, 253, 0.95); }
+}
+.eva-sidebar-linea-activa {
+  transform: translateY(-50%);
+  transform-origin: right center;
+  animation:
+    eva-sidebar-indicador-in 1500ms var(--ease-apple),
+    eva-sidebar-indicador-glow 1400ms ease-out;
+}
+
+/* Oculta la scrollbar del <nav> de la sidebar sin perder el scroll. */
+.scrollbar-hidden {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+}
+
+/* Ilustración de tren en TrainFrontCard (Flota, calcado de EVA-Aldy —
+   ver styles-eva/flota-styles.md): glow pulsante + tinte de semáforo
+   recortado a la silueta vía mask-image. `--eva-flota-glow` lo fija el
+   componente por inline style con el color de semáforo del tren
+   (color-mix sobre los tokens --color-estado-*, no hex sueltos). */
+@keyframes eva-flota-tren-glow {
+  0%, 100% { filter: drop-shadow(0 0 16px var(--eva-flota-glow)) saturate(1.12); }
+  50% { filter: drop-shadow(0 0 28px var(--eva-flota-glow)) saturate(1.22); }
+}
+@keyframes eva-flota-tren-tint {
+  0%, 100% { opacity: 0.34; }
+  50% { opacity: 0.5; }
+}
+.animate-eva-flota-glow {
+  animation: eva-flota-tren-glow 2.4s ease-in-out infinite;
+}
+.animate-eva-flota-tint {
+  animation: eva-flota-tren-tint 2.4s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .glass-surface--vivo::after { animation: none; }
+  .eva-sidebar-linea-activa { animation: none; }
+  .animate-eva-flota-glow, .animate-eva-flota-tint { animation: none; }
   .eva-elevar, .eva-elevar:hover { transition: none; transform: none; }
   .eva-brillo__barrido { transition: none; display: none; }
   .eva-anim-flotar, .eva-anim-pulso { animation: none; }

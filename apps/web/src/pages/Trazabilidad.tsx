@@ -8,7 +8,6 @@ import { EstadoDatosInsuficientes } from '../features/traceability/components/Es
 import { GraficoTrazabilidad } from '../features/traceability/components/GraficoTrazabilidad'
 import { GraficoTrazabilidadLimpia } from '../features/traceability/components/GraficoTrazabilidadLimpia'
 import { PanelLateralTrazabilidad } from '../features/traceability/components/PanelLateralTrazabilidad'
-import { PanelParametros } from '../features/system-params/components/PanelParametros'
 import { useTraceabilitySeries, useTraceabilitySummary } from '../features/traceability/queries'
 import type { Periodo, TraceabilityScopeParams } from '../features/traceability/types'
 import { useScanRecordsOpcionesFiltro, useScanRecordsResumenPorTren } from '../features/scan-records/queries'
@@ -227,7 +226,6 @@ export function Trazabilidad() {
                   etiquetaPeriodo={ETIQUETA_PERIODO[periodo]}
                   filtrarPorRangoKm={filtrarPorRangoKm}
                 />
-                <PanelParametros modulo="trazabilidad" />
               </div>
             </div>
 
@@ -249,7 +247,6 @@ export function Trazabilidad() {
                   etiquetaPeriodo={ETIQUETA_PERIODO[periodo]}
                   filtrarPorRangoKm={filtrarPorRangoKm}
                 />
-                <PanelParametros modulo="trazabilidad" />
               </div>
             </aside>
           </div>

@@ -28,9 +28,9 @@ export function TopBar() {
   const { pathname } = useLocation()
 
   return (
-    <header className="flex h-[70px] shrink-0 items-center justify-between border-b border-slate-200/80 bg-white px-6 shadow-[0_1px_10px_rgba(15,23,42,0.03)]">
+    <header className="flex h-16 shrink-0 items-center justify-between border-b border-arena bg-white px-6">
       <p className="font-body text-sm text-concreto">
-        <span className="text-emerald-700">Metro Lima L1</span>
+        <span className="text-concreto">EVA</span>
         <span className="mx-1.5 text-concreto/50">›</span>
         <span className="font-semibold text-concreto-oscuro">{etiquetaDeRuta(pathname)}</span>
       </p>

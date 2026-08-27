@@ -6,6 +6,7 @@ import {
   LineChart,
   PackageSearch,
   PenLine,
+  Settings,
   TrainFront,
   TrendingUp,
   Wrench,
@@ -55,6 +56,7 @@ export const SECCIONES_SIDEBAR: SeccionSidebar[] = [
     items: [
       { etiqueta: 'Operaciones', ruta: '/operaciones', icono: Wrench },
       { etiqueta: 'Inventario', ruta: '/inventario', icono: PackageSearch },
+      { etiqueta: 'Configuración', ruta: '/configuracion', icono: Settings, soloAdministrador: true },
     ],
   },
 ]

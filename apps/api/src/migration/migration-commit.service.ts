@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import {
   ConflictException,
   Injectable,
@@ -9,13 +10,17 @@ import {
   Prisma,
   TipoCoche,
   type LadoDisco,
+  type PosicionDisco,
   type ScanRecord,
 } from '../../generated/prisma';
 import { GenerarSnapshotService } from '../module-snapshot/generar-snapshot.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { WearRateService } from '../wear-rate/wear-rate.service';
 import { MigrationHistoryService } from './migration-history.service';
-import { normalizarCoche, resolverLado } from './migration-excel.parser';
+import {
+  normalizarCoche,
+  resolverLadoYPosicion,
+} from './migration-excel.parser';
 
 // Tamaño de lote y timeout de cada transacción corta de FASE 2. A este
 // volumen (miles de filas) ninguna transacción única alcanza a terminar
@@ -76,6 +81,7 @@ interface DiscoDescrito {
   bogieCodigo: string;
   ejeNumero: number;
   lado: LadoDisco;
+  posicion: PosicionDisco;
   ruedaNumero: number | null;
 }
 
@@ -181,7 +187,7 @@ export class MigrationCommitService {
         cocheCache.set(disco.numeroCoche, wagonUnitId);
       }
 
-      const claveDisco = `${wagonUnitId}|${disco.bogieCodigo}|${disco.ejeNumero}|${disco.lado}`;
+      const claveDisco = `${wagonUnitId}|${disco.bogieCodigo}|${disco.ejeNumero}|${disco.lado}|${disco.posicion}`;
       let discId = discoCache.get(claveDisco);
       if (!discId) {
         const resuelto = await this.resolverBrakeDisc(wagonUnitId, disco);
@@ -280,8 +286,9 @@ export class MigrationCommitService {
           tipo: 'migracion_confirmada',
           fileId,
           nombreArchivo: actualizado.filename,
-          alcance: 'marca',
-          marca: 'ALSTOM',
+          alcance: file.alcance,
+          marca: file.marca,
+          trenNumero: file.trenNumero,
           totalFilas: actualizado.totalRows,
           filasValidas: actualizado.validRows,
           filasInvalidas: actualizado.invalidRows,
@@ -347,8 +354,9 @@ export class MigrationCommitService {
           tipo: 'migracion_cancelada',
           fileId,
           nombreArchivo: file.filename,
-          alcance: 'marca',
-          marca: 'ALSTOM',
+          alcance: file.alcance,
+          marca: file.marca,
+          trenNumero: file.trenNumero,
           totalFilas: file.totalRows,
           filasValidas: file.validRows,
           filasInvalidas: file.invalidRows,
@@ -365,13 +373,33 @@ export class MigrationCommitService {
   // Busca el WagonUnit por número de coche (único global); si no existe lo
   // crea. Si otra llamada lo crea justo entre el findUnique y el create (P2002),
   // se re-consulta y se reutiliza en vez de fallar: "ya existe, seguir".
+  //
+  // Reasignación real de coches entre trenes (confirmado en el histórico
+  // Ansaldo: el mismo N° de coche aparece bajo distintos trenes en fechas
+  // distintas — no es ruido de datos). Si el WagonUnit ya existe pero con
+  // otro trenId/tipoCoche, se actualiza al de esta migración: cada commit
+  // representa un snapshot más reciente que el anterior, así que "el último
+  // que se confirma" gana. No condicionado a fabricante: para Alstom es un
+  // no-op porque nunca hay reasignación en los datos reales.
   private async resolverWagonUnit(
     disco: DiscoDescrito,
   ): Promise<{ id: string; creado: boolean }> {
     const existente = await this.prisma.wagonUnit.findUnique({
       where: { numeroCoche: disco.numeroCoche },
     });
-    if (existente) return { id: existente.id, creado: false };
+    if (existente) {
+      if (
+        existente.trenId !== disco.trenId ||
+        existente.tipoCoche !== disco.tipoCoche
+      ) {
+        const actualizado = await this.prisma.wagonUnit.update({
+          where: { id: existente.id },
+          data: { trenId: disco.trenId, tipoCoche: disco.tipoCoche },
+        });
+        return { id: actualizado.id, creado: false };
+      }
+      return { id: existente.id, creado: false };
+    }
 
     try {
       const creado = await this.prisma.wagonUnit.create({
@@ -404,9 +432,10 @@ export class MigrationCommitService {
       bogieCodigo: disco.bogieCodigo,
       ejeNumero: disco.ejeNumero,
       lado: disco.lado,
+      posicion: disco.posicion,
     };
     const existente = await this.prisma.brakeDisc.findUnique({
-      where: { wagonUnitId_bogieCodigo_ejeNumero_lado: clave },
+      where: { wagonUnitId_bogieCodigo_ejeNumero_lado_posicion: clave },
     });
     if (existente) return { id: existente.id, creado: false };
 
@@ -416,18 +445,23 @@ export class MigrationCommitService {
         // representa una pieza ya montada (viene del histórico físico real
         // de la flota), nunca stock nuevo de Inventario — de ahí
         // en_servicio/usada explícitos (no hay @default en el schema).
+        // serie: el Excel histórico nunca trae un número de serie de fábrica
+        // para estas piezas — se marca como MIG-xxxxxxxx (en vez de dejarla
+        // null) para que Inventario siempre tenga algo que mostrar/buscar;
+        // ver también el backfill de altas antiguas en prisma/seed.ts.
         data: {
           ...clave,
           ruedaNumero: disco.ruedaNumero,
           stage: 'en_servicio',
           fase: 'usada',
+          serie: `MIG-${randomUUID().slice(0, 8).toUpperCase()}`,
         },
       });
       return { id: creado.id, creado: true };
     } catch (err) {
       if (esViolacionUnicidad(err)) {
         const existenteAhora = await this.prisma.brakeDisc.findUnique({
-          where: { wagonUnitId_bogieCodigo_ejeNumero_lado: clave },
+          where: { wagonUnitId_bogieCodigo_ejeNumero_lado_posicion: clave },
         });
         if (existenteAhora) return { id: existenteAhora.id, creado: false };
       }
@@ -471,7 +505,10 @@ export class MigrationCommitService {
       throw this.errorFila(r, 'falta el eje');
     }
 
-    const lado = resolverLado(r.ubicacionExcel, r.ruedaExcel);
+    const { lado, posicion } = resolverLadoYPosicion(
+      r.ubicacionExcel,
+      r.ruedaExcel,
+    );
     if (!lado) {
       throw this.errorFila(
         r,
@@ -486,6 +523,7 @@ export class MigrationCommitService {
       bogieCodigo,
       ejeNumero: r.ejeExcel,
       lado,
+      posicion,
       ruedaNumero: r.ruedaExcel,
     };
   }

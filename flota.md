@@ -26,14 +26,12 @@
 | ANSALDO | Tren 4 | ML1-309 | M22 |
 | ANSALDO | Tren 4 | ML1-016 | M21 |
 | ANSALDO | Tren 4 | ML1-015 | M20 |
-| ANSALDO | Tren 5 | ML1-019 | M20 |
-| ANSALDO | Tren 5 | ML1-020 | M21 |
 | ANSALDO | Tren 5 | ML1-310 | M22 |
 | ANSALDO | Tren 5 | ML1-304 | M22 |
 | ANSALDO | Tren 5 | ML1-022 | M21 |
 | ANSALDO | Tren 5 | ML1-021 | M20 |
-| ANSALDO | Reserva | ML1-017 | M20 |
-| ANSALDO | Reserva | ML1-018 | M21 |
+| ANSALDO | Reserva | ML1-020 | M20 |
+| ANSALDO | Reserva | ML1-019 | M21 |
 | ALSTOM | Tren 6 | ML1-101 | Ma1 |
 | ALSTOM | Tren 6 | ML1-102 | Mb1 |
 | ALSTOM | Tren 6 | ML1-501 | Mb3 |
@@ -273,6 +271,8 @@
 
 - **Total coches ALSTOM:** 234 (195 motorizados y 39 remolques)
 - **Total trenes ALSTOM:** 39
-- **Total coches ANSALDO:** 32 (22 motorizados y 10 remolques)
+- **Total coches ANSALDO:** 31 (Tren 5 queda con un solo par M20/M21 verificado —
+  ML1-019/ML1-020 resultaron ser Reserva, no Tren 5; falta confirmar el segundo
+  par M20/M21 real de Tren 5 contra el histórico oficial)
 - **Total trenes ANSALDO:** 5 + 2 (reserva)
 - **Flota total:** 44 trenes ANSALDO y ALSTOM

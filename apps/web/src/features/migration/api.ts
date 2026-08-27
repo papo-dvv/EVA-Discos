@@ -12,9 +12,21 @@ import type {
   StatsMigracion,
 } from './types'
 
-export async function subirMigracion(file: File): Promise<ResumenMigracion> {
+// Alcance declarado por el usuario en el selector de Migración masiva (ver
+// MigracionUpload.tsx) — informativo, para el historial de auditoría. No
+// restringe qué hojas procesa el parser del backend.
+export type AlcanceMigracion = {
+  alcance?: 'todos' | 'marca' | 'tren'
+  marca?: 'ALSTOM' | 'ANSALDO'
+  trenNumero?: number
+}
+
+export async function subirMigracion(file: File, alcance?: AlcanceMigracion): Promise<ResumenMigracion> {
   const form = new FormData()
   form.append('file', file)
+  if (alcance?.alcance) form.append('alcance', alcance.alcance)
+  if (alcance?.marca) form.append('marca', alcance.marca)
+  if (alcance?.trenNumero !== undefined) form.append('trenNumero', String(alcance.trenNumero))
   const { data } = await apiClient.post<ResumenMigracion>('/migration/upload', form)
   return data
 }

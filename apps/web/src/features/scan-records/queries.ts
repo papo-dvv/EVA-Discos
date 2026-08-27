@@ -6,6 +6,7 @@ import {
   obtenerOpcionesFiltroConfirmado,
   obtenerPreviewConfirmado,
   obtenerResumenPorTrenConfirmado,
+  obtenerSemaforoMediciones,
   obtenerStatsConfirmado,
   obtenerValoresDistintosConfirmado,
 } from './api'
@@ -44,6 +45,16 @@ export function useScanRecordsResumenPorTren(alcance: AlcanceScanRecords) {
       alcance.fileId
         ? migracionApi.obtenerResumenPorTren(alcance.fileId)
         : obtenerResumenPorTrenConfirmado(),
+  })
+}
+
+// Semáforo "días sin medir" por tren (vista de tarjetas de Mediciones) —
+// siempre confirmados, no tiene equivalente en modo migración (fileId).
+export function useSemaforoMediciones() {
+  return useQuery({
+    queryKey: ['scan-records', 'semaforo-mediciones'] as const,
+    queryFn: obtenerSemaforoMediciones,
+    staleTime: 60 * 1000,
   })
 }
 

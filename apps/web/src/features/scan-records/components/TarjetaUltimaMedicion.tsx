@@ -14,6 +14,11 @@ const ALCANCE_CONFIRMADOS: AlcanceScanRecords = {}
 // posible en un solo pedido para derivar esto sin un endpoint dedicado.
 const PAGE_SIZE_MUESTRA = 200
 
+// Pseudo-tren "Reserva" (ver schema.prisma, Train.numero=0).
+function etiquetaTren(tren: number): string {
+  return tren === 0 ? 'Reserva' : `Tren ${tren}`
+}
+
 type Props = {
   // Reusa el mismo estado de selección de tren que ya maneja la página
   // (SidebarTrenes) como el "toggle General/Por tren" pedido — null = Todos.
@@ -77,7 +82,7 @@ export function TarjetaUltimaMedicion({ trenSeleccionado }: Props) {
       <GlassSurface fuerte elevar className="eva-widget eva-widget--m rounded-glass p-4">
         <div className="eva-widget__cabecera">
           <span className="eva-widget__glifo">◷</span>
-          <span>Última medición — Tren {trenSeleccionado}</span>
+          <span>Última medición — {etiquetaTren(trenSeleccionado)}</span>
         </div>
         {!resultado ? (
           <p className="font-body text-sm text-concreto">Este tren todavía no tiene mediciones confirmadas.</p>

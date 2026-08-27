@@ -1,5 +1,6 @@
-import type { InventoryRow } from '../types'
-import { ETIQUETA_STAGE } from '../types'
+import { Eye, Pencil, Trash2 } from 'lucide-react'
+import { WarningTooltip } from '../../../components/WarningTooltip'
+import { ETIQUETA_FABRICANTE, type Fabricante, type InventoryRow, type InventoryStage } from '../types'
 
 const CLASE_CHIP_ESTADO: Record<string, string> = {
   OK: 'tabla-chip--ok',
@@ -9,71 +10,185 @@ const CLASE_CHIP_ESTADO: Record<string, string> = {
   REPERFILADO: 'tabla-chip--reperfilado',
 }
 
-const CLASE_CHIP_STAGE: Record<InventoryRow['stage'], string> = {
-  almacen: 'tabla-chip--ok',
-  taller: 'tabla-chip--seguimiento',
-  en_servicio: 'tabla-chip--cambio',
+const CLASE_CHIP_FASE: Record<string, string> = {
+  nueva: 'tabla-chip--ok',
+  usada: 'tabla-chip--seguimiento',
 }
 
 function numero(v: number | null): string {
   return v === null ? '—' : v.toFixed(2)
 }
 
-export function TablaInventario({ rows, cargando }: { rows: InventoryRow[]; cargando: boolean }) {
+function EstadoChip({ estado }: { estado: string | null }) {
+  return estado ? <span className={`tabla-chip tabla-chip--pequeno ${CLASE_CHIP_ESTADO[estado]}`}>{estado}</span> : <span>—</span>
+}
+
+// Extra columnas por stage — mismo criterio para las 3 tablas de Inventario
+// (Serie + Disco L/R + Acciones son fijas siempre, ver comentario del
+// usuario en el pedido original): Taller trae Marca/Lote (identidad de
+// pieza suelta) + Asociación; En Servicio cambia Marca/Lote por Posición
+// (está montada, ya no aplica "marca/lote de almacén" como dato principal);
+// Almacén es la más chica — sin fase/asociación (una pieza en almacén
+// siempre es una sola cosa: stock disponible, no hace falta explicarlo fila
+// por fila) y sin marca (Lote alcanza para identificar el lote de compra).
+type ColumnaExtra = 'fase' | 'marca' | 'lote' | 'fabricante' | 'posicion' | 'asociacion' | 'movimiento'
+
+const COLUMNAS_EXTRA: Record<InventoryStage, ColumnaExtra[]> = {
+  taller: ['fase', 'marca', 'lote', 'fabricante', 'asociacion', 'movimiento'],
+  en_servicio: ['fase', 'posicion', 'fabricante', 'asociacion', 'movimiento'],
+  almacen: ['lote', 'fabricante', 'movimiento'],
+}
+
+const ETIQUETA_COLUMNA: Record<ColumnaExtra, string> = {
+  fase: 'Fase',
+  marca: 'Marca de disco',
+  lote: 'Lote',
+  fabricante: 'Fabricante',
+  posicion: 'Posición',
+  asociacion: 'Asociación',
+  movimiento: 'Último movimiento',
+}
+
+const ETIQUETA_MOVIMIENTO: Record<string, string> = {
+  retiro_masivo: 'Retiro masivo',
+  cambio_disco: 'Cambio de disco',
+  devolucion_almacen: 'Devolución a almacén',
+}
+
+function celdaExtra(row: InventoryRow, columna: ColumnaExtra) {
+  switch (columna) {
+    case 'fase':
+      return <span className={`tabla-chip tabla-chip--pequeno ${CLASE_CHIP_FASE[row.fase]}`}>{row.fase}</span>
+    case 'marca':
+      return row.marcaRueda ?? '—'
+    case 'lote':
+      return row.lote ?? '—'
+    case 'fabricante':
+      return row.fabricante ? ETIQUETA_FABRICANTE[row.fabricante as Fabricante] : '—'
+    case 'posicion':
+      return row.posicion ? (
+        <span className="flex items-center gap-1.5">
+          Tren {row.posicion.trenNumero} · {row.posicion.modeloVagon}
+          <WarningTooltip
+            texto={`Coche ${row.posicion.numeroCoche} · Bogie ${row.posicion.bogieCodigo} · Eje ${row.posicion.ejeNumero}`}
+          >
+            <span className="flex h-4 w-4 items-center justify-center rounded-full border border-concreto/30 text-[0.55rem] font-bold text-concreto">?</span>
+          </WarningTooltip>
+        </span>
+      ) : (
+        '—'
+      )
+    case 'asociacion':
+      return row.asociacion
+    case 'movimiento':
+      return row.ultimoMovimiento ? (
+        <span>
+          {ETIQUETA_MOVIMIENTO[row.ultimoMovimiento.tipo]} · {row.ultimoMovimiento.fecha} · {row.ultimoMovimiento.encargadoNombre}
+        </span>
+      ) : (
+        '—'
+      )
+  }
+}
+
+export function TablaInventario({
+  stage,
+  rows,
+  cargando,
+  seleccionables = false,
+  seleccionados,
+  onToggleSeleccion,
+  onVerDetalle,
+  onEditar,
+  onEliminar,
+}: {
+  stage: InventoryStage
+  rows: InventoryRow[]
+  cargando: boolean
+  seleccionables?: boolean
+  seleccionados?: Set<string>
+  onToggleSeleccion?: (serie: string) => void
+  onVerDetalle: (row: InventoryRow) => void
+  onEditar: (row: InventoryRow) => void
+  onEliminar: (row: InventoryRow) => void
+}) {
+  const columnasExtra = COLUMNAS_EXTRA[stage]
+  const totalCeldas = (seleccionables ? 1 : 0) + 1 + 8 + columnasExtra.length + 1
+
   return (
     <div className="w-full overflow-x-auto">
-      <table className="w-full min-w-[64rem] table-fixed border-collapse font-body text-xs">
+      <table className="w-full min-w-[80rem] table-fixed border-collapse font-body text-xs">
         <thead className="sticky top-0 z-10 bg-[color:var(--color-arena-suave)]">
+          <tr className="border-b border-concreto/10">
+            {seleccionables && <th rowSpan={2} className="w-8 px-2 py-2.5" />}
+            <th rowSpan={2} className="px-3 py-2.5 text-left align-bottom">Serie</th>
+            <th colSpan={8} className="px-2 py-1.5 text-center border-b border-concreto/10">Disco</th>
+            {columnasExtra.map((c) => (
+              <th key={c} rowSpan={2} className="px-3 py-2.5 text-left align-bottom">{ETIQUETA_COLUMNA[c]}</th>
+            ))}
+            <th rowSpan={2} className="px-3 py-2.5 text-center align-bottom">Acciones</th>
+          </tr>
           <tr className="border-b border-concreto/20">
-            <th className="px-3 py-2.5 text-left">Serie</th>
-            <th className="px-2 py-2.5 text-right">T</th>
-            <th className="px-2 py-2.5 text-right">H</th>
-            <th className="px-2 py-2.5 text-right">Rd</th>
-            <th className="px-2 py-2.5 text-center">Estado</th>
-            <th className="px-2 py-2.5 text-center">Fase</th>
-            <th className="px-3 py-2.5 text-left">Marca de rueda</th>
-            <th className="px-3 py-2.5 text-left">Fabricante</th>
-            <th className="px-3 py-2.5 text-left">Asociación</th>
-            <th className="px-3 py-2.5 text-left">Último movimiento</th>
+            <th className="px-1.5 py-1.5 text-center">Estado</th>
+            <th className="px-1.5 py-1.5 text-right">Rd</th>
+            <th className="px-1.5 py-1.5 text-right">T</th>
+            <th className="px-1.5 py-1.5 text-right">H</th>
+            <th className="px-1.5 py-1.5 text-right">T</th>
+            <th className="px-1.5 py-1.5 text-right">H</th>
+            <th className="px-1.5 py-1.5 text-right">Rd</th>
+            <th className="px-1.5 py-1.5 text-center">Estado</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((r) => (
-            <tr key={r.id} className="tabla-fila--glass border-b border-concreto/10">
-              <td className="px-3 py-2 font-semibold text-concreto-oscuro">{r.serie ?? '—'}</td>
-              <td className="px-2 py-2 text-right font-data">{numero(r.tValue)}</td>
-              <td className="px-2 py-2 text-right font-data">{numero(r.hValue)}</td>
-              <td className="px-2 py-2 text-right font-data">{numero(r.rdValue)}</td>
-              <td className="px-2 py-2 text-center">
-                {r.estadoCalculado ? (
-                  <span className={`tabla-chip ${CLASE_CHIP_ESTADO[r.estadoCalculado]}`}>{r.estadoCalculado}</span>
-                ) : (
-                  '—'
-                )}
-              </td>
-              <td className="px-2 py-2 text-center">
-                <span className={`tabla-chip ${CLASE_CHIP_STAGE[r.stage]}`}>{ETIQUETA_STAGE[r.stage]}</span>
-                <span className="mt-1 block text-[0.65rem] text-concreto">{r.fase}</span>
-              </td>
-              <td className="px-3 py-2">{r.marcaRueda ?? '—'}</td>
-              <td className="px-3 py-2">{r.fabricante ?? '—'}</td>
-              <td className="px-3 py-2">{r.asociacion}</td>
+            <tr key={r.clave} className="tabla-fila--glass border-b border-concreto/10">
+              {seleccionables && (
+                <td className="px-2 py-2 text-center">
+                  <input
+                    type="checkbox"
+                    checked={r.serie ? (seleccionados?.has(r.serie) ?? false) : false}
+                    disabled={!r.serie}
+                    onChange={() => r.serie && onToggleSeleccion?.(r.serie)}
+                    aria-label={`Seleccionar eje ${r.serie ?? ''}`}
+                  />
+                </td>
+              )}
+              <td className="px-3 py-2 font-semibold text-concreto-oscuro">{r.serie ? `${r.serie}-D` : '—'}</td>
+
+              {/* Izquierdo: Estado, Rd, T, H */}
+              <td className="px-1.5 py-2 text-center">{r.izquierdo ? <EstadoChip estado={r.izquierdo.estadoCalculado} /> : '—'}</td>
+              <td className="px-1.5 py-2 text-right font-data">{r.izquierdo ? numero(r.izquierdo.rdValue) : '—'}</td>
+              <td className="px-1.5 py-2 text-right font-data">{r.izquierdo ? numero(r.izquierdo.tValue) : '—'}</td>
+              <td className="px-1.5 py-2 text-right font-data">{r.izquierdo ? numero(r.izquierdo.hValue) : '—'}</td>
+              {/* Derecho: T, H, Rd, Estado (orden invertido a propósito) */}
+              <td className="px-1.5 py-2 text-right font-data">{r.derecho ? numero(r.derecho.tValue) : '—'}</td>
+              <td className="px-1.5 py-2 text-right font-data">{r.derecho ? numero(r.derecho.hValue) : '—'}</td>
+              <td className="px-1.5 py-2 text-right font-data">{r.derecho ? numero(r.derecho.rdValue) : '—'}</td>
+              <td className="px-1.5 py-2 text-center">{r.derecho ? <EstadoChip estado={r.derecho.estadoCalculado} /> : '—'}</td>
+
+              {columnasExtra.map((c) => (
+                <td key={c} className="px-3 py-2">{celdaExtra(r, c)}</td>
+              ))}
+
               <td className="px-3 py-2">
-                {r.ultimoMovimiento ? (
-                  <span>
-                    {r.ultimoMovimiento.tipo === 'retiro_masivo' ? 'Retiro masivo' : 'Cambio de disco'} ·{' '}
-                    {r.ultimoMovimiento.fecha} · {r.ultimoMovimiento.encargadoNombre}
-                  </span>
-                ) : (
-                  '—'
-                )}
+                <div className="flex items-center justify-center gap-1">
+                  <button type="button" title="Ver detalles" onClick={() => onVerDetalle(r)} className="rounded-full p-1.5 text-concreto transition-colors hover:bg-white/70 hover:text-concreto-oscuro">
+                    <Eye size={14} aria-hidden />
+                  </button>
+                  <button type="button" title="Editar" onClick={() => onEditar(r)} className="rounded-full p-1.5 text-concreto transition-colors hover:bg-white/70 hover:text-concreto-oscuro">
+                    <Pencil size={14} aria-hidden />
+                  </button>
+                  <button type="button" title="Eliminar" onClick={() => onEliminar(r)} className="rounded-full p-1.5 text-[color:var(--color-estado-critico)] transition-colors hover:bg-white/70">
+                    <Trash2 size={14} aria-hidden />
+                  </button>
+                </div>
               </td>
             </tr>
           ))}
           {!cargando && rows.length === 0 && (
             <tr>
-              <td colSpan={10} className="px-3 py-10 text-center text-concreto">
-                No hay piezas para los filtros actuales.
+              <td colSpan={totalCeldas} className="px-3 py-10 text-center text-concreto">
+                No hay ejes para los filtros actuales.
               </td>
             </tr>
           )}

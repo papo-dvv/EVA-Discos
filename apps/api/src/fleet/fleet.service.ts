@@ -1,13 +1,22 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import type { EstadoDisco, LadoDisco } from '../../generated/prisma';
+import type {
+  EstadoDisco,
+  LadoDisco,
+  PosicionDisco,
+} from '../../generated/prisma';
 import { BrakeDiscRulesService } from '../brake-disc-rules/brake-disc-rules.service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   LADOS_DISCO_FLOTA,
+  ORDEN_BOGIE_POR_COCHE_ANSALDO,
   ORDEN_BOGIE_POR_COCHE_FLOTA,
+  ORDEN_COCHE_ANSALDO,
   ORDEN_COCHE_FLOTA,
-  TRENES_ALSTOM,
+  POSICIONES_DISCO_ALSTOM,
+  POSICIONES_DISCO_ANSALDO,
+  TRENES_FLOTA,
   type CocheFlota,
+  type CocheFlotaAnsaldo,
 } from './fleet.constants';
 import { ResolverCodigoDiscoService } from './resolver-codigo-disco.service';
 
@@ -59,7 +68,7 @@ export class FleetService {
         // a nivel de runtime (una relación null nunca matchea), pero se deja
         // explícita para no depender de ese efecto colateral.
         stage: 'en_servicio',
-        wagonUnit: { tren: { numero: { in: TRENES_ALSTOM } } },
+        wagonUnit: { tren: { numero: { in: TRENES_FLOTA } } },
       },
       select: {
         wagonUnit: { select: { tren: { select: { numero: true } } } },
@@ -71,18 +80,29 @@ export class FleetService {
             fecha: true,
             hValue: true,
             rdValue: true,
+            kilometraje: true,
           },
         },
       },
     });
 
     const porTren = new Map(
-      TRENES_ALSTOM.map((tren) => [
+      TRENES_FLOTA.map((tren) => [
         tren,
         {
           tren,
           fechaUltimaMedicion: null as string | null,
-          conteoAlerta: { cambio: 0, critico: 0, reperfilado: 0 },
+          kilometrajeActual: null as number | null,
+          // Conteo de discos por estado calculado (los 5 valores posibles de
+          // clasificarEstadoConReperfilado) — usado para el semáforo del tren
+          // (peor disco gana) y para las KPIs de Flota.
+          conteoEstado: {
+            ok: 0,
+            seguimiento: 0,
+            cambio: 0,
+            critico: 0,
+            reperfilado: 0,
+          },
         },
       ]),
     );
@@ -102,15 +122,21 @@ export class FleetService {
         (!fila.fechaUltimaMedicion || fecha > fila.fechaUltimaMedicion)
       ) {
         fila.fechaUltimaMedicion = fecha;
+        // Kilometraje del tren = lectura de odómetro de su medición más
+        // reciente (misma fila que fija fechaUltimaMedicion), no un máximo
+        // independiente — evita mezclar km de discos medidos en fechas distintas.
+        fila.kilometrajeActual = numero(ultima.kilometraje);
       }
 
       const estado = evaluador.clasificarEstadoConReperfilado(
         Number(ultima.rdValue),
         Number(ultima.hValue),
       );
-      if (estado === 'CAMBIO') fila.conteoAlerta.cambio += 1;
-      if (estado === 'CRITICO') fila.conteoAlerta.critico += 1;
-      if (estado === 'REPERFILADO') fila.conteoAlerta.reperfilado += 1;
+      if (estado === 'OK') fila.conteoEstado.ok += 1;
+      if (estado === 'SEGUIMIENTO') fila.conteoEstado.seguimiento += 1;
+      if (estado === 'CAMBIO') fila.conteoEstado.cambio += 1;
+      if (estado === 'CRITICO') fila.conteoEstado.critico += 1;
+      if (estado === 'REPERFILADO') fila.conteoEstado.reperfilado += 1;
     }
 
     return [...porTren.values()].sort((a, b) => a.tren - b.tren);
@@ -121,7 +147,9 @@ export class FleetService {
       where: { numero: trenNumero },
       select: {
         numero: true,
+        modelo: true,
         wagonUnits: {
+          orderBy: { numeroCoche: 'asc' },
           select: {
             id: true,
             tipoCoche: true,
@@ -135,6 +163,7 @@ export class FleetService {
                 bogieCodigo: true,
                 ejeNumero: true,
                 lado: true,
+                posicion: true,
                 ruedaNumero: true,
               },
             },
@@ -148,62 +177,88 @@ export class FleetService {
       coche.brakeDiscs.map((disco) => disco.id),
     );
     const ultimas = await this.buscarUltimasPorDisco(discIds);
+    // Ansaldo (4 discos por eje: lado x posición interior/exterior) vs
+    // Alstom (2, un disco por lado — posicion siempre 'unica').
+    const esAnsaldo = tren.modelo === 'ansaldo_mb300';
+    const posiciones: readonly PosicionDisco[] = esAnsaldo
+      ? POSICIONES_DISCO_ANSALDO
+      : POSICIONES_DISCO_ALSTOM;
+
     // bogieCodigo/ejeNumero/lado no-null garantizados por el where de arriba
     // (stage: 'en_servicio') — Prisma no lo refleja en el tipo generado.
-    const wagonPorTipo = new Map(
-      tren.wagonUnits.map((wagon) => [
-        wagon.tipoCoche,
-        {
-          ...wagon,
-          brakeDiscs: wagon.brakeDiscs.map((disco) => ({
-            ...disco,
-            bogieCodigo: disco.bogieCodigo!,
-            ejeNumero: disco.ejeNumero!,
-            lado: disco.lado!,
-          })),
-        },
-      ]),
-    );
+    const wagonsNormalizados = tren.wagonUnits.map((wagon) => ({
+      ...wagon,
+      brakeDiscs: wagon.brakeDiscs.map((disco) => ({
+        ...disco,
+        bogieCodigo: disco.bogieCodigo!,
+        ejeNumero: disco.ejeNumero!,
+        lado: disco.lado!,
+      })),
+    }));
 
-    return {
-      tren: tren.numero,
-      coches: ORDEN_COCHE_FLOTA.map((coche) => {
-        const wagon = wagonPorTipo.get(coche);
-        return {
-          coche,
-          numeroCoche: wagon?.numeroCoche ?? null,
-          bogies: ORDEN_BOGIE_POR_COCHE_FLOTA[coche].map((bogie) => {
-            const discosBogie =
-              wagon?.brakeDiscs.filter(
-                (disco) => disco.bogieCodigo === bogie,
-              ) ?? [];
-            const ejes = this.ejesEsperados(discosBogie);
-            return {
-              bogie,
-              ejes: ejes.map((eje) => ({
-                eje,
-                discos: LADOS_DISCO_FLOTA.map((lado) => {
+    const construirCoche = (
+      wagon: (typeof wagonsNormalizados)[number] | undefined,
+      tipoCoche: string,
+    ) => {
+      const bogiesTipo: readonly string[] = esAnsaldo
+        ? ORDEN_BOGIE_POR_COCHE_ANSALDO[tipoCoche as CocheFlotaAnsaldo]
+        : ORDEN_BOGIE_POR_COCHE_FLOTA[tipoCoche as CocheFlota];
+      return {
+        coche: tipoCoche,
+        numeroCoche: wagon?.numeroCoche ?? null,
+        bogies: bogiesTipo.map((bogie) => {
+          const discosBogie =
+            wagon?.brakeDiscs.filter((disco) => disco.bogieCodigo === bogie) ??
+            [];
+          const ejes = this.ejesEsperados(discosBogie);
+          return {
+            bogie,
+            ejes: ejes.map((eje) => ({
+              eje,
+              discos: LADOS_DISCO_FLOTA.flatMap((lado) =>
+                posiciones.map((posicion) => {
                   const disco = discosBogie.find(
-                    (d) => d.ejeNumero === eje && d.lado === lado,
+                    (d) =>
+                      d.ejeNumero === eje &&
+                      d.lado === lado &&
+                      d.posicion === posicion,
                   );
                   const ultima = disco ? ultimas.get(disco.id) : null;
                   return {
                     codigoDisco: this.resolverCodigoDisco.resolver(
                       tren.numero,
-                      coche,
+                      tipoCoche,
                       bogie,
                       eje,
                     ),
                     lado,
+                    posicion,
                     ...this.mapearMedicion(ultima),
                   };
                 }),
-              })),
-            };
-          }),
-        };
-      }),
+              ),
+            })),
+          };
+        }),
+      };
     };
+
+    // Alstom: un coche por tipo (ORDEN_COCHE_FLOTA, 1:1). Ansaldo: cada tipo
+    // aparece 2 veces por tren (ver ORDEN_COCHE_ANSALDO) — se listan todos
+    // los wagon_units reales agrupados por tipo y ordenados por N° de coche,
+    // en vez de un mapeo 1:1 tipo->coche.
+    const coches = esAnsaldo
+      ? ORDEN_COCHE_ANSALDO.flatMap((tipo) =>
+          wagonsNormalizados
+            .filter((wagon) => wagon.tipoCoche === tipo)
+            .map((wagon) => construirCoche(wagon, tipo)),
+        )
+      : ORDEN_COCHE_FLOTA.map((tipo) => {
+          const wagon = wagonsNormalizados.find((w) => w.tipoCoche === tipo);
+          return construirCoche(wagon, tipo);
+        });
+
+    return { tren: tren.numero, coches };
   }
 
   async historicoDisco(codigoDisco: string, lado: string) {

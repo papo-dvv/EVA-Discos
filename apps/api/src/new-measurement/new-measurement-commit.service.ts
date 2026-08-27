@@ -477,11 +477,12 @@ export class NewMeasurementCommitService {
 
     const disco = await this.prisma.brakeDisc.findUnique({
       where: {
-        wagonUnitId_bogieCodigo_ejeNumero_lado: {
+        wagonUnitId_bogieCodigo_ejeNumero_lado_posicion: {
           wagonUnitId,
           bogieCodigo,
           ejeNumero,
           lado,
+          posicion: 'unica',
         },
       },
     });

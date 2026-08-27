@@ -1,11 +1,10 @@
 import { Injectable } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { Prisma } from '../../generated/prisma';
 import { PrismaService } from '../prisma/prisma.service';
 
 export type TipoEventoHistorialMigracion =
-  | 'migracion_subida'
-  | 'migracion_confirmada'
-  | 'migracion_cancelada';
+  'migracion_subida' | 'migracion_confirmada' | 'migracion_cancelada';
 
 export interface EventoHistorialMigracionInput {
   tipo: TipoEventoHistorialMigracion;
@@ -64,6 +63,7 @@ export class MigrationHistoryService {
     const client = tx ?? this.prisma;
     await client.$executeRaw`
       INSERT INTO migration_history_events (
+        id,
         tipo,
         file_id,
         nombre_archivo,
@@ -77,6 +77,7 @@ export class MigrationHistoryService {
         usuario_id
       )
       VALUES (
+        ${randomUUID()}::uuid,
         ${evento.tipo},
         ${evento.fileId ?? null}::uuid,
         ${evento.nombreArchivo ?? null},

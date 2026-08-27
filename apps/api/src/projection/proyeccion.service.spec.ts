@@ -142,7 +142,7 @@ describe('ProyeccionService.listarDiscos', () => {
     expect(findManyMock.mock.calls[0][0].where).toEqual({
       activo: true,
       stage: 'en_servicio',
-      wagonUnit: { tren: { numero: 7 } },
+      wagonUnit: { tren: { modelo: 'alstom_metropolis9000', numero: 7 } },
     });
   });
 
@@ -448,6 +448,7 @@ describe('ProyeccionService.listarDiscos — filtros nuevos de eje/rueda/lado/mo
     expect(findManyMock.mock.calls[0][0].where).toEqual({
       activo: true,
       stage: 'en_servicio',
+      wagonUnit: { tren: { modelo: 'alstom_metropolis9000' } },
       lado: { in: ['derecho'] },
       AND: [
         { ejeNumero: { gte: 2, lte: 4 } },
@@ -1144,29 +1145,47 @@ describe('ProyeccionService.obtenerPronostico', () => {
         Promise.resolve(
           proyeccionFixture({
             discId,
-            posicion: posicion({ lado: discId === 'izq' ? 'izquierdo' : 'derecho' }),
-            ciclosReperfilado: [ciclo(discId === 'izq' ? '2026-03-10T00:00:00.000Z' : '2026-04-10T00:00:00.000Z')],
+            posicion: posicion({
+              lado: discId === 'izq' ? 'izquierdo' : 'derecho',
+            }),
+            ciclosReperfilado: [
+              ciclo(
+                discId === 'izq'
+                  ? '2026-03-10T00:00:00.000Z'
+                  : '2026-04-10T00:00:00.000Z',
+              ),
+            ],
             cicloCambio: {
               mesesHastaFecha: 5,
-              fechaEstimada: new Date(discId === 'izq' ? '2026-06-10T00:00:00.000Z' : '2026-07-10T00:00:00.000Z'),
+              fechaEstimada: new Date(
+                discId === 'izq'
+                  ? '2026-06-10T00:00:00.000Z'
+                  : '2026-07-10T00:00:00.000Z',
+              ),
             },
           }),
         ),
       ),
     } as unknown as ProyeccionCalculatorService;
     const service = new ProyeccionService(
-      { brakeDisc: { findMany: jest.fn().mockResolvedValue(discos) } } as unknown as PrismaService,
+      {
+        brakeDisc: { findMany: jest.fn().mockResolvedValue(discos) },
+      } as unknown as PrismaService,
       crearRate(),
       calculator,
       crearBrakeDiscRules(),
     );
 
     const meses = await service.obtenerPronostico({ meses: 12 });
-    const detalle = await service.obtenerDetallePronostico({ periodo: '2026-03' });
+    const detalle = await service.obtenerDetallePronostico({
+      periodo: '2026-03',
+    });
 
     expect(meses.find((mes) => mes.mes === '2026-03')!.reperfilados).toBe(1);
     expect(meses.find((mes) => mes.mes === '2026-06')!.cambios).toBe(1);
     expect(detalle).toHaveLength(1);
-    expect(detalle[0].posiciones.map((posicion) => posicion.lado).sort()).toEqual(['derecho', 'izquierdo']);
+    expect(
+      detalle[0].posiciones.map((posicion) => posicion.lado).sort(),
+    ).toEqual(['derecho', 'izquierdo']);
   });
 });

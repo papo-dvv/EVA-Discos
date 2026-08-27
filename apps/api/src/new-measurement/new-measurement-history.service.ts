@@ -65,7 +65,10 @@ export class NewMeasurementHistoryService {
           select: { motivo: true },
         })
       : null;
-    const detalle = [evento.detalle, ficha?.motivo ? `motivo:${ficha.motivo}` : null]
+    const detalle = [
+      evento.detalle,
+      ficha?.motivo ? `motivo:${ficha.motivo}` : null,
+    ]
       .filter(Boolean)
       .join('\n');
 
@@ -86,7 +89,10 @@ export class NewMeasurementHistoryService {
     });
   }
 
-  async listar(limit = 50, motivo?: MotivoFicha): Promise<EventoHistorialApi[]> {
+  async listar(
+    limit = 50,
+    motivo?: MotivoFicha,
+  ): Promise<EventoHistorialApi[]> {
     const eventos = await this.prisma.measurementHistoryEvent.findMany({
       where: motivo
         ? {

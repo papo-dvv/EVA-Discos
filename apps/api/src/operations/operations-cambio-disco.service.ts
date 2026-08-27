@@ -5,11 +5,13 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import type { Prisma } from '../../generated/prisma';
+import { LadoDisco, type Prisma } from '../../generated/prisma';
 import { BrakeDiscRulesService } from '../brake-disc-rules/brake-disc-rules.service';
+import { calcularOrdenFisico } from '../common/orden-fisico';
+import { resolverRuedaNumero } from '../new-measurement/new-measurement-csv.parser';
 import { PrismaService } from '../prisma/prisma.service';
 import { WearRateService } from '../wear-rate/wear-rate.service';
-import type { CambioDiscoDto } from './dto/cambio-disco.dto';
+import type { AsignacionEjeDto, CambioDiscoDto } from './dto/cambio-disco.dto';
 
 // Motivo reservado (ver MOTIVO_OPCIONES en Reperfilado.tsx, hoy deshabilitado
 // con tooltip "Próximamente" para el flujo MANUAL de fichas) — acá se usa
@@ -17,10 +19,16 @@ import type { CambioDiscoDto } from './dto/cambio-disco.dto';
 // manual nuevo. Es semánticamente correcto: la fila no es una medición real.
 const MOTIVO_CAMBIO = 'Cambio';
 
+// Hasta 4× el trabajo de un solo eje dentro de la misma transacción — debe
+// seguir siendo atómica (una asignación parcial dejaría el tren en un estado
+// físicamente inconsistente), así que no se trocea en varias transacciones
+// como hace MigrationCommitService; solo se sube el timeout.
+const TIMEOUT_TRANSACCION_MS = 20_000;
+
 export interface ResultadoCambioDisco {
   operacionId: string;
-  discosRemovidos: [string, string];
-  discosMontados: [string, string];
+  discosRemovidos: string[];
+  discosMontados: string[];
 }
 
 @Injectable()
@@ -35,6 +43,8 @@ export class OperationsCambioDiscoService {
     dto: CambioDiscoDto,
     usuarioId: string,
   ): Promise<ResultadoCambioDisco> {
+    this.validarAsignaciones(dto.asignaciones);
+
     const wagon = await this.prisma.wagonUnit.findUnique({
       where: { numeroCoche: dto.numeroCoche },
       include: { tren: true },
@@ -55,96 +65,20 @@ export class OperationsCambioDiscoService {
 
     const resultado = await this.prisma.$transaction(
       async (tx) => {
-        const [viejoIzq, viejoDer] = await Promise.all([
-          tx.brakeDisc.findFirst({
-            where: {
-              wagonUnitId: wagon.id,
-              bogieCodigo: dto.bogieCodigo,
-              ejeNumero: dto.ejeNumero,
-              lado: 'izquierdo',
-              stage: 'en_servicio',
-            },
-          }),
-          tx.brakeDisc.findFirst({
-            where: {
-              wagonUnitId: wagon.id,
-              bogieCodigo: dto.bogieCodigo,
-              ejeNumero: dto.ejeNumero,
-              lado: 'derecho',
-              stage: 'en_servicio',
-            },
-          }),
-        ]);
-        if (!viejoIzq || !viejoDer) {
-          throw new ConflictException(
-            `No se encontraron los 2 discos montados en coche ${dto.numeroCoche}, bogie ${dto.bogieCodigo}, eje ${dto.ejeNumero}.`,
-          );
-        }
-
-        const [nuevoIzq, nuevoDer] = await Promise.all([
-          tx.brakeDisc.findUnique({ where: { id: dto.discoNuevoIzquierdoId } }),
-          tx.brakeDisc.findUnique({ where: { id: dto.discoNuevoDerechoId } }),
-        ]);
-        if (!nuevoIzq || nuevoIzq.stage !== 'taller') {
-          throw new BadRequestException(
-            'El disco de reemplazo del lado izquierdo no está en Taller.',
-          );
-        }
-        if (!nuevoDer || nuevoDer.stage !== 'taller') {
-          throw new BadRequestException(
-            'El disco de reemplazo del lado derecho no está en Taller.',
-          );
-        }
-
-        // Baja: se libera wagonUnitId (la posición queda disponible para la
-        // pieza nueva) pero bogieCodigo/ejeNumero/lado NO se limpian — quedan
-        // como "última posición conocida" para trazabilidad/Inventario.
-        await tx.brakeDisc.update({
-          where: { id: viejoIzq.id },
-          data: { stage: 'almacen', fase: 'usada', wagonUnitId: null },
-        });
-        await tx.brakeDisc.update({
-          where: { id: viejoDer.id },
-          data: { stage: 'almacen', fase: 'usada', wagonUnitId: null },
-        });
-
-        // Alta: la pieza nueva toma la posición completa (fase se deja como
-        // esté — normalmente 'nueva', o 'usada' si venía de un retiro previo).
-        await tx.brakeDisc.update({
-          where: { id: nuevoIzq.id },
-          data: {
-            stage: 'en_servicio',
-            wagonUnitId: wagon.id,
-            bogieCodigo: dto.bogieCodigo,
-            ejeNumero: dto.ejeNumero,
-            lado: 'izquierdo',
-          },
-        });
-        await tx.brakeDisc.update({
-          where: { id: nuevoDer.id },
-          data: {
-            stage: 'en_servicio',
-            wagonUnitId: wagon.id,
-            bogieCodigo: dto.bogieCodigo,
-            ejeNumero: dto.ejeNumero,
-            lado: 'derecho',
-          },
-        });
-
-        // UploadedFile "técnico" solo para agrupar las 2 filas sintetizadas
-        // (scan_records.file_id es NOT NULL) — mismo criterio que
-        // NewMeasurementService.crearManual. status:'committed' directo (sin
-        // paso de revisión): la fila debe aparecer YA en Mediciones/Flota con
-        // la advertencia esSupuesto, no quedar invisible hasta que alguien la
-        // confirme a mano (decisión explícita, ver plan de Operaciones).
+        // UploadedFile "técnico" compartido por TODAS las asignaciones de
+        // esta operación (no uno por eje) — solo agrupa las filas
+        // sintetizadas (scan_records.file_id es NOT NULL), mismo criterio
+        // que NewMeasurementService.crearManual. status:'committed' directo
+        // (sin paso de revisión): las filas deben aparecer YA en
+        // Mediciones/Flota con la advertencia esSupuesto.
         const archivo = await tx.uploadedFile.create({
           data: {
-            filename: `Cambio de disco — Tren ${wagon.tren.numero}, coche ${wagon.numeroCoche}, bogie ${dto.bogieCodigo}, eje ${dto.ejeNumero}`,
+            filename: `Cambio de disco — Tren ${wagon.tren.numero}, coche ${wagon.numeroCoche} (${dto.asignaciones.length} eje(s))`,
             tipoCarga: 'ficha_medicion_individual',
             uploadedBy: usuarioId,
             status: 'committed',
-            totalRows: 2,
-            validRows: 2,
+            totalRows: dto.asignaciones.length * 2,
+            validRows: dto.asignaciones.length * 2,
             invalidRows: 0,
           },
         });
@@ -156,28 +90,9 @@ export class OperationsCambioDiscoService {
         });
         const kilometraje = ultimaMedicionTren?.kilometraje ?? 0;
 
-        const datosScanBase = {
-          fileId: archivo.id,
-          responsableNombre: dto.tecnicoNombre,
-          trenNumero: wagon.tren.numero,
-          kilometraje,
-          fecha,
-          motivo: MOTIVO_CAMBIO,
-          tValue: 7,
-          hValue: 0,
-          rdValue: rd,
-          estadoCalculado: estado,
-          esSupuesto: true,
-        } satisfies Partial<Prisma.ScanRecordUncheckedCreateInput>;
-
-        const [scanIzq, scanDer] = await Promise.all([
-          tx.scanRecord.create({
-            data: { ...datosScanBase, discId: nuevoIzq.id },
-          }),
-          tx.scanRecord.create({
-            data: { ...datosScanBase, discId: nuevoDer.id },
-          }),
-        ]);
+        const discosRemovidos: string[] = [];
+        const discosMontados: string[] = [];
+        const movimientos: Prisma.InventoryMovementCreateManyInput[] = [];
 
         const datosMovimientoBase = {
           operacionId,
@@ -190,8 +105,157 @@ export class OperationsCambioDiscoService {
           justificacion: dto.justificacion ?? null,
           realizadoPor: usuarioId,
         };
-        await tx.inventoryMovement.createMany({
-          data: [
+
+        for (const asignacion of dto.asignaciones) {
+          const [viejoIzq, viejoDer] = await Promise.all([
+            tx.brakeDisc.findFirst({
+              where: {
+                wagonUnitId: wagon.id,
+                bogieCodigo: asignacion.bogieCodigo,
+                ejeNumero: asignacion.ejeNumero,
+                lado: 'izquierdo',
+                stage: 'en_servicio',
+              },
+            }),
+            tx.brakeDisc.findFirst({
+              where: {
+                wagonUnitId: wagon.id,
+                bogieCodigo: asignacion.bogieCodigo,
+                ejeNumero: asignacion.ejeNumero,
+                lado: 'derecho',
+                stage: 'en_servicio',
+              },
+            }),
+          ]);
+          if (!viejoIzq || !viejoDer) {
+            throw new ConflictException(
+              `No se encontraron los 2 discos montados en coche ${dto.numeroCoche}, bogie ${asignacion.bogieCodigo}, eje ${asignacion.ejeNumero}.`,
+            );
+          }
+
+          const [nuevoIzq, nuevoDer] = await Promise.all([
+            tx.brakeDisc.findUnique({
+              where: { id: asignacion.discoNuevoIzquierdoId },
+            }),
+            tx.brakeDisc.findUnique({
+              where: { id: asignacion.discoNuevoDerechoId },
+            }),
+          ]);
+          if (!nuevoIzq || nuevoIzq.stage !== 'taller') {
+            throw new BadRequestException(
+              `El disco de reemplazo del lado izquierdo del eje ${asignacion.ejeNumero} no está en Taller.`,
+            );
+          }
+          if (!nuevoDer || nuevoDer.stage !== 'taller') {
+            throw new BadRequestException(
+              `El disco de reemplazo del lado derecho del eje ${asignacion.ejeNumero} no está en Taller.`,
+            );
+          }
+
+          // Baja: se libera wagonUnitId (la posición queda disponible para
+          // la pieza nueva) pero bogieCodigo/ejeNumero/lado NO se limpian —
+          // quedan como "última posición conocida" para trazabilidad/Inventario.
+          await tx.brakeDisc.update({
+            where: { id: viejoIzq.id },
+            data: { stage: 'almacen', fase: 'usada', wagonUnitId: null },
+          });
+          await tx.brakeDisc.update({
+            where: { id: viejoDer.id },
+            data: { stage: 'almacen', fase: 'usada', wagonUnitId: null },
+          });
+
+          // Alta: la pieza nueva toma la posición completa (fase se deja
+          // como esté — normalmente 'nueva', o 'usada' si venía de un
+          // retiro previo).
+          const ruedaIzq = resolverRuedaNumero(
+            asignacion.ejeNumero,
+            LadoDisco.izquierdo,
+          );
+          const ruedaDer = resolverRuedaNumero(
+            asignacion.ejeNumero,
+            LadoDisco.derecho,
+          );
+
+          await tx.brakeDisc.update({
+            where: { id: nuevoIzq.id },
+            data: {
+              stage: 'en_servicio',
+              wagonUnitId: wagon.id,
+              bogieCodigo: asignacion.bogieCodigo,
+              ejeNumero: asignacion.ejeNumero,
+              lado: 'izquierdo',
+              ruedaNumero: ruedaIzq,
+            },
+          });
+          await tx.brakeDisc.update({
+            where: { id: nuevoDer.id },
+            data: {
+              stage: 'en_servicio',
+              wagonUnitId: wagon.id,
+              bogieCodigo: asignacion.bogieCodigo,
+              ejeNumero: asignacion.ejeNumero,
+              lado: 'derecho',
+              ruedaNumero: ruedaDer,
+            },
+          });
+
+          const datosScanBase = {
+            fileId: archivo.id,
+            responsableNombre: dto.tecnicoNombre,
+            trenNumero: wagon.tren.numero,
+            kilometraje,
+            fecha,
+            motivo: MOTIVO_CAMBIO,
+            tValue: 7,
+            hValue: 0,
+            rdValue: rd,
+            estadoCalculado: estado,
+            esSupuesto: true,
+            // Mediciones (scan-record-query.ts) lee la posición SIEMPRE de
+            // estos campos denormalizados del propio ScanRecord, nunca de un
+            // join a BrakeDisc — sin esto, la fila creada acá era invisible
+            // en Coche/N° Coche/Bogie/Eje/Rueda/Lado pese a mostrar Tren
+            // correctamente (mismo criterio que NewMeasurementService).
+            cocheExcel: wagon.tipoCoche,
+            numeroCocheExcel: wagon.numeroCoche,
+            bogieExcel: asignacion.bogieCodigo,
+            ejeExcel: asignacion.ejeNumero,
+          } satisfies Partial<Prisma.ScanRecordUncheckedCreateInput>;
+
+          const [scanIzq, scanDer] = await Promise.all([
+            tx.scanRecord.create({
+              data: {
+                ...datosScanBase,
+                discId: nuevoIzq.id,
+                ubicacionExcel: 'izquierdo',
+                ruedaExcel: ruedaIzq,
+                ordenFisico: calcularOrdenFisico({
+                  tipoCoche: wagon.tipoCoche,
+                  bogieCodigo: asignacion.bogieCodigo,
+                  ejeNumero: asignacion.ejeNumero,
+                  ruedaNumero: ruedaIzq,
+                }),
+              },
+            }),
+            tx.scanRecord.create({
+              data: {
+                ...datosScanBase,
+                discId: nuevoDer.id,
+                ubicacionExcel: 'derecho',
+                ruedaExcel: ruedaDer,
+                ordenFisico: calcularOrdenFisico({
+                  tipoCoche: wagon.tipoCoche,
+                  bogieCodigo: asignacion.bogieCodigo,
+                  ejeNumero: asignacion.ejeNumero,
+                  ruedaNumero: ruedaDer,
+                }),
+              },
+            }),
+          ]);
+
+          discosRemovidos.push(viejoIzq.id, viejoDer.id);
+          discosMontados.push(nuevoIzq.id, nuevoDer.id);
+          movimientos.push(
             {
               ...datosMovimientoBase,
               brakeDiscId: viejoIzq.id,
@@ -218,15 +282,14 @@ export class OperationsCambioDiscoService {
               etapaDestino: 'en_servicio',
               scanRecordId: scanDer.id,
             },
-          ],
-        });
+          );
+        }
 
-        return {
-          discosRemovidos: [viejoIzq.id, viejoDer.id] as [string, string],
-          discosMontados: [nuevoIzq.id, nuevoDer.id] as [string, string],
-        };
+        await tx.inventoryMovement.createMany({ data: movimientos });
+
+        return { discosRemovidos, discosMontados };
       },
-      { timeout: 10_000 },
+      { timeout: TIMEOUT_TRANSACCION_MS },
     );
 
     // Los discos VIEJOS no recibieron ninguna medición nueva (solo cambiaron
@@ -234,5 +297,26 @@ export class OperationsCambioDiscoService {
     await this.wearRate.recalcularParaDiscos(resultado.discosMontados);
 
     return { operacionId, ...resultado };
+  }
+
+  private validarAsignaciones(asignaciones: AsignacionEjeDto[]): void {
+    const clavesEje = new Set(
+      asignaciones.map((a) => `${a.bogieCodigo}:${a.ejeNumero}`),
+    );
+    if (clavesEje.size !== asignaciones.length) {
+      throw new BadRequestException(
+        'No se puede asignar el mismo eje más de una vez en la misma operación.',
+      );
+    }
+
+    const discosNuevos = asignaciones.flatMap((a) => [
+      a.discoNuevoIzquierdoId,
+      a.discoNuevoDerechoId,
+    ]);
+    if (new Set(discosNuevos).size !== discosNuevos.length) {
+      throw new BadRequestException(
+        'No se puede usar el mismo disco de reemplazo en más de un eje.',
+      );
+    }
   }
 }

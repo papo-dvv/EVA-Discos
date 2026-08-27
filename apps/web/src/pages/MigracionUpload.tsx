@@ -4,7 +4,7 @@ import { GlassButton } from '../components/GlassButton'
 import { GlassSurface } from '../components/GlassSurface'
 import { Marca } from '../components/Marca'
 import { SegmentedControl } from '../components/SegmentedControl'
-import { subirMigracion } from '../features/migration/api'
+import { subirMigracion, type AlcanceMigracion } from '../features/migration/api'
 import { PanelHistorialMigracion } from '../features/migration/components/PanelHistorialMigracion'
 import { useInvalidarHistorialMigracion } from '../features/migration/queries'
 import { extraerMensajeError } from '../lib/extraerMensajeError'
@@ -27,8 +27,9 @@ export function MigracionUpload() {
   const [tren, setTren] = useState<TrenCarga | undefined>()
 
   const alcanceListo =
-    (modo === 'marca' && marca === 'alstom') ||
-    (modo === 'tren' && tren !== undefined && !esTrenAnsaldo(tren))
+    modo === 'todos' ||
+    (modo === 'marca' && marca !== undefined) ||
+    (modo === 'tren' && tren !== undefined)
 
   function cambiarModo(valor: ModoCarga) {
     setModo(valor)
@@ -37,13 +38,23 @@ export function MigracionUpload() {
     setFile(null)
   }
 
+  function alcanceParaEnvio(): AlcanceMigracion {
+    if (modo === 'marca' && marca) {
+      return { alcance: 'marca', marca: marca === 'ansaldo' ? 'ANSALDO' : 'ALSTOM' }
+    }
+    if (modo === 'tren' && tren !== undefined) {
+      return { alcance: 'tren', trenNumero: trenNumeroDe(tren) }
+    }
+    return { alcance: 'todos' }
+  }
+
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     if (!file || !alcanceListo) return;
     setError(null);
     setCargando(true);
     try {
-      const resumen = await subirMigracion(file);
+      const resumen = await subirMigracion(file, alcanceParaEnvio());
       invalidarHistorial()
       navigate(`/migracion/${resumen.fileId}`);
     } catch (err) {
@@ -81,13 +92,7 @@ export function MigracionUpload() {
                   valor={modo}
                   onCambiar={cambiarModo}
                   opciones={[
-                    {
-                      valor: 'todos',
-                      etiqueta: 'Todos',
-                      deshabilitada: true,
-                      tooltip: 'Todos exige los 44 trenes. Se habilitará cuando Ansaldo esté activo.',
-                      tooltipPosicion: 'abajo',
-                    },
+                    { valor: 'todos', etiqueta: 'Todos' },
                     { valor: 'marca', etiqueta: 'Por Marca de Tren' },
                     { valor: 'tren', etiqueta: 'Por Tren' },
                   ]}
@@ -107,13 +112,7 @@ export function MigracionUpload() {
                       setFile(null)
                     }}
                     opciones={[
-                      {
-                        valor: 'ansaldo',
-                        etiqueta: 'ANSALDO',
-                        deshabilitada: true,
-                        tooltip: 'Trenes 1-5 y reserva. Pendiente de implementación.',
-                        tooltipPosicion: 'abajo',
-                      },
+                      { valor: 'ansaldo', etiqueta: 'ANSALDO' },
                       { valor: 'alstom', etiqueta: 'ALSTOM' },
                     ]}
                   />
@@ -130,23 +129,25 @@ export function MigracionUpload() {
                       <button
                         key={opcion}
                         type="button"
-                        disabled={esTrenAnsaldo(opcion)}
                         data-active={tren === opcion ? 'true' : undefined}
                         onClick={() => {
                           setTren(opcion)
                           setFile(null)
                         }}
                         className="rounded-full border border-concreto/20 bg-white/55 px-2.5 py-1.5 font-data text-xs text-concreto-oscuro transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-45 data-[active=true]:border-verde-institucional data-[active=true]:bg-verde-claro data-[active=true]:font-semibold data-[active=true]:text-verde-oscuro"
-                        title={esTrenAnsaldo(opcion) ? 'Ansaldo pendiente de implementación' : undefined}
                       >
                         {opcion}
                       </button>
                     ))}
                     <button
                       type="button"
-                      disabled
-                      className="rounded-full border border-concreto/20 bg-white/55 px-2.5 py-1.5 font-body text-xs text-concreto-oscuro opacity-45"
-                      title="Reserva Ansaldo pendiente de implementación"
+                      data-active={tren === 'ansaldo-reserva' ? 'true' : undefined}
+                      onClick={() => {
+                        setTren('ansaldo-reserva')
+                        setFile(null)
+                      }}
+                      className="rounded-full border border-concreto/20 bg-white/55 px-2.5 py-1.5 font-body text-xs text-concreto-oscuro transition-colors hover:bg-white data-[active=true]:border-verde-institucional data-[active=true]:bg-verde-claro data-[active=true]:font-semibold data-[active=true]:text-verde-oscuro"
+                      title="Unidades Ansaldo de reserva (hoja UDT RESERVA)"
                     >
                       Reserva
                     </button>
@@ -201,7 +202,8 @@ export function MigracionUpload() {
   )
 }
 
-function esTrenAnsaldo(tren: TrenCarga): boolean {
-  if (tren === 'ansaldo-reserva') return true
-  return Number(tren.slice(1)) <= 5
+// Pseudo-tren "Reserva" (ver schema.prisma, Train.numero=0).
+function trenNumeroDe(tren: TrenCarga): number {
+  if (tren === 'ansaldo-reserva') return 0
+  return Number(tren.slice(1))
 }

@@ -3,6 +3,12 @@ import { VirtualList } from '../../../components/VirtualList'
 import { WarningTooltip } from '../../../components/WarningTooltip'
 import type { ResumenTren } from '../types'
 
+// Pseudo-tren "Reserva" (ver schema.prisma, Train.numero=0): unidades
+// Ansaldo sin tren real asignado (hoja "UDT RESERVA" del Excel).
+function etiquetaTren(tren: number): string {
+  return tren === 0 ? 'Reserva' : `Tren ${tren}`
+}
+
 // Sidebar de trenes (panel glass, lista virtualizada con scrollbar propio) —
 // compartido entre la vista previa de una migración en curso y la vista
 // permanente de confirmados. `onEliminarTren` es OPCIONAL: si no se pasa
@@ -62,7 +68,7 @@ export function SidebarTrenes({
                     : 'text-concreto-oscuro hover:bg-white/50'
                 }`}
               >
-                <span>Tren {t.tren}</span>
+                <span>{etiquetaTren(t.tren)}</span>
                 <span className="font-data text-xs text-concreto">({t.totalFilas})</span>
                 {t.filasConAdvertencia > 0 && (
                   <WarningTooltip
@@ -76,7 +82,7 @@ export function SidebarTrenes({
               {onEliminarTren && (
                 <button
                   type="button"
-                  title={`Eliminar todas las filas del tren ${t.tren}`}
+                  title={`Eliminar todas las filas de ${etiquetaTren(t.tren)}`}
                   onClick={() => onEliminarTren(t)}
                   disabled={deshabilitado}
                   className="rounded-full px-2 py-1 text-[color:var(--color-estado-critico)] transition-colors hover:bg-white/50 disabled:opacity-40"

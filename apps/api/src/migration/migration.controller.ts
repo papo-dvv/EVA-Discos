@@ -24,6 +24,7 @@ import { ValoresDistintosQueryDto } from '../scan-records/dto/valores-distintos-
 import { MigrationHistorialQueryDto } from './dto/migration-historial-query.dto';
 import { PreviewQueryDto } from './dto/preview-query.dto';
 import { UpdateRowDto } from './dto/update-row.dto';
+import { UploadMigracionDto } from './dto/upload-migracion.dto';
 import { MigrationCommitService } from './migration-commit.service';
 import { MigrationHistoryService } from './migration-history.service';
 import { MigrationPreviewService } from './migration-preview.service';
@@ -84,9 +85,10 @@ export class MigrationController {
   )
   upload(
     @UploadedFile() archivo: Express.Multer.File,
+    @Body() dto: UploadMigracionDto,
     @CurrentUser() usuario: AuthenticatedUser,
   ): Promise<ResumenMigracion> {
-    return this.migrationService.procesarUpload(archivo, usuario.userId);
+    return this.migrationService.procesarUpload(archivo, usuario.userId, dto);
   }
 
   @Get(':fileId/preview')

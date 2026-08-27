@@ -38,6 +38,11 @@ export class ScanRecordsController {
     return this.scanRecords.obtenerResumenPorTren();
   }
 
+  @Get('semaforo-mediciones')
+  semaforoMediciones() {
+    return this.scanRecords.obtenerSemaforoMediciones();
+  }
+
   @Get('stats')
   stats(@Query() query: PreviewQueryDto) {
     return this.scanRecords.obtenerStats(query);

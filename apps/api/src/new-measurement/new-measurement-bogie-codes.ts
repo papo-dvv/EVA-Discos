@@ -7,7 +7,11 @@ const NOMBRE_ARCHIVO_RELACION_BOGIES = 'EVA_relacion_bogies - ALSTOM.xlsx';
 function resolverArchivoRelacionBogies(): string | null {
   const candidatos = [
     path.join(process.cwd(), 'test-data', NOMBRE_ARCHIVO_RELACION_BOGIES),
-    path.join(process.cwd(), 'apps/api/test-data', NOMBRE_ARCHIVO_RELACION_BOGIES),
+    path.join(
+      process.cwd(),
+      'apps/api/test-data',
+      NOMBRE_ARCHIVO_RELACION_BOGIES,
+    ),
   ];
   return candidatos.find((archivo) => existsSync(archivo)) ?? null;
 }
@@ -51,7 +55,9 @@ type CacheRelacion = {
 let cache: CacheRelacion | null = null;
 
 function normalizarTren(valor: unknown): number | null {
-  const texto = String(valor ?? '').trim().toUpperCase();
+  const texto = String(valor ?? '')
+    .trim()
+    .toUpperCase();
   const match = texto.match(/^T?0*(\d+)$/);
   return match ? Number(match[1]) : null;
 }
@@ -60,12 +66,18 @@ function trenCodigo(trenNumero: number): string {
   return `T${String(trenNumero).padStart(2, '0')}`;
 }
 
-function idRelacion(trenNumero: number, coche: string, posicion: string): string {
+function idRelacion(
+  trenNumero: number,
+  coche: string,
+  posicion: string,
+): string {
   return `${trenNumero}:${coche}:${posicion}`;
 }
 
 function serieDesdeBogieActual(codigo: string): string {
-  return codigo.includes('/') ? codigo.split('/').at(-1)?.trim() || codigo : codigo;
+  return codigo.includes('/')
+    ? codigo.split('/').at(-1)?.trim() || codigo
+    : codigo;
 }
 
 function bogieActual(posicion: string, serie: string): string {
@@ -75,13 +87,26 @@ function bogieActual(posicion: string, serie: string): string {
     : `${posicion}/${serieLimpia.padStart(3, '0')}`;
 }
 
-function normalizarInput(input: RelacionBogieInput): Required<RelacionBogieInput> {
+function normalizarInput(
+  input: RelacionBogieInput,
+): Required<RelacionBogieInput> {
   return {
     trenNumero: Number(input.trenNumero),
-    coche: String(input.coche ?? '').trim().toUpperCase(),
-    posicion: String(input.posicion ?? '').trim().toUpperCase(),
-    serieBogie: serieDesdeBogieActual(String(input.serieBogie ?? '').trim().toUpperCase()).padStart(3, '0'),
-    ejeActual: String(input.ejeActual ?? '').trim().toUpperCase() || null,
+    coche: String(input.coche ?? '')
+      .trim()
+      .toUpperCase(),
+    posicion: String(input.posicion ?? '')
+      .trim()
+      .toUpperCase(),
+    serieBogie: serieDesdeBogieActual(
+      String(input.serieBogie ?? '')
+        .trim()
+        .toUpperCase(),
+    ).padStart(3, '0'),
+    ejeActual:
+      String(input.ejeActual ?? '')
+        .trim()
+        .toUpperCase() || null,
     fechaUltimoCambio: String(input.fechaUltimoCambio ?? '').trim() || null,
   };
 }
@@ -117,7 +142,7 @@ function leerFilasRelacion(): {
 } {
   const archivo = archivoRelacionBogiesObligatorio();
   const workbook = XLSX.readFile(archivo);
-  const sheetName = workbook.SheetNames[0]!;
+  const sheetName = workbook.SheetNames[0];
   const sheet = workbook.Sheets[sheetName];
   const filas = XLSX.utils.sheet_to_json<FilaRelacionBogie>(sheet, {
     defval: '',
@@ -157,16 +182,22 @@ function cargarRelacion(): CacheRelacion {
   }
 
   const workbook = XLSX.readFile(archivo);
-  const sheet = workbook.Sheets[workbook.SheetNames[0]!];
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
   const filas = XLSX.utils.sheet_to_json<FilaRelacionBogie>(sheet, {
     defval: '',
   });
 
   for (const fila of filas) {
     const tren = normalizarTren(fila.TREN);
-    const coche = String(fila.COCHE ?? '').trim().toUpperCase();
-    const posicion = String(fila.POSICION ?? '').trim().toUpperCase();
-    const codigo = String(fila.BOGIE_ACTUAL ?? '').trim().toUpperCase();
+    const coche = String(fila.COCHE ?? '')
+      .trim()
+      .toUpperCase();
+    const posicion = String(fila.POSICION ?? '')
+      .trim()
+      .toUpperCase();
+    const codigo = String(fila.BOGIE_ACTUAL ?? '')
+      .trim()
+      .toUpperCase();
     if (!tren || !coche || !posicion || !codigo) continue;
     const codigos = porTren.get(tren) ?? {};
     codigos[`${coche}:${posicion}`] = codigo;
@@ -180,7 +211,10 @@ function cargarRelacion(): CacheRelacion {
       posicion,
       serieBogie: serieDesdeBogieActual(codigo),
       bogieActual: codigo,
-      ejeActual: String(fila.EJE_ACTUAL ?? '').trim().toUpperCase() || null,
+      ejeActual:
+        String(fila.EJE_ACTUAL ?? '')
+          .trim()
+          .toUpperCase() || null,
       fechaUltimoCambio: fechaExcel(fila.FECHA_ULTIMO_CAMBIO),
     });
   }
@@ -206,15 +240,20 @@ export function crearRelacionBogie(
   const { archivo, workbook, sheetName, filas } = leerFilasRelacion();
   const existe = filas.some((fila) => {
     const tren = normalizarTren(fila.TREN);
-    const coche = String(fila.COCHE ?? '').trim().toUpperCase();
-    const posicion = String(fila.POSICION ?? '').trim().toUpperCase();
+    const coche = String(fila.COCHE ?? '')
+      .trim()
+      .toUpperCase();
+    const posicion = String(fila.POSICION ?? '')
+      .trim()
+      .toUpperCase();
     return (
       tren === normalizado.trenNumero &&
       coche === normalizado.coche &&
       posicion === normalizado.posicion
     );
   });
-  if (existe) throw new Error('Ya existe una relación para ese tren, coche y bogie.');
+  if (existe)
+    throw new Error('Ya existe una relación para ese tren, coche y bogie.');
 
   filas.push({
     TREN: trenCodigo(normalizado.trenNumero),
@@ -242,9 +281,15 @@ export function actualizarRelacionBogie(
   const { archivo, workbook, sheetName, filas } = leerFilasRelacion();
   const indice = filas.findIndex((fila) => {
     const tren = normalizarTren(fila.TREN);
-    const coche = String(fila.COCHE ?? '').trim().toUpperCase();
-    const posicion = String(fila.POSICION ?? '').trim().toUpperCase();
-    return tren === Number(trenId) && coche === cocheId && posicion === posicionId;
+    const coche = String(fila.COCHE ?? '')
+      .trim()
+      .toUpperCase();
+    const posicion = String(fila.POSICION ?? '')
+      .trim()
+      .toUpperCase();
+    return (
+      tren === Number(trenId) && coche === cocheId && posicion === posicionId
+    );
   });
   if (indice < 0) throw new Error('No se encontró la relación de bogie.');
 
@@ -270,10 +315,19 @@ export function eliminarRelacionBogie(id: string): void {
   const { archivo, workbook, sheetName, filas } = leerFilasRelacion();
   const restantes = filas.filter((fila) => {
     const tren = normalizarTren(fila.TREN);
-    const coche = String(fila.COCHE ?? '').trim().toUpperCase();
-    const posicion = String(fila.POSICION ?? '').trim().toUpperCase();
-    return !(tren === Number(trenId) && coche === cocheId && posicion === posicionId);
+    const coche = String(fila.COCHE ?? '')
+      .trim()
+      .toUpperCase();
+    const posicion = String(fila.POSICION ?? '')
+      .trim()
+      .toUpperCase();
+    return !(
+      tren === Number(trenId) &&
+      coche === cocheId &&
+      posicion === posicionId
+    );
   });
-  if (restantes.length === filas.length) throw new Error('No se encontró la relación de bogie.');
+  if (restantes.length === filas.length)
+    throw new Error('No se encontró la relación de bogie.');
   escribirFilasRelacion(archivo, workbook, sheetName, restantes);
 }

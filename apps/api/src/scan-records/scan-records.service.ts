@@ -5,19 +5,33 @@ import {
 } from '@nestjs/common';
 import { Prisma, type ScanRecord } from '../../generated/prisma';
 import { BrakeDiscRulesService } from '../brake-disc-rules/brake-disc-rules.service';
+import { TRENES_FLOTA } from '../fleet/fleet.constants';
 import type { PreviewQueryDto } from '../migration/dto/preview-query.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import type { CampoValoresDistintos } from './dto/valores-distintos-query.dto';
 import type { UpdateScanRecordDto } from './dto/update-scan-record.dto';
 import {
+  clasificarSemaforoMediciones,
+  MedicionesSemaforoConfigService,
+  type EstadoSemaforoMediciones,
+} from './mediciones-semaforo-config.service';
+import {
   buscarScanRecordsPaginado,
   obtenerEstadisticasScanRecords,
+  obtenerFechaUltimaMedicionPorTren,
   obtenerResumenPorTrenScanRecord,
   obtenerValoresDistintosScanRecord,
   type EstadisticasScanRecords,
   type PreviewResult,
   type ResumenTren,
 } from './scan-record-query';
+
+export interface SemaforoTrenMediciones {
+  tren: number;
+  fechaUltimaMedicion: string | null;
+  diasSinMedir: number | null;
+  estadoSemaforo: EstadoSemaforoMediciones;
+}
 
 const CAMPOS_NUMERICOS = new Set<string>([
   'kilometraje',
@@ -39,6 +53,7 @@ export class ScanRecordsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly brakeDiscRules: BrakeDiscRulesService,
+    private readonly semaforoConfig: MedicionesSemaforoConfigService,
   ) {}
 
   // --- Vista permanente de mediciones confirmadas (sin scope de archivo) ---
@@ -57,6 +72,30 @@ export class ScanRecordsService {
 
   async obtenerResumenPorTren(): Promise<ResumenTren[]> {
     return obtenerResumenPorTrenScanRecord(this.prisma, SOLO_CONFIRMADOS);
+  }
+
+  // Semáforo "días sin medir" por tren (vista de tarjetas de Mediciones) —
+  // universo TRENES_FLOTA (Alstom + Ansaldo, sin el pseudo-tren Reserva),
+  // mismo criterio que FleetService.summary().
+  async obtenerSemaforoMediciones(): Promise<SemaforoTrenMediciones[]> {
+    const [fechas, umbrales] = await Promise.all([
+      obtenerFechaUltimaMedicionPorTren(this.prisma, SOLO_CONFIRMADOS),
+      this.semaforoConfig.obtenerUmbrales(),
+    ]);
+
+    const hoy = Date.now();
+    return TRENES_FLOTA.map((tren) => {
+      const fecha = fechas.get(tren) ?? null;
+      const diasSinMedir = fecha
+        ? Math.floor((hoy - fecha.getTime()) / 86_400_000)
+        : null;
+      return {
+        tren,
+        fechaUltimaMedicion: fecha ? fecha.toISOString().slice(0, 10) : null,
+        diasSinMedir,
+        estadoSemaforo: clasificarSemaforoMediciones(diasSinMedir, umbrales),
+      };
+    });
   }
 
   // Valores distintos de Coche y Bogie presentes ENTRE LOS CONFIRMADOS, para

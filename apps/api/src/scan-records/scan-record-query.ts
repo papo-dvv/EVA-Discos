@@ -556,6 +556,24 @@ export async function obtenerResumenPorTrenScanRecord(
     .sort((a, b) => a.tren - b.tren);
 }
 
+// Fecha de la medición confirmada más reciente por tren — usada por el
+// semáforo "días sin medir" de Mediciones (ver mediciones-semaforo-config).
+export async function obtenerFechaUltimaMedicionPorTren(
+  prisma: PrismaService,
+  base: Prisma.ScanRecordWhereInput,
+): Promise<Map<number, Date>> {
+  const filas = await prisma.scanRecord.groupBy({
+    by: ['trenNumero'],
+    where: base,
+    _max: { fecha: true },
+  });
+  return new Map(
+    filas
+      .filter((f) => f._max.fecha !== null)
+      .map((f) => [f.trenNumero, f._max.fecha as Date]),
+  );
+}
+
 async function contarPorEstado(
   prisma: PrismaService,
   where: Prisma.ScanRecordWhereInput,

@@ -6,6 +6,7 @@ import {
 } from '../brake-disc-rules/brake-disc-rules.engine';
 import { BrakeDiscRulesService } from '../brake-disc-rules/brake-disc-rules.service';
 import { calcularOrdenFisico } from '../common/orden-fisico';
+import { ORDEN_COCHE_FLOTA } from '../fleet/fleet.constants';
 import { PrismaService } from '../prisma/prisma.service';
 import { empujarRango } from '../scan-records/scan-record-query';
 import type {
@@ -362,13 +363,14 @@ export class ProyeccionService {
     return lista.some((v) => v.toLowerCase() === objetivo);
   }
 
-  // Los 6 tipos de coche del enum TipoCoche (MA1/MB1/MB3/REM/MB2/MA2, ya en
-  // el orden físico real — ver schema.prisma) con su tasa promedio de
-  // desgaste fleet-wide, o null si no hay pares suficientes en el rango de km
-  // configurado (ver ProyeccionRateService).
+  // Los 6 tipos de coche Alstom (MA1/MB1/MB3/REM/MB2/MA2, ya en el orden
+  // físico real — ver ORDEN_COCHE_FLOTA) con su tasa promedio de desgaste
+  // fleet-wide, o null si no hay pares suficientes en el rango de km
+  // configurado (ver ProyeccionRateService). Ansaldo (M20/M21/M22) queda
+  // fuera a propósito — ver comentario de resolverDiscosEnScope.
   async obtenerPromedioPorVagon(): Promise<PromedioPorVagonApi[]> {
     const tasas = await this.rate.calcularTasasPorTipoCoche();
-    return Object.values(TipoCoche).map((tipoCoche) => ({
+    return ORDEN_COCHE_FLOTA.map((tipoCoche) => ({
       tipoCoche,
       tasaPromedio: tasas[tipoCoche],
     }));
@@ -457,16 +459,16 @@ export class ProyeccionService {
         ),
       }))
       .sort(
-      (a, b) =>
-        a.fechaEstimada.localeCompare(b.fechaEstimada) ||
-        a.tipo.localeCompare(b.tipo) ||
-        a.trenNumero - b.trenNumero ||
-        a.posiciones[0]!.numeroCoche - b.posiciones[0]!.numeroCoche ||
-        a.posiciones[0]!.bogieCodigo.localeCompare(
-          b.posiciones[0]!.bogieCodigo,
-        ) ||
-        a.posiciones[0]!.ejeNumero - b.posiciones[0]!.ejeNumero,
-    );
+        (a, b) =>
+          a.fechaEstimada.localeCompare(b.fechaEstimada) ||
+          a.tipo.localeCompare(b.tipo) ||
+          a.trenNumero - b.trenNumero ||
+          a.posiciones[0].numeroCoche - b.posiciones[0].numeroCoche ||
+          a.posiciones[0].bogieCodigo.localeCompare(
+            b.posiciones[0].bogieCodigo,
+          ) ||
+          a.posiciones[0].ejeNumero - b.posiciones[0].ejeNumero,
+      );
   }
 
   private fechaCaeEnPeriodo(fecha: Date, periodo: string): boolean {
@@ -602,7 +604,8 @@ export class ProyeccionService {
   ): PronosticoMesApi {
     const reperfilados = eventos.filter(
       (evento) =>
-        evento.tipo === 'REPERFILADO' && fechaCaeEnMes(evento.fechaEstimada, mes),
+        evento.tipo === 'REPERFILADO' &&
+        fechaCaeEnMes(evento.fechaEstimada, mes),
     ).length;
     const cambios = eventos.filter(
       (evento) =>
@@ -699,9 +702,16 @@ export class ProyeccionService {
       // stage: 'en_servicio' — la proyección extrapola desgaste futuro, que
       // solo tiene sentido para piezas montadas y acumulando uso.
       stage: 'en_servicio',
-      ...(q.tren !== undefined
-        ? { wagonUnit: { tren: { numero: q.tren } } }
-        : {}),
+      // Ansaldo (y su pseudo-tren Reserva) queda fuera de Proyección: asume
+      // 2 discos por eje (ver claveEje/resolverOverridesPorEje más abajo),
+      // que emparejaría mal los 4 discos por eje de Ansaldo. Generalizar
+      // este módulo queda para un trabajo futuro dedicado.
+      wagonUnit: {
+        tren: {
+          modelo: 'alstom_metropolis9000',
+          ...(q.tren !== undefined ? { numero: q.tren } : {}),
+        },
+      },
       ...(q.lado?.length ? { lado: { in: q.lado } } : {}),
       ...(condicionesRango.length ? { AND: condicionesRango } : {}),
     };

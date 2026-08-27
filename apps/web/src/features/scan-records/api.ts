@@ -7,6 +7,7 @@ import type {
   PreviewResult,
   PreviewRow,
   ResumenTren,
+  SemaforoTrenMediciones,
   StatsScanRecords,
 } from './types'
 
@@ -17,6 +18,11 @@ import type {
 
 export async function obtenerResumenPorTrenConfirmado(): Promise<ResumenTren[]> {
   const { data } = await apiClient.get<ResumenTren[]>('/scan-records/summary-by-tren')
+  return data
+}
+
+export async function obtenerSemaforoMediciones(): Promise<SemaforoTrenMediciones[]> {
+  const { data } = await apiClient.get<SemaforoTrenMediciones[]>('/scan-records/semaforo-mediciones')
   return data
 }
 

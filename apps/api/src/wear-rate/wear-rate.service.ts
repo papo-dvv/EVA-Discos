@@ -138,13 +138,20 @@ export class WearRateService {
     // lectura — para no pagar un join en listados grandes de /wear-rate/pairs.
     const disco = await this.prisma.brakeDisc.findUniqueOrThrow({
       where: { id: discId },
-      include: { wagonUnit: true },
+      include: { wagonUnit: { include: { tren: true } } },
     });
     // tipoCoche/numeroCoche se resuelven vía wagonUnit, que solo existe
     // mientras la pieza está en_servicio (ver Operaciones/Inventario) — una
     // pieza retirada a almacén/taller no tiene mediciones nuevas que
     // emparejar de todos modos, así que no hay nada que recalcular.
     if (!disco.wagonUnit) return;
+    // Ansaldo (y su pseudo-tren Reserva, mismo modelo) queda fuera de Tasa de
+    // Desgaste/Trazabilidad/Proyección: esos 3 módulos asumen 2 discos por
+    // eje y calcularían mal con el modelo Ansaldo (4 por eje) — generalizarlos
+    // queda para un trabajo futuro dedicado. No generar WearRatePair acá
+    // también protege gratis a Trazabilidad y Proyección, que leen de esta
+    // tabla en vez de tocar ScanRecord/BrakeDisc directamente para las tasas.
+    if (disco.wagonUnit.tren.modelo === 'ansaldo_mb300') return;
     const identidadDisco = {
       tipoCoche: disco.wagonUnit.tipoCoche,
       numeroCoche: disco.wagonUnit.numeroCoche,

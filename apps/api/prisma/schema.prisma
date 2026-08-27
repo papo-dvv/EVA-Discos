@@ -34,11 +34,22 @@ enum TipoCoche {
   REM
   MB2
   MA2
+  M20
+  M21
+  M22
 }
 
 enum LadoDisco {
   izquierdo
   derecho
+}
+
+// unica = Alstom (un solo disco por lado); interior/exterior = Ansaldo (2
+// discos por lado, uno interior y uno exterior).
+enum PosicionDisco {
+  unica
+  interior
+  exterior
 }
 
 // Ciclo de vida de una pieza física de disco de freno (Inventario/Operaciones).
@@ -60,6 +71,9 @@ enum FaseDisco {
 enum TipoMovimientoInventario {
   retiro_masivo
   cambio_disco
+  // Taller -> Almacén, acción manual desde Inventario (no confundir con
+  // retiro_masivo, que es Almacén -> Taller) — ver InventoryService.devolverAlmacen.
+  devolucion_almacen
 }
 
 enum RolUsuario {
@@ -264,8 +278,10 @@ model Train {
   wagonUnits     WagonUnit[]
   calendarEvents CalendarEvent[]
 
-  // chk_train_numero (numero BETWEEN 1 AND 44) se agrega a mano en la migración
+  // chk_train_numero (numero BETWEEN 0 AND 44) se agrega a mano en la migración
   // (Prisma no soporta CHECK constraints en el schema) — ver prisma/migrations.
+  // numero=0 es el pseudo-tren "Reserva" (unidades Ansaldo sin tren asignado,
+  // ver migration-excel.parser.ts / hoja "UDT RESERVA").
   @@index([modelo], map: "idx_trains_modelo")
   @@map("trains")
 }
@@ -329,6 +345,9 @@ model BrakeDisc {
   bogieCodigo      String?         @map("bogie_codigo") @db.VarChar(10)
   ejeNumero        Int?            @map("eje_numero")
   lado             LadoDisco?
+  // unica para Alstom (default); interior/exterior solo aplica a Ansaldo, que
+  // tiene 2 discos por lado en vez de 1 — ver enum PosicionDisco.
+  posicion         PosicionDisco   @default(unica)
   ruedaNumero      Int?            @map("rueda_numero")
   proveedorId      String?         @map("proveedor_id") @db.Uuid
   fechaInstalacion DateTime?       @map("fecha_instalacion") @db.Date
@@ -340,9 +359,23 @@ model BrakeDisc {
   // texto libre ingresado a mano al dar de alta la pieza — nullable a nivel
   // de columna por compatibilidad con filas ya existentes (montadas antes de
   // que Inventario existiera), obligatorio a nivel de DTO para altas nuevas.
+  //
+  // serie es EL EJE, no el disco individual — izquierdo y derecho de un
+  // mismo eje SIEMPRE comparten la misma serie (se dan de alta/mueven/montan
+  // siempre en par, ver InventoryService.registrar y
+  // OperationsCambioDiscoService). El "código de disco" mostrado en UI
+  // (ej. "MIG-D9176D95-D") es `serie + '-D'`, calculado al vuelo, no
+  // persistido — @unique pasa de ser sobre `serie` solo a `[serie, lado]`
+  // para permitir que las 2 filas del par (una por lado) compartan serie.
   stage      InventoryStage
   fase       FaseDisco
-  serie      String?        @unique @db.VarChar(100)
+  serie      String?        @db.VarChar(100)
+  lote       String?        @db.VarChar(100)
+  // Tren compatible (para qué modelo de tren es esta pieza) — NO es el
+  // proveedor/fabricante de la pieza en sí (ver relación `proveedor` abajo,
+  // que sigue existiendo pero ya no se muestra en la columna "Fabricante"
+  // de Inventario).
+  fabricante ModeloTren?
   marcaRueda String?        @map("marca_rueda") @db.VarChar(100)
 
   // onDelete explícito: al volverse relación opcional, Prisma cambiaría el
@@ -360,10 +393,15 @@ model BrakeDisc {
   wearRatePairs      WearRatePair[]
   inventoryMovements InventoryMovement[]
 
-  @@unique([wagonUnitId, bogieCodigo, ejeNumero, lado])
+  @@unique([wagonUnitId, bogieCodigo, ejeNumero, lado, posicion])
+  // Ansaldo: interior y exterior del mismo lado comparten serie (mismo eje),
+  // así que "serie" ya no identifica un único disco junto con "lado" — hace
+  // falta posicion también.
+  @@unique([serie, lado, posicion])
   @@index([wagonUnitId], map: "idx_brake_discs_wagon")
   @@index([proveedorId], map: "idx_brake_discs_proveedor")
   @@index([stage], map: "idx_brake_discs_stage")
+  @@index([serie], map: "idx_brake_discs_serie")
   @@map("brake_discs")
 }
 
@@ -426,6 +464,15 @@ model UploadedFile {
   validRows    Int?             @map("valid_rows")
   invalidRows  Int?             @map("invalid_rows")
   errorMessage String?          @map("error_message")
+
+  // Alcance declarado por el usuario al subir (ver UploadMigracionDto) —
+  // informativo, para el historial de auditoría (MigrationHistoryEvent):
+  // persistido acá para que el commit/cancelación posterior (requests
+  // separados) reporten el mismo alcance que la subida original, en vez de
+  // un valor hardcodeado. No restringe qué procesa el parser.
+  alcance    String? @db.VarChar(40)
+  marca      String? @db.VarChar(20)
+  trenNumero Int?    @map("tren_numero")
 
   // Progreso de la confirmación por lotes (status = 'committing'). Se fija
   // commitLotesTotal al iniciar el commit y commitLotesCompletados se
@@ -497,8 +544,10 @@ model ScanRecord {
   valido                 Boolean        @default(true)
   motivoInvalidez        String?        @map("motivo_invalidez") @db.VarChar(300)
 
-  // Campos exclusivos de la migración masiva desde Excel (39 hojas T06-T44)
-  hojaExcelOrigen          String? @map("hoja_excel_origen") @db.VarChar(10)
+  // Campos exclusivos de la migración masiva desde Excel (hojas T01-T44 +
+  // "UDT RESERVA", ver migration-excel.parser.ts — 20 no 10: "UDT RESERVA"
+  // son 12 caracteres, más largo que cualquier "T\d\d").
+  hojaExcelOrigen          String? @map("hoja_excel_origen") @db.VarChar(20)
   trenOriginalExcel        Int?    @map("tren_original_excel")
   corregidoPorHoja         Boolean @default(false) @map("corregido_por_hoja")
   numeroCocheOriginalExcel Int?    @map("numero_coche_original_excel")

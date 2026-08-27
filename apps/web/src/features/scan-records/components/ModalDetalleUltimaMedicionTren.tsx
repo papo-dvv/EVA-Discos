@@ -11,9 +11,14 @@ type Props = {
 // Ventana flotante de solo lectura (GlassModal directo) — especifica si la
 // última medición del tren fue un bogie puntual o cubrió toda la flota del
 // tren (ver calcularUltimaMedicionTren).
+// Pseudo-tren "Reserva" (ver schema.prisma, Train.numero=0).
+function etiquetaTren(tren: number): string {
+  return tren === 0 ? 'Reserva' : `Tren ${tren}`
+}
+
 export function ModalDetalleUltimaMedicionTren({ tren, resultado, onCerrar }: Props) {
   return (
-    <GlassModal titulo={`Última medición — Tren ${tren}`} onCerrar={onCerrar} ancho={560}>
+    <GlassModal titulo={`Última medición — ${etiquetaTren(tren)}`} onCerrar={onCerrar} ancho={560}>
       <p className="font-body text-sm text-concreto-oscuro">
         Fecha: <span className="font-data">{resultado.fecha}</span>
       </p>

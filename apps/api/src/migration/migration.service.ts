@@ -13,6 +13,7 @@ import {
   type HojaConError,
 } from './migration-excel.parser';
 import { MigrationHistoryService } from './migration-history.service';
+import type { UploadMigracionDto } from './dto/upload-migracion.dto';
 
 export interface ResumenMigracion {
   fileId: string;
@@ -48,6 +49,7 @@ export class MigrationService {
   async procesarUpload(
     archivo: Express.Multer.File,
     usuarioId: string,
+    alcanceDto: UploadMigracionDto = {},
   ): Promise<ResumenMigracion> {
     const workbook = this.leerWorkbook(archivo);
 
@@ -129,6 +131,9 @@ export class MigrationService {
             totalRows: resultado.totalFilasLeidas,
             validRows: resultado.filas.length,
             invalidRows: resultado.filasInvalidas.length,
+            alcance: alcanceDto.alcance ?? null,
+            marca: alcanceDto.marca ?? null,
+            trenNumero: alcanceDto.trenNumero ?? null,
           },
         });
 
@@ -155,8 +160,9 @@ export class MigrationService {
             tipo: 'migracion_subida',
             fileId: uploadedFile.id,
             nombreArchivo: archivo.originalname,
-            alcance: 'marca',
-            marca: 'ALSTOM',
+            alcance: alcanceDto.alcance ?? null,
+            marca: alcanceDto.marca ?? null,
+            trenNumero: alcanceDto.trenNumero ?? null,
             totalFilas: resultado.totalFilasLeidas,
             filasValidas: resultado.filas.length,
             filasInvalidas: resultado.filasInvalidas.length,

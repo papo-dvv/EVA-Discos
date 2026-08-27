@@ -1,146 +1,144 @@
-import { AlertTriangle, ArrowRight, Search, ShieldCheck, TrainFront, Wrench } from 'lucide-react'
-import { useMemo, useState, type ReactNode } from 'react'
+import { useMemo, useState } from 'react'
+import { Search } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { BadgeEstadoFlota } from '../features/fleet/components/BadgeEstadoFlota'
+import { GlassSelect } from '../components/GlassSelect'
+import { GlassSurface } from '../components/GlassSurface'
+import { SegmentedControl } from '../components/SegmentedControl'
+import { ESTADO_META } from '../features/fleet/components/estadoVisual'
+import { fabricanteDeTren, type FabricanteTren } from '../features/fleet/components/fabricante'
+import { LeyendaAlertasDiscos } from '../features/fleet/components/LeyendaAlertasDiscos'
+import { getEstadoDominanteTren } from '../features/fleet/components/semaforoTren'
+import { TrainFrontCard } from '../features/fleet/components/TrainFrontCard'
 import { useFleetSummary } from '../features/fleet/queries'
-import type { FleetSummaryItem } from '../features/fleet/types'
-import { extraerMensajeError } from '../lib/extraerMensajeError'
+import type { EstadoDisco } from '../features/scan-records/types'
 
-type FiltroEstado = 'todos' | 'operativo' | 'alerta'
+type FiltroFabricante = 'todos' | FabricanteTren
 
-function totalAlertas(tren: FleetSummaryItem) {
-  return tren.conteoAlerta.cambio + tren.conteoAlerta.critico + tren.conteoAlerta.reperfilado
-}
+const FILTROS_FABRICANTE: { valor: FiltroFabricante; etiqueta: string }[] = [
+  { valor: 'todos', etiqueta: 'Todos' },
+  { valor: 'ALSTOM', etiqueta: 'Alstom' },
+  { valor: 'ANSALDO', etiqueta: 'Ansaldo' },
+]
 
-function estadoTren(tren: FleetSummaryItem) {
-  if (tren.conteoAlerta.critico > 0 || tren.conteoAlerta.cambio > 0) return 'alerta'
-  return totalAlertas(tren) > 0 ? 'seguimiento' : 'operativo'
-}
+const ORDEN_ESTADOS: EstadoDisco[] = ['OK', 'SEGUIMIENTO', 'CAMBIO', 'CRITICO', 'REPERFILADO']
+const OPCIONES_ESTADO = ORDEN_ESTADOS.map((estado) => ({ valor: estado, etiqueta: ESTADO_META[estado].etiqueta }))
 
 export function Flota() {
   const summary = useFleetSummary()
   const [busqueda, setBusqueda] = useState('')
-  const [filtro, setFiltro] = useState<FiltroEstado>('todos')
+  const [fabricante, setFabricante] = useState<FiltroFabricante>('todos')
+  const [filtroEstado, setFiltroEstado] = useState<EstadoDisco | undefined>(undefined)
 
-  const trenes = useMemo(() => {
-    const texto = busqueda.trim().replace(/^t/i, '')
-    return (summary.data ?? []).filter((tren) => {
-      const estado = estadoTren(tren)
-      return (!texto || String(tren.tren).includes(texto)) &&
-        (filtro === 'todos' || (filtro === 'alerta' ? estado !== 'operativo' : estado === filtro))
-    })
-  }, [summary.data, busqueda, filtro])
-
-  const estadisticas = useMemo(() => {
-    const todos = summary.data ?? []
-    return {
-      total: todos.length,
-      operativos: todos.filter((tren) => estadoTren(tren) === 'operativo').length,
-      alerta: todos.filter((tren) => estadoTren(tren) !== 'operativo').length,
-      criticos: todos.filter((tren) => tren.conteoAlerta.critico > 0).length,
+  // KPIs: respetan el toggle de fabricante (igual que EVA-Aldy), no la
+  // búsqueda ni el filtro de estado — son el resumen estable de la flota,
+  // no un conteo de lo que quedó visible tras filtrar el grid.
+  const kpis = useMemo(() => {
+    const conteo: Record<EstadoDisco, number> = { OK: 0, SEGUIMIENTO: 0, CAMBIO: 0, CRITICO: 0, REPERFILADO: 0 }
+    let total = 0
+    for (const tren of summary.data ?? []) {
+      if (fabricante !== 'todos' && fabricanteDeTren(tren.tren) !== fabricante) continue
+      total++
+      conteo[getEstadoDominanteTren(tren.conteoEstado)]++
     }
-  }, [summary.data])
+    return { total, conteo }
+  }, [summary.data, fabricante])
+
+  const filtrados = useMemo(() => {
+    const trimmed = busqueda.trim()
+    return (summary.data ?? []).filter((tren) => {
+      if (fabricante !== 'todos' && fabricanteDeTren(tren.tren) !== fabricante) return false
+      if (trimmed && !String(tren.tren).includes(trimmed)) return false
+      if (filtroEstado && getEstadoDominanteTren(tren.conteoEstado) !== filtroEstado) return false
+      return true
+    })
+  }, [summary.data, busqueda, fabricante, filtroEstado])
 
   return (
-    <div className="mx-auto w-full max-w-[1680px] px-4 py-6 sm:px-6 lg:px-8">
-      <div className="relative isolate overflow-hidden rounded-3xl border border-white/80 bg-gradient-to-br from-white via-emerald-50/80 to-slate-100 px-5 py-6 shadow-[0_18px_50px_-36px_rgba(6,78,59,0.75)] sm:px-7">
-        <div aria-hidden className="absolute -right-24 -top-20 h-64 w-64 rounded-full bg-emerald-400/20 blur-3xl" />
-        <img aria-hidden src="/images/mediciones-tren-alerta-alstom.png" className="pointer-events-none absolute -right-8 bottom-0 hidden h-44 w-[22rem] object-contain object-bottom opacity-35 lg:block" />
-        <div className="relative flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <p className="font-body text-[0.68rem] font-bold uppercase tracking-[0.2em] text-emerald-700">Centro de control</p>
-            <h1 className="mt-1 font-display text-3xl font-bold tracking-tight text-slate-800">Flota</h1>
-            <p className="mt-1 max-w-xl text-sm text-slate-500">Supervisión operativa de trenes y estado de discos de freno.</p>
-          </div>
-          <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white/80 px-3 py-1.5 text-xs font-semibold text-emerald-700 shadow-sm backdrop-blur">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" /> Información actualizada
-          </span>
+    <div className="mx-auto w-full max-w-[1500px] px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="font-body text-xs font-semibold uppercase tracking-[0.18em] text-concreto">EVA</p>
+          <h1 className="font-display text-3xl font-semibold text-concreto-oscuro">Flota</h1>
+          <p className="mt-1 max-w-xl font-body text-sm text-concreto">Vista general de los trenes de la flota.</p>
         </div>
       </div>
 
-      <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Kpi etiqueta="Total de trenes" valor={estadisticas.total} icono={<TrainFront size={18} />} tono="slate" />
-        <Kpi etiqueta="Operativos" valor={estadisticas.operativos} icono={<ShieldCheck size={18} />} tono="green" />
-        <Kpi etiqueta="Requieren atención" valor={estadisticas.alerta} icono={<Wrench size={18} />} tono="amber" />
-        <Kpi etiqueta="Críticos" valor={estadisticas.criticos} icono={<AlertTriangle size={18} />} tono="red" />
+      <div className="mb-4">
+        <LeyendaAlertasDiscos />
       </div>
 
-      <section className="eva-panel mt-4 p-3.5">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-          <label className="relative flex-1">
-            <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input className="eva-control w-full py-2 pl-9 pr-3 text-sm" placeholder="Buscar por número de tren..." value={busqueda} onChange={(event) => setBusqueda(event.target.value)} />
-          </label>
-          <div className="flex rounded-xl bg-slate-100 p-1">
-            {([['todos', 'Todos'], ['operativo', 'Operativos'], ['alerta', 'Con alertas']] as const).map(([valor, etiqueta]) => (
-              <button key={valor} type="button" onClick={() => setFiltro(valor)} className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${filtro === valor ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-                {etiqueta}
-              </button>
-            ))}
-          </div>
-        </div>
-      </section>
+      <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <GlassSurface className="rounded-glass px-4 py-3">
+          <p className="font-body text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-concreto">Total trenes</p>
+          <p className="mt-1 font-display text-3xl font-bold text-concreto-oscuro">{kpis.total}</p>
+        </GlassSurface>
+        {ORDEN_ESTADOS.map((estado) => (
+          <GlassSurface key={estado} className="rounded-glass px-4 py-3">
+            <p className="font-body text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-concreto">{ESTADO_META[estado].etiqueta}</p>
+            <p className="mt-1 font-display text-3xl font-bold" style={{ color: ESTADO_META[estado].cssVar }}>
+              {kpis.conteo[estado]}
+            </p>
+          </GlassSurface>
+        ))}
+      </div>
 
-      {summary.isLoading && <p className="py-16 text-center text-sm text-slate-500">Cargando flota...</p>}
+      <GlassSurface fuerte className="mb-6 space-y-3 rounded-glass p-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+          <div className="min-w-0 flex-1">
+            <label className="mb-1.5 block font-body text-xs font-semibold uppercase tracking-[0.1em] text-concreto">
+              Buscar por número de tren
+            </label>
+            <div className="relative">
+              <Search size={16} aria-hidden className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-concreto" />
+              <input
+                type="search"
+                inputMode="numeric"
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                placeholder="Número de tren…"
+                aria-label="Buscar por número de tren"
+                className="glass-field py-2.5 pl-9"
+              />
+            </div>
+          </div>
+          <SegmentedControl
+            ariaLabel="Filtrar por fabricante"
+            opciones={FILTROS_FABRICANTE}
+            valor={fabricante}
+            onCambiar={(v) => setFabricante(v)}
+          />
+        </div>
+
+        <GlassSelect
+          label="Estado del tren"
+          opciones={OPCIONES_ESTADO}
+          seleccion={filtroEstado}
+          onCambiar={(v) => setFiltroEstado(v as EstadoDisco | undefined)}
+          placeholder="Todos"
+          className="max-w-xs"
+        />
+      </GlassSurface>
+
+      {summary.isLoading && <p className="py-12 text-center font-body text-sm text-concreto">Cargando flota...</p>}
       {summary.isError && (
-        <div role="alert" className="eva-panel mx-auto mt-6 max-w-xl p-6 text-center">
-          <p className="text-sm font-semibold text-red-700">No se pudo cargar el resumen de flota</p>
-          <p className="mt-2 text-xs text-slate-500">{extraerMensajeError(summary.error)}</p>
-          <button type="button" onClick={() => summary.refetch()} className="mt-4 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-emerald-700">
-            Reintentar
-          </button>
-        </div>
+        <p role="alert" className="py-12 text-center font-body text-sm text-[color:var(--color-estado-critico)]">
+          No se pudo cargar el resumen de flota.
+        </p>
       )}
-      {summary.data && (
-        <>
-          <p className="mt-5 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">{trenes.length} trenes encontrados</p>
-          <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-            {trenes.map((tren) => <TarjetaTren key={tren.tren} tren={tren} />)}
-          </div>
-          {trenes.length === 0 && <div className="eva-panel mt-4 py-16 text-center text-sm text-slate-500">No hay trenes que coincidan con los filtros.</div>}
-        </>
+
+      {summary.data && filtrados.length === 0 && (
+        <p className="py-12 text-center font-body text-sm text-concreto">Sin coincidencias con los filtros actuales.</p>
+      )}
+
+      {filtrados.length > 0 && (
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {filtrados.map((tren) => (
+            <Link key={tren.tren} to={`/fleet/${tren.tren}`} className="group block">
+              <TrainFrontCard tren={tren} />
+            </Link>
+          ))}
+        </div>
       )}
     </div>
-  )
-}
-
-function Kpi({ etiqueta, valor, icono, tono }: { etiqueta: string; valor: number; icono: ReactNode; tono: 'slate' | 'green' | 'amber' | 'red' }) {
-  const clases = { slate: 'bg-slate-100 text-slate-600', green: 'bg-emerald-50 text-emerald-600', amber: 'bg-amber-50 text-amber-600', red: 'bg-red-50 text-red-600' }[tono]
-  return <div className="eva-panel flex items-center gap-3 p-4"><span className={`flex h-9 w-9 items-center justify-center rounded-xl ${clases}`}>{icono}</span><div><p className="text-[0.68rem] font-semibold uppercase tracking-wide text-slate-400">{etiqueta}</p><p className="mt-0.5 font-data text-2xl font-bold text-slate-800">{valor}</p></div></div>
-}
-
-function TarjetaTren({ tren }: { tren: FleetSummaryItem }) {
-  const estado = estadoTren(tren)
-  const meta = {
-    operativo: { texto: 'Operativo', borde: 'border-emerald-300', punto: 'bg-emerald-500', fondo: 'from-emerald-50/80' },
-    seguimiento: { texto: 'Seguimiento', borde: 'border-amber-300', punto: 'bg-amber-400', fondo: 'from-amber-50/80' },
-    alerta: { texto: 'Atención', borde: 'border-red-300', punto: 'bg-red-500', fondo: 'from-red-50/80' },
-  }[estado]
-  const alertas = [
-    { estado: 'CAMBIO' as const, conteo: tren.conteoAlerta.cambio },
-    { estado: 'CRITICO' as const, conteo: tren.conteoAlerta.critico },
-    { estado: 'REPERFILADO' as const, conteo: tren.conteoAlerta.reperfilado },
-  ].filter((alerta) => alerta.conteo > 0)
-
-  return (
-    <Link to={`/fleet/${tren.tren}`} className={`group overflow-hidden rounded-2xl border bg-gradient-to-b ${meta.fondo} to-white shadow-[0_12px_34px_-24px_rgba(15,23,42,0.45)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_20px_42px_-22px_rgba(15,23,42,0.38)] ${meta.borde}`}>
-      <div className="relative flex h-44 items-center justify-center overflow-hidden border-b border-slate-200/70 bg-white/70">
-        <div className={`absolute h-24 w-24 rounded-full blur-3xl ${meta.punto} opacity-20`} />
-        <img
-          src="/images/mediciones-tren-alerta-alstom.png"
-          alt="Frontal del tren ALSTOM"
-          className="relative h-full w-full object-contain p-3 transition-transform duration-500 group-hover:scale-[1.04]"
-        />
-        <span className="absolute right-3 top-3 rounded-full border border-emerald-200 bg-emerald-50/90 px-2 py-1 text-[0.65rem] font-bold text-emerald-700">ALSTOM</span>
-      </div>
-      <div className="p-4">
-        <div className="flex items-start justify-between gap-3">
-          <div><p className="text-[0.65rem] font-semibold uppercase tracking-[0.15em] text-slate-400">Unidad</p><h2 className="mt-0.5 text-xl font-bold text-slate-800">Tren {tren.tren}</h2></div>
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-2.5 py-1 text-[0.68rem] font-semibold text-slate-600 shadow-sm"><span className={`h-2 w-2 rounded-full ${meta.punto}`} />{meta.texto}</span>
-        </div>
-        <div className="mt-4 border-y border-slate-100 py-3"><p className="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-400">Última medición</p><p className="mt-1 font-data text-sm font-semibold text-slate-700">{tren.fechaUltimaMedicion ?? 'Sin datos registrados'}</p></div>
-        <div className="mt-3 flex min-h-7 items-center justify-between gap-2"><div className="flex flex-wrap gap-1">{alertas.length ? alertas.map((alerta) => <BadgeEstadoFlota key={alerta.estado} estado={alerta.estado} conteo={alerta.conteo} />) : <span className="text-xs font-medium text-emerald-700">Sin alertas activas</span>}</div><ArrowRight size={17} className="text-slate-400 transition-transform group-hover:translate-x-1 group-hover:text-emerald-600" /></div>
-      </div>
-    </Link>
   )
 }

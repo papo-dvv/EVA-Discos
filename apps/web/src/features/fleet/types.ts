@@ -1,9 +1,16 @@
 import type { EstadoDisco, LadoDisco } from '../scan-records/types'
 
+// unica = Alstom (un solo disco por lado); interior/exterior = Ansaldo (2
+// discos por lado).
+export type PosicionDisco = 'unica' | 'interior' | 'exterior'
+
 export interface FleetSummaryItem {
   tren: number
   fechaUltimaMedicion: string | null
-  conteoAlerta: {
+  kilometrajeActual: number | null
+  conteoEstado: {
+    ok: number
+    seguimiento: number
     cambio: number
     critico: number
     reperfilado: number
@@ -13,6 +20,7 @@ export interface FleetSummaryItem {
 export interface FleetDiscoDetalle {
   codigoDisco: string | null
   lado: LadoDisco
+  posicion: PosicionDisco
   rd: number | null
   h: number | null
   t: number | null
