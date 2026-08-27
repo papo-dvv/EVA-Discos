@@ -128,9 +128,10 @@ function DiscoInteractivo3D({
   useEffect(() => {
     if (disco.posicion !== 'unica' || vista !== '3d' || !modeloRef.current) return
     const animacion = animate(modeloRef.current, {
-      rotateY: '1turn',
-      duration: 9000,
-      ease: 'linear',
+      rotateY: [0, 18, 0],
+      rotateX: [0, -4, 0],
+      duration: 5200,
+      ease: 'inOutSine',
       loop: true,
     })
     return () => {
