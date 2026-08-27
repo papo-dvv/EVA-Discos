@@ -321,16 +321,17 @@ export function RelacionBogies() {
 
 function BogieEsquema3D({ bogie }: { bogie: RelacionBogieCatalogo | null }) {
   const [giro, setGiro] = useState(-12)
+  const [vista, setVista] = useState<'2d' | '3d'>('3d')
   const titulo = bogie ? `${bogie.posicion} · serie ${bogie.serieBogie}` : 'Selecciona un bogie'
 
   return (
     <div className="relative overflow-hidden rounded-2xl border border-white/75 bg-slate-950 px-4 py-3 text-white shadow-[0_18px_38px_-24px_rgba(15,23,42,0.8)]">
       <div aria-hidden className="absolute inset-0 bg-[radial-gradient(circle_at_30%_10%,rgba(52,211,153,0.32),transparent_42%),linear-gradient(135deg,#10231c,#0f172a_62%,#12372a)]" />
-      <div className="relative flex items-center justify-between gap-3"><div><p className="font-body text-[0.62rem] font-bold uppercase tracking-[0.18em] text-emerald-300">Esquema técnico 3D</p><p className="mt-0.5 font-display text-base font-bold">{titulo}</p></div><Rotate3D size={19} className="text-emerald-300" /></div>
-      <button type="button" onClick={() => setGiro((valor) => valor + 18)} className="relative mt-3 block w-full cursor-grab rounded-xl border border-white/10 bg-white/5 p-2.5 text-left transition hover:bg-white/10 active:cursor-grabbing" aria-label="Rotar vista del bogie">
-        <svg viewBox="0 0 360 160" className="h-32 w-full overflow-visible" role="img" aria-label={`Esquema 3D del bogie ${titulo}`}>
+      <div className="relative flex items-center justify-between gap-3"><div><p className="font-body text-[0.62rem] font-bold uppercase tracking-[0.18em] text-emerald-300">Esquema técnico {vista.toUpperCase()}</p><p className="mt-0.5 font-display text-base font-bold">{titulo}</p></div><div className="flex items-center gap-2"><div className="flex rounded-lg border border-white/15 bg-slate-950/40 p-0.5 text-[0.6rem] font-bold"><button type="button" onClick={() => setVista('3d')} aria-pressed={vista === '3d'} className={`rounded-md px-2 py-1 ${vista === '3d' ? 'bg-white text-slate-900' : 'text-white/70'}`}>3D</button><button type="button" onClick={() => setVista('2d')} aria-pressed={vista === '2d'} className={`rounded-md px-2 py-1 ${vista === '2d' ? 'bg-white text-slate-900' : 'text-white/70'}`}>2D</button></div><Rotate3D size={19} className="text-emerald-300" /></div></div>
+      <button type="button" onClick={() => vista === '3d' && setGiro((valor) => valor + 18)} className={`relative mt-3 block w-full rounded-xl border border-white/10 bg-white/5 p-2.5 text-left transition hover:bg-white/10 ${vista === '3d' ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}`} aria-label={vista === '3d' ? 'Rotar vista del bogie' : 'Vista bidimensional del bogie'}>
+        <svg viewBox="0 0 360 160" className="h-32 w-full overflow-visible" role="img" aria-label={`Esquema ${vista.toUpperCase()} del bogie ${titulo}`}>
           <defs><linearGradient id="marco-bogie" x1="0" x2="1"><stop stopColor="#5ee9ad"/><stop offset=".45" stopColor="#16895a"/><stop offset="1" stopColor="#0a342a"/></linearGradient><radialGradient id="rueda-bogie"><stop stopColor="#dbeafe"/><stop offset=".4" stopColor="#64748b"/><stop offset="1" stopColor="#0f172a"/></radialGradient></defs>
-          <g style={{ transform: `perspective(500px) rotateY(${giro}deg)`, transformOrigin: '180px 80px', transition: 'transform 420ms cubic-bezier(.2,.8,.2,1)' }}>
+          <g style={{ transform: vista === '3d' ? `perspective(500px) rotateY(${giro}deg)` : 'none', transformOrigin: '180px 80px', transition: 'transform 420ms cubic-bezier(.2,.8,.2,1)' }}>
             <path d="M70 54 L286 42 L315 72 L100 90 Z" fill="url(#marco-bogie)" opacity=".95" />
             <path d="M100 90 L315 72 L315 97 L100 116 Z" fill="#0a3025" />
             <path d="M70 54 L100 90 L100 116 L70 80 Z" fill="#0c513b" />
@@ -339,7 +340,7 @@ function BogieEsquema3D({ bogie }: { bogie: RelacionBogieCatalogo | null }) {
             <path d="M110 77 L290 63" stroke="#ecfdf5" strokeWidth="3" opacity=".75" />
           </g>
         </svg>
-        <span className="absolute bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/30 px-2 py-1 font-body text-[0.6rem] text-white/80"><MousePointer2 size={10} className="mr-1 inline" />Presiona para girar</span>
+        <span className="absolute bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-black/30 px-2 py-1 font-body text-[0.6rem] text-white/80">{vista === '3d' ? <><MousePointer2 size={10} className="mr-1 inline" />Presiona para girar</> : 'Vista de planta · ruedas y ejes'}</span>
       </button>
       <div className="relative mt-3 grid grid-cols-3 gap-2 text-center"><MiniDato etiqueta="Bogie" valor={bogie?.posicion ?? '—'} /><MiniDato etiqueta="Eje" valor={bogie?.ejeActual ?? '—'} /><MiniDato etiqueta="Coche" valor={bogie?.coche ?? '—'} /></div>
     </div>

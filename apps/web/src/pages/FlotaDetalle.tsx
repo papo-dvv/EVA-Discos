@@ -1,4 +1,4 @@
-import { ArrowLeft, TrainFront } from 'lucide-react'
+import { Activity, ArrowLeft, CircleCheck, TriangleAlert, TrainFront } from 'lucide-react'
 import { useState } from 'react'
 import { Link, Navigate, useParams } from 'react-router-dom'
 import { GlassSurface } from '../components/GlassSurface'
@@ -56,6 +56,7 @@ export function FlotaDetalle() {
 
       {detalle.data && (
         <div className="space-y-5">
+          <ResumenOperativo detalle={detalle.data} />
           {detalle.data.coches.map((coche) => (
             <section key={coche.coche} className="space-y-3">
               <div className="flex items-center justify-between border-b border-concreto/15 pb-2">
@@ -75,6 +76,28 @@ export function FlotaDetalle() {
 
       {discoSeleccionado && <ModalHistoricoDisco disco={discoSeleccionado} onCerrar={() => setDiscoSeleccionado(null)} />}
     </div>
+  )
+}
+
+function ResumenOperativo({ detalle }: { detalle: NonNullable<ReturnType<typeof useFleetDetalle>['data']> }) {
+  const discos = detalle.coches.flatMap((coche) => coche.bogies.flatMap((bogie) => bogie.ejes.flatMap((eje) => eje.discos)))
+  const evaluados = discos.filter((disco) => disco.estadoCalculado !== null)
+  const atencion = evaluados.filter((disco) => ['SEGUIMIENTO', 'CAMBIO', 'REPERFILADO'].includes(disco.estadoCalculado ?? '')).length
+  const criticos = evaluados.filter((disco) => disco.estadoCalculado === 'CRITICO').length
+  const ok = evaluados.filter((disco) => disco.estadoCalculado === 'OK').length
+  const tarjetas = [
+    { etiqueta: 'Discos evaluados', valor: evaluados.length, detalle: `${discos.length - evaluados.length} sin dato`, icono: Activity, clase: 'border-sky-200 bg-gradient-to-br from-sky-50 to-white text-sky-800' },
+    { etiqueta: 'Operación estable', valor: ok, detalle: 'estado OK', icono: CircleCheck, clase: 'border-emerald-200 bg-gradient-to-br from-emerald-50 to-white text-emerald-800' },
+    { etiqueta: 'Requieren atención', valor: atencion, detalle: 'seguimiento, cambio o reperfilado', icono: TriangleAlert, clase: 'border-amber-200 bg-gradient-to-br from-amber-50 to-white text-amber-800' },
+    { etiqueta: 'Críticos', valor: criticos, detalle: criticos ? 'priorizar intervención' : 'sin alertas críticas', icono: TriangleAlert, clase: criticos ? 'border-rose-200 bg-gradient-to-br from-rose-50 to-white text-rose-800' : 'border-slate-200 bg-gradient-to-br from-slate-50 to-white text-slate-700' },
+  ]
+  return (
+    <section aria-label="Resumen operativo del tren" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {tarjetas.map((tarjeta) => {
+        const Icono = tarjeta.icono
+        return <div key={tarjeta.etiqueta} className={`rounded-2xl border p-4 shadow-sm ${tarjeta.clase}`}><div className="flex items-start justify-between gap-3"><div><p className="font-body text-[0.65rem] font-bold uppercase tracking-[0.13em] opacity-70">{tarjeta.etiqueta}</p><p className="mt-1 font-data text-3xl font-bold">{tarjeta.valor}</p></div><span className="rounded-xl bg-white/75 p-2 shadow-sm"><Icono size={18} /></span></div><p className="mt-1 font-body text-[0.68rem] opacity-75">{tarjeta.detalle}</p></div>
+      })}
+    </section>
   )
 }
 
