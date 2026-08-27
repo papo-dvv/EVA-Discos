@@ -600,6 +600,12 @@ body {
 .eva-disco-anim { transition: transform 240ms var(--ease-apple), filter 240ms var(--ease-apple); }
 .eva-disco-anim:hover { transform: scale(1.08) rotateY(8deg); filter: brightness(1.08) saturate(1.12); }
 
+@keyframes eva-disco-seleccion {
+  0%, 100% { filter: drop-shadow(0 0 7px rgba(16,185,129,.55)); }
+  50% { filter: drop-shadow(0 0 18px rgba(16,185,129,1)); }
+}
+.eva-disco-seleccionado { animation: eva-disco-seleccion 700ms var(--ease-apple-rebote) 2; }
+
 .eva-brillo { position: relative; overflow: hidden; }
 .eva-brillo__barrido {
   position: absolute;
