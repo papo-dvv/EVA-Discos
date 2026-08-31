@@ -19,6 +19,26 @@ export interface LadoInventario {
   hValue: number | null;
   rdValue: number | null;
   estadoCalculado: EstadoDisco | null;
+  // true cuando T/H/Rd/Estado NO vienen de un ScanRecord real sino del
+  // placeholder de "disco nuevo sin medir" (T=7.00/H=0, ver
+  // PlaceholderDiscoNuevo más abajo) — nunca se persiste, se calcula al
+  // vuelo solo para mostrarlo en esta tabla. El frontend lo usa para
+  // distinguirlo visualmente de una medición real.
+  esSupuesto: boolean;
+}
+
+// T=7.00/H=0 — mismo placeholder fijo que OperationsCambioDiscoService usa
+// al MONTAR un disco nuevo (ver comentario ahí: "el sistema no inventa un
+// valor de desgaste real"), pero acá NUNCA se escribe un ScanRecord: un
+// disco en Almacén/Taller no tiene tren/coche/bogie/eje asignado todavía
+// (wagonUnitId/bogieCodigo/ejeNumero son null — ver BrakeDisc), y
+// ScanRecord.trenNumero es obligatorio, así que no hay forma de crear una
+// fila real sin inventar una posición ficticia. Se calcula al vuelo, solo
+// para mostrar el mismo T:7.00/H:0 en Inventario cuando el disco es nuevo y
+// todavía no tiene ninguna medición.
+export interface PlaceholderDiscoNuevo {
+  rdValue: number;
+  estadoCalculado: EstadoDisco;
 }
 
 export interface PosicionInventario {
@@ -122,6 +142,7 @@ function resolverAsociacion(
 export async function buscarInventarioPaginado(
   prisma: PrismaService,
   q: InventoryQueryDto,
+  placeholderNueva: PlaceholderDiscoNuevo,
 ): Promise<InventoryResult> {
   const where = construirWhereInventory(q);
 
@@ -216,14 +237,35 @@ export async function buscarInventarioPaginado(
   );
   const datosPorId = new Map(medicionesYMovimientos);
 
-  function aLado(id: string): LadoInventario {
+  function aLado(id: string, fase: FaseDisco): LadoInventario {
     const datos = datosPorId.get(id)!.ultimaMedicion;
+    if (datos) {
+      return {
+        discoId: id,
+        tValue: Number(datos.tValue),
+        hValue: Number(datos.hValue),
+        rdValue: datos.rdValue,
+        estadoCalculado: datos.estadoCalculado,
+        esSupuesto: false,
+      };
+    }
+    if (fase === 'nueva') {
+      return {
+        discoId: id,
+        tValue: 7,
+        hValue: 0,
+        rdValue: placeholderNueva.rdValue,
+        estadoCalculado: placeholderNueva.estadoCalculado,
+        esSupuesto: true,
+      };
+    }
     return {
       discoId: id,
-      tValue: datos ? Number(datos.tValue) : null,
-      hValue: datos ? Number(datos.hValue) : null,
-      rdValue: datos ? datos.rdValue : null,
-      estadoCalculado: datos?.estadoCalculado ?? null,
+      tValue: null,
+      hValue: null,
+      rdValue: null,
+      estadoCalculado: null,
+      esSupuesto: false,
     };
   }
 
@@ -266,8 +308,8 @@ export async function buscarInventarioPaginado(
       fabricante: cabecera.fabricante,
       marcaRueda: cabecera.marcaRueda,
       posicion,
-      izquierdo: izq ? aLado(izq.id) : null,
-      derecho: der ? aLado(der.id) : null,
+      izquierdo: izq ? aLado(izq.id, cabecera.fase) : null,
+      derecho: der ? aLado(der.id, cabecera.fase) : null,
       asociacion: resolverAsociacion(cabecera.stage, posicion),
       ultimoMovimiento: ultimoMovimiento
         ? {

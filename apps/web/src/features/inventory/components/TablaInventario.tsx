@@ -19,8 +19,22 @@ function numero(v: number | null): string {
   return v === null ? '—' : v.toFixed(2)
 }
 
-function EstadoChip({ estado }: { estado: string | null }) {
-  return estado ? <span className={`tabla-chip tabla-chip--pequeno ${CLASE_CHIP_ESTADO[estado]}`}>{estado}</span> : <span>—</span>
+function celdaNumero(v: number | null, esSupuesto: boolean) {
+  return <span className={esSupuesto ? 'italic opacity-60' : undefined}>{numero(v)}</span>
+}
+
+function EstadoChip({ estado, esSupuesto }: { estado: string | null; esSupuesto?: boolean }) {
+  if (!estado) return <span>—</span>
+  const chip = <span className={`tabla-chip tabla-chip--pequeno ${CLASE_CHIP_ESTADO[estado]} ${esSupuesto ? 'opacity-60' : ''}`}>{estado}</span>
+  if (!esSupuesto) return chip
+  return (
+    <span className="inline-flex items-center gap-1">
+      {chip}
+      <WarningTooltip texto="Disco nuevo sin medir todavía — valor de fábrica (T: 7.00 / H: 0), no una medición real.">
+        <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full border border-concreto/30 text-[0.5rem] font-bold text-concreto">?</span>
+      </WarningTooltip>
+    </span>
+  )
 }
 
 // Extra columnas por stage — mismo criterio para las 3 tablas de Inventario
@@ -156,15 +170,15 @@ export function TablaInventario({
               <td className="px-3 py-2 font-semibold text-concreto-oscuro">{r.serie ? `${r.serie}-D` : '—'}</td>
 
               {/* Izquierdo: Estado, Rd, T, H */}
-              <td className="px-1.5 py-2 text-center">{r.izquierdo ? <EstadoChip estado={r.izquierdo.estadoCalculado} /> : '—'}</td>
-              <td className="px-1.5 py-2 text-right font-data">{r.izquierdo ? numero(r.izquierdo.rdValue) : '—'}</td>
-              <td className="px-1.5 py-2 text-right font-data">{r.izquierdo ? numero(r.izquierdo.tValue) : '—'}</td>
-              <td className="px-1.5 py-2 text-right font-data">{r.izquierdo ? numero(r.izquierdo.hValue) : '—'}</td>
+              <td className="px-1.5 py-2 text-center">{r.izquierdo ? <EstadoChip estado={r.izquierdo.estadoCalculado} esSupuesto={r.izquierdo.esSupuesto} /> : '—'}</td>
+              <td className="px-1.5 py-2 text-right font-data">{r.izquierdo ? celdaNumero(r.izquierdo.rdValue, r.izquierdo.esSupuesto) : '—'}</td>
+              <td className="px-1.5 py-2 text-right font-data">{r.izquierdo ? celdaNumero(r.izquierdo.tValue, r.izquierdo.esSupuesto) : '—'}</td>
+              <td className="px-1.5 py-2 text-right font-data">{r.izquierdo ? celdaNumero(r.izquierdo.hValue, r.izquierdo.esSupuesto) : '—'}</td>
               {/* Derecho: T, H, Rd, Estado (orden invertido a propósito) */}
-              <td className="px-1.5 py-2 text-right font-data">{r.derecho ? numero(r.derecho.tValue) : '—'}</td>
-              <td className="px-1.5 py-2 text-right font-data">{r.derecho ? numero(r.derecho.hValue) : '—'}</td>
-              <td className="px-1.5 py-2 text-right font-data">{r.derecho ? numero(r.derecho.rdValue) : '—'}</td>
-              <td className="px-1.5 py-2 text-center">{r.derecho ? <EstadoChip estado={r.derecho.estadoCalculado} /> : '—'}</td>
+              <td className="px-1.5 py-2 text-right font-data">{r.derecho ? celdaNumero(r.derecho.tValue, r.derecho.esSupuesto) : '—'}</td>
+              <td className="px-1.5 py-2 text-right font-data">{r.derecho ? celdaNumero(r.derecho.hValue, r.derecho.esSupuesto) : '—'}</td>
+              <td className="px-1.5 py-2 text-right font-data">{r.derecho ? celdaNumero(r.derecho.rdValue, r.derecho.esSupuesto) : '—'}</td>
+              <td className="px-1.5 py-2 text-center">{r.derecho ? <EstadoChip estado={r.derecho.estadoCalculado} esSupuesto={r.derecho.esSupuesto} /> : '—'}</td>
 
               {columnasExtra.map((c) => (
                 <td key={c} className="px-3 py-2">{celdaExtra(r, c)}</td>

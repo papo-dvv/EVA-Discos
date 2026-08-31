@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, CalendarDays, ChevronRight, Disc3, Gauge, Package, Sparkles, TrendingDown } from 'lucide-react'
+import { ArrowLeft, ArrowRight, CalendarDays, ChevronRight, Package, Sparkles } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useMemo, useState } from 'react'
 import { AnimatedNumber } from '../components/AnimatedNumber'
@@ -115,35 +115,32 @@ export function InicioOperativo() {
     <header className="inicio__cabecera"><div><p className="inicio__eyebrow"><Sparkles size={14} /> Centro de decisiones</p><h1>Estado de discos</h1><p>Lectura dinámica de desgaste, kilometraje y cambios de la flota.</p></div><SegmentedControl ariaLabel="Filtrar por fabricante" opciones={OPCIONES_FABRICANTE} valor={fabricante} onCambiar={(v) => setFabricante(v)} /></header>
     <section className="inicio__grid" aria-label="Resumen operativo de discos">
       <article className="inicio-card inicio-card--foto [container-type:inline-size]">
-        <div className="inicio-card__encabezado"><span><TrendingDown size={16} /> Tasa promedio por mes</span></div>
         <div className="inicio-card__foto">
           <img src={imagenes.tasaMensual} alt="" aria-hidden="true" className="inicio-card__foto-img" />
-          <p className="inicio-card__foto-titulo left-[61%] top-[26%]">Tasa promedio por mes</p>
-          <div className="inicio-card__foto-valor left-[61%] top-[60%]">
+          <p className={`inicio-card__foto-titulo top-[32%] ${fabricante === 'ALSTOM' ? 'left-[56%]' : 'left-[55%]'}`}>Tasa promedio por mes</p>
+          <div className={`inicio-card__foto-valor top-[63.5%] ${fabricante === 'ALSTOM' ? 'left-[58%]' : 'left-[57%]'}`}>
             <AnimatedNumber valor={tasaActual} decimales={3} sufijo=" mm" />
             <IndicadorVariacion porcentaje={deltaTasa} sentido="subirEsMalo" />
           </div>
         </div>
       </article>
       <article className="inicio-card inicio-card--foto [container-type:inline-size]">
-        <div className="inicio-card__encabezado"><span><Gauge size={16} /> Km de vida útil por disco</span></div>
         <div className="inicio-card__foto">
           <img src={imagenes.kmProyectado} alt="" aria-hidden="true" className="inicio-card__foto-img" />
-          <p className="inicio-card__foto-titulo left-[61%] top-[26%]">Km de vida útil por disco</p>
-          <div className="inicio-card__foto-valor left-[61%] top-[60%]"><AnimatedNumber valor={kmPorDisco} sufijo=" km" /></div>
+          <p className="inicio-card__foto-titulo left-[55%] top-[31%]">Km de vida útil por disco</p>
+          <div className="inicio-card__foto-valor left-[57%] top-[63.5%]"><AnimatedNumber valor={kmPorDisco} sufijo=" km" /></div>
         </div>
       </article>
       <article className="inicio-card inicio-card--foto [container-type:inline-size]">
-        <div className="inicio-card__encabezado"><span><Disc3 size={16} /> Cambio real vs. proyectado</span><span className="inicio-card__periodo">{mesActivo ? FORMATO_MES.format(fechaMes(mesActivo.mes)) : 'sin periodo'}</span></div>
         <div className="inicio-card__foto">
           <img src={imagenes.cambioReal} alt="" aria-hidden="true" className="inicio-card__foto-img" />
-          <p className={`inicio-card__foto-titulo top-[26%] ${fabricante === 'ALSTOM' ? 'left-[61%]' : 'left-[55%]'}`}>Cambio real vs. proyectado</p>
-          <div className={`inicio-card__foto-valor top-[60%] ${fabricante === 'ALSTOM' ? 'left-[61%]' : 'left-[55%]'}`}>
+          <p className={`inicio-card__foto-titulo ${fabricante === 'ALSTOM' ? 'left-[51%] top-[35%]' : 'left-[49%] top-[31%]'}`}>Cambio real vs. proyectado</p>
+          <div className={`inicio-card__foto-valor ${fabricante === 'ALSTOM' ? 'left-[52%] top-[61%]' : 'left-[50%] top-[57%]'}`}>
             {pctCambioMes === null ? '—' : <AnimatedNumber valor={pctCambioMes} sufijo="%" />}
             <IndicadorVariacion porcentaje={deltaCambio} sentido="subirEsBueno" />
           </div>
         </div>
-        <p className="inicio-card__subtexto">{realesDelMes} reales · {mesActivo?.cambios ?? 0} proyectados este mes</p>
+        <p className="inicio-card__subtexto">{realesDelMes} reales · {mesActivo?.cambios ?? 0} proyectados{mesActivo ? ` · ${FORMATO_MES.format(fechaMes(mesActivo.mes))}` : ''}</p>
       </article>
       <article className="inicio-card inicio-card--urgente"><div className="inicio-card__encabezado"><span><span className="inicio-card__alerta" /> Prioridad de cambio</span><Link to="/proyeccion" aria-label="Ver todos los discos prioritarios"><ChevronRight size={17} /></Link></div><div className="urgentes-lista">{urgentesOrdenados.length ? urgentesOrdenados.map((disco) => <Link to="/proyeccion" className="urgente" key={disco.discId}><span className="disco-3d" aria-hidden><i /></span><span><b>Tren {disco.trenNumero}</b><small>{posicion(disco.posicion)}</small></span><time>{disco.cicloCambio ? FORMATO_FECHA.format(new Date(disco.cicloCambio.fechaEstimada)) : 'revisar'}</time></Link>) : <p className="inicio-card__vacio">Sin discos críticos o en cambio para priorizar.</p>}</div></article>
       <article className="inicio-card"><div className="inicio-card__encabezado"><span><CalendarDays size={16} /> Cambios por fecha</span><span className="inicio-card__periodo">12 meses</span></div><div className="calendario-control"><button type="button" onClick={() => setIndiceMes((valor) => Math.max(0, valor - 1))} aria-label="Mes anterior"><ArrowLeft size={16} /></button><strong>{mesActivo ? FORMATO_MES.format(fechaMes(mesActivo.mes)) : 'Cargando…'}</strong><button type="button" onClick={() => setIndiceMes((valor) => Math.min(meses.length - 1, valor + 1))} aria-label="Mes siguiente"><ArrowRight size={16} /></button></div><div className="calendario-resumen"><span><b><AnimatedNumber valor={mesActivo?.cambios ?? 0} /></b> cambios</span><span><b><AnimatedNumber valor={mesActivo?.reperfilados ?? 0} /></b> reperfilados</span></div><div className="calendario-barras" aria-label="Intensidad de cambios previstos por mes">{meses.slice(0, 8).map((mes) => <span key={mes.mes} data-activo={mes.mes === mesActivo?.mes} style={{ height: `${Math.max(10, ((mes.cambios + mes.reperfilados) / maximo) * 100)}%` }} />)}</div></article>
