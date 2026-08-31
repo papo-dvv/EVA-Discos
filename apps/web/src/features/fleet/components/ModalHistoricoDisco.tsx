@@ -5,6 +5,7 @@ import { ScrollArea } from '../../../components/ScrollArea'
 import { useFleetHistorico } from '../queries'
 import type { FleetDiscoDetalle, FleetHistoricoPunto } from '../types'
 import { DiscoModelo3D } from './DiscoModelo3D'
+import { colorEstado, ESTADO_META } from './estadoVisual'
 
 type Props = {
   disco: FleetDiscoDetalle
@@ -22,6 +23,21 @@ export function ModalHistoricoDisco({ disco, onCerrar }: Props) {
   const historico = useFleetHistorico(disco.codigoDisco, ladoActivo)
   const [metricaActiva, setMetricaActiva] = useState<Metrica>('rd')
   useEffect(() => setLadoActivo(disco.lado), [disco.lado])
+
+  // Sin código resuelto (catálogo de bogies incompleto, ver
+  // ResolverCodigoDiscoService) — useFleetHistorico nunca se dispara
+  // (enabled: Boolean(codigoDisco && lado)), así que no hay serie histórica
+  // que mostrar. El disco SÍ puede tener una medición real (rd/h/t/estado),
+  // que ya viaja completa en `disco` sin depender de ningún código — se
+  // muestra directo, en vez de dejar el modal en blanco esperando una query
+  // que nunca corre.
+  if (!disco.codigoDisco) {
+    return (
+      <GlassModal titulo={`Disco sin código · ${disco.lado}`} onCerrar={onCerrar} ancho={480}>
+        <EstadoActualSinCodigo disco={disco} />
+      </GlassModal>
+    )
+  }
 
   return (
     <GlassModal
@@ -75,6 +91,38 @@ export function ModalHistoricoDisco({ disco, onCerrar }: Props) {
         )}
       </ScrollArea>
     </GlassModal>
+  )
+}
+
+function EstadoActualSinCodigo({ disco }: { disco: FleetDiscoDetalle }) {
+  const color = disco.estadoCalculado ? colorEstado(disco.estadoCalculado) : '#cbd5e1'
+  const etiquetaEstado = disco.estadoCalculado ? ESTADO_META[disco.estadoCalculado].etiqueta : 'Sin datos'
+
+  return (
+    <div className="grid gap-3">
+      <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+        <span className="h-4 w-4 shrink-0 rounded-full" style={{ background: color }} aria-hidden />
+        <div>
+          <p className="font-body text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-slate-500">Estado</p>
+          <p className="font-display text-lg font-bold text-concreto-oscuro">{etiquetaEstado}</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2">
+        <DatoActual metrica="rd" activa etiqueta="Rd" valor={disco.rd} tono="emerald" onSeleccionar={() => {}} />
+        <DatoActual metrica="h" activa={false} etiqueta="H" valor={disco.h} tono="orange" onSeleccionar={() => {}} />
+        <DatoActual metrica="t" activa={false} etiqueta="T" valor={disco.t} tono="violet" onSeleccionar={() => {}} />
+      </div>
+
+      <p className="flex items-center gap-1.5 font-body text-xs text-concreto">
+        <CalendarDays size={13} aria-hidden /> Última medición: {disco.fechaUltimaMedicion ?? 'Sin medición'}
+      </p>
+
+      <p className="rounded-2xl border border-concreto/15 bg-[color:var(--color-arena-suave)] px-3 py-2 font-body text-xs text-concreto">
+        Este disco no tiene un código resuelto en el catálogo de bogies, así que no se puede mostrar su histórico ni el
+        gemelo digital — solo su medición más reciente.
+      </p>
+    </div>
   )
 }
 

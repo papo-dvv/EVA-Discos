@@ -111,16 +111,6 @@ export interface PuntoChartWearRate {
   paresInvalidos: number
 }
 
-// Espejo de PuntoChartTasaPorCoche (backend) — mismo TipoCoche de 6
-// posiciones que ya usa cartillaPdf.ts/ModalPromedioPorTren.tsx, en vez de
-// re-exportar el `TipoCoche` de new-measurement/types.ts (ese incluye
-// también los tipos Ansaldo, que acá nunca vienen: ver comentario del
-// backend en WearRateService.obtenerChartPorTipoCoche).
-export const TIPOS_COCHE_ALSTOM = ['MA1', 'MB1', 'MB3', 'REM', 'MB2', 'MA2'] as const
-export type TipoCocheAlstom = (typeof TIPOS_COCHE_ALSTOM)[number]
-
-export type PuntoChartTasaPorCoche = { mes: string } & Record<TipoCocheAlstom, number | null>
-
 export interface MotivoInvalidezFrecuencia {
   motivo: string
   cantidad: number

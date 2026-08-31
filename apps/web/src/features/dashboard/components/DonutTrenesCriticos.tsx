@@ -2,8 +2,8 @@ import { AlertTriangle, Info } from 'lucide-react'
 import { GlassSurface } from '../../../components/GlassSurface'
 import { WarningTooltip } from '../../../components/WarningTooltip'
 
-const R = 68
-const GROSOR = 24
+const R = 88
+const GROSOR = 30
 const C = 2 * Math.PI * R
 const CENTRO = R + GROSOR / 2 + 4
 
@@ -19,8 +19,9 @@ type Props = {
 // BrakeDiscRulesEngine), así que son los únicos que tiene sentido mostrar acá
 // como "trenes críticos". Técnica clásica de donut con 2 <circle> apiladas y
 // strokeDasharray/strokeDashoffset, sin librería (mismo criterio que el resto
-// de gráficos del proyecto). Layout horizontal (donut + lista) calcado del
-// dashboard de EVA-Aldy — ver styles-eva/dashboard-styles.md.
+// de gráficos del proyecto). Círculo grande y centrado con leyenda debajo,
+// proporción calcada del donut de EVA-Aldy (radio grande relativo al
+// contenedor) — ver trenes-criticos-card.tsx en EVA-Aldy.
 export function DonutTrenesCriticos({ critico, cambio, cargando }: Props) {
   const total = critico + cambio
   const largoCritico = total > 0 ? (critico / total) * C : 0
@@ -46,8 +47,8 @@ export function DonutTrenesCriticos({ critico, cambio, cargando }: Props) {
           <p className="font-body text-sm text-concreto">Sin discos en Crítico o Cambio ahora.</p>
         </div>
       ) : (
-        <div className="flex flex-col items-center gap-6 sm:flex-row sm:justify-center">
-          <svg viewBox={`0 0 ${CENTRO * 2} ${CENTRO * 2}`} className="h-40 w-40 shrink-0" role="img" aria-label={`Trenes críticos: ${critico} discos en estado Crítico, ${cambio} en Cambio`}>
+        <div className="flex flex-col items-center gap-5">
+          <svg viewBox={`0 0 ${CENTRO * 2} ${CENTRO * 2}`} className="h-64 w-64 shrink-0" role="img" aria-label={`Trenes críticos: ${critico} discos en estado Crítico, ${cambio} en Cambio`}>
             <circle cx={CENTRO} cy={CENTRO} r={R} fill="none" stroke="rgba(140,137,127,0.15)" strokeWidth={GROSOR} />
             <circle
               cx={CENTRO}
@@ -72,29 +73,25 @@ export function DonutTrenesCriticos({ critico, cambio, cargando }: Props) {
               strokeLinecap="butt"
               transform={`rotate(-90 ${CENTRO} ${CENTRO})`}
             />
-            <text x={CENTRO} y={CENTRO - 4} textAnchor="middle" fontSize={22} fontWeight={700} fill="var(--color-concreto-oscuro)" className="font-data">
+            <text x={CENTRO} y={CENTRO - 6} textAnchor="middle" fontSize={34} fontWeight={700} fill="var(--color-concreto-oscuro)" className="font-data">
               {total}
             </text>
-            <text x={CENTRO} y={CENTRO + 14} textAnchor="middle" fontSize={9} fill="var(--color-gris-concreto)" className="font-body uppercase tracking-wide">
+            <text x={CENTRO} y={CENTRO + 20} textAnchor="middle" fontSize={12} fill="var(--color-gris-concreto)" className="font-body uppercase tracking-wide">
               discos
             </text>
           </svg>
 
-          <div className="grid w-full max-w-xs grid-cols-2 gap-3 sm:w-auto sm:min-w-[14rem]">
-            <div className="rounded-2xl border p-3" style={{ borderColor: 'color-mix(in srgb, var(--color-estado-critico) 30%, transparent)', background: 'color-mix(in srgb, var(--color-estado-critico) 8%, transparent)' }}>
-              <span className="flex items-center gap-1.5 font-body text-[0.65rem] font-semibold uppercase tracking-wide text-concreto">
-                <span className="h-2.5 w-2.5 rounded-sm" style={{ background: 'var(--color-estado-critico)' }} />
-                Crítico
-              </span>
-              <strong className="mt-1 block font-data text-2xl text-concreto-oscuro">{critico}</strong>
-            </div>
-            <div className="rounded-2xl border p-3" style={{ borderColor: 'color-mix(in srgb, var(--color-estado-cambio) 30%, transparent)', background: 'color-mix(in srgb, var(--color-estado-cambio) 8%, transparent)' }}>
-              <span className="flex items-center gap-1.5 font-body text-[0.65rem] font-semibold uppercase tracking-wide text-concreto">
-                <span className="h-2.5 w-2.5 rounded-sm" style={{ background: 'var(--color-estado-cambio)' }} />
-                Cambio
-              </span>
-              <strong className="mt-1 block font-data text-2xl text-concreto-oscuro">{cambio}</strong>
-            </div>
+          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
+            <span className="flex items-center gap-2 font-body text-xs font-semibold text-concreto">
+              <span className="h-2.5 w-2.5 rounded-sm" style={{ background: 'var(--color-estado-critico)' }} />
+              <span>Crítico</span>
+              <strong className="font-data text-sm text-concreto-oscuro">{critico}</strong>
+            </span>
+            <span className="flex items-center gap-2 font-body text-xs font-semibold text-concreto">
+              <span className="h-2.5 w-2.5 rounded-sm" style={{ background: 'var(--color-estado-cambio)' }} />
+              <span>Cambio</span>
+              <strong className="font-data text-sm text-concreto-oscuro">{cambio}</strong>
+            </span>
           </div>
         </div>
       )}

@@ -45,4 +45,13 @@ export class TraceabilityController {
       query.incluirDetalle,
     );
   }
+
+  // Alimenta el gráfico "Tasa de desgaste mensual por tipo de coche" del
+  // dashboard (ver TraceabilityService.obtenerSeriesPorTipoCoche) — antes
+  // vivía en GET /wear-rate/chart-por-coche, migrado acá para reusar el
+  // mismo motor de consenso que el resto de Trazabilidad.
+  @Get('series-por-tipo-coche')
+  seriesPorTipoCoche() {
+    return this.traceability.obtenerSeriesPorTipoCoche();
+  }
 }

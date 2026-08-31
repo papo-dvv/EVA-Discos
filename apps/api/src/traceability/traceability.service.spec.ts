@@ -27,8 +27,23 @@ function seriesQuery(
 // wear-rate-pairs-query.spec.ts, solo igualdad simple por clave.
 type Fila = Record<string, unknown>;
 
+// Además de igualdad simple, soporta el filtro de rango { lt: Date } que usa
+// TraceabilityService.obtenerSeriesPorTipoCoche() para excluir el mes en
+// curso — el resto del archivo nunca pasa un objeto de rango, así que esto
+// es puramente aditivo (no cambia el comportamiento de ningún test previo).
 function coincide(fila: Fila, where: Fila): boolean {
-  return Object.entries(where).every(([clave, valor]) => fila[clave] === valor);
+  return Object.entries(where).every(([clave, valor]) => {
+    if (
+      valor !== null &&
+      typeof valor === 'object' &&
+      !(valor instanceof Date) &&
+      'lt' in valor
+    ) {
+      const campo = fila[clave];
+      return campo instanceof Date && campo < (valor as { lt: Date }).lt;
+    }
+    return fila[clave] === valor;
+  });
 }
 
 // Interpreta un Prisma.Sql (obtenerSeries usa $queryRaw, no findMany — ver
@@ -73,8 +88,7 @@ function interpretarSql(sql: SqlLike): ValoresInterpretados {
       resultado.kmMax === undefined
     )
       resultado.kmMax = valor as number;
-    else if (antes.endsWith('fecha_2 >='))
-      resultado.desde = valor as Date;
+    else if (antes.endsWith('fecha_2 >=')) resultado.desde = valor as Date;
     else if (antes.endsWith('PERCENTILE_CONT('))
       resultado.fracciones.push(valor as number);
   }
@@ -179,8 +193,7 @@ function crearPrismaConFixture(filas: Fila[]) {
     }
 
     const ordenadas = [...delScope].sort(
-      (a, b) =>
-        (a.fecha2 as Date).getTime() - (b.fecha2 as Date).getTime(),
+      (a, b) => (a.fecha2 as Date).getTime() - (b.fecha2 as Date).getTime(),
     );
     return Promise.resolve(
       ordenadas.map((f) => ({
@@ -1153,5 +1166,130 @@ describe('TraceabilityService.obtenerPromedioPorTren', () => {
     expect(detalleMb1?.conteoParesUsados).toBe(5);
     expect(detalleMb3?.conteoParesUsados).toBe(0);
     expect(detalleMb3?.promedio).toBeNull();
+  });
+});
+
+describe('TraceabilityService.obtenerSeriesPorTipoCoche', () => {
+  // Reemplaza WearRateService.obtenerChartPorTipoCoche() — mismo pipeline de
+  // "dato limpio" que el resto de Trazabilidad (consenso sobre el histórico
+  // COMPLETO del tipo de coche, no por balde mes+tipo).
+  function unMesDelAnioActual(mesIndice: number): Date {
+    return new Date(Date.UTC(new Date().getUTCFullYear(), mesIndice, 15));
+  }
+
+  it('siempre devuelve las 12 filas del año en curso (enero a diciembre), con null en los 6 tipos si no hay ningún par', async () => {
+    const { prisma } = crearPrismaConFixture([]);
+    const servicio = new TraceabilityService(
+      prisma,
+      new TraceabilityStatsService(),
+      crearConsensoConfigFake(),
+      crearAsimetriaConfigFake(),
+      crearProyeccionConfigFake(),
+    );
+
+    const resultado = await servicio.obtenerSeriesPorTipoCoche();
+
+    expect(resultado).toHaveLength(12);
+    const anioActual = new Date().getUTCFullYear();
+    expect(resultado.map((f) => f.mes)).toEqual(
+      Array.from(
+        { length: 12 },
+        (_, i) => `${anioActual}-${String(i + 1).padStart(2, '0')}`,
+      ),
+    );
+    for (const fila of resultado) {
+      expect(fila.MA1).toBeNull();
+      expect(fila.MB1).toBeNull();
+      expect(fila.MB3).toBeNull();
+      expect(fila.REM).toBeNull();
+      expect(fila.MB2).toBeNull();
+      expect(fila.MA2).toBeNull();
+    }
+  });
+
+  it('mismo dataset 1..20 ya verificado en obtenerSummary/obtenerPromedioPorTren (consenso limite={4.8,12.4}) da promedio 9.5 para MA1 en su mes, sin afectar otros tipos', async () => {
+    const mes = unMesDelAnioActual(0); // enero del año en curso
+    const ma1 = Array.from({ length: 20 }, (_, i) =>
+      fila({
+        id: `ma1-${i}`,
+        tipoCoche: 'MA1',
+        tasaMensual: i + 1,
+        fecha2: mes,
+      }),
+    );
+    const { prisma } = crearPrismaConFixture(ma1);
+    const servicio = new TraceabilityService(
+      prisma,
+      new TraceabilityStatsService(),
+      crearConsensoConfigFake(),
+      crearAsimetriaConfigFake(),
+      crearProyeccionConfigFake(),
+    );
+
+    const resultado = await servicio.obtenerSeriesPorTipoCoche();
+    const filaEnero = resultado.find(
+      (f) => f.mes === `${mes.getUTCFullYear()}-01`,
+    )!;
+
+    expect(filaEnero.MA1).toBeCloseTo(9.5, 9);
+    expect(filaEnero.MB1).toBeNull();
+  });
+
+  it('menos de CONTEO_MINIMO (20) pares históricos para un tipo de coche -> ese tipo sale null en todos los meses', async () => {
+    const mes = unMesDelAnioActual(0);
+    const ma1 = Array.from({ length: 19 }, (_, i) =>
+      fila({
+        id: `ma1-${i}`,
+        tipoCoche: 'MA1',
+        tasaMensual: i + 1,
+        fecha2: mes,
+      }),
+    );
+    const { prisma } = crearPrismaConFixture(ma1);
+    const servicio = new TraceabilityService(
+      prisma,
+      new TraceabilityStatsService(),
+      crearConsensoConfigFake(),
+      crearAsimetriaConfigFake(),
+      crearProyeccionConfigFake(),
+    );
+
+    const resultado = await servicio.obtenerSeriesPorTipoCoche();
+
+    expect(resultado.every((f) => f.MA1 === null)).toBe(true);
+  });
+
+  it('el mes calendario en curso nunca entra (todavía sin cerrar), igual que WearRateService.obtenerChart', async () => {
+    const ahora = new Date();
+    const mesActual = new Date(
+      Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth(), 15),
+    );
+    const ma1 = Array.from({ length: 20 }, (_, i) =>
+      fila({
+        id: `ma1-actual-${i}`,
+        tipoCoche: 'MA1',
+        tasaMensual: i + 1,
+        fecha2: mesActual,
+      }),
+    );
+    const { prisma, findManyMock } = crearPrismaConFixture(ma1);
+    const servicio = new TraceabilityService(
+      prisma,
+      new TraceabilityStatsService(),
+      crearConsensoConfigFake(),
+      crearAsimetriaConfigFake(),
+      crearProyeccionConfigFake(),
+    );
+
+    const resultado = await servicio.obtenerSeriesPorTipoCoche();
+
+    // Las 20 filas del mes en curso quedan excluidas por el where -> el fake
+    // de Prisma no devuelve nada -> menos de CONTEO_MINIMO -> MA1 null en
+    // todos los meses.
+    expect(resultado.every((f) => f.MA1 === null)).toBe(true);
+    const wheresConTipo = findManyMock.mock.calls
+      .map(([args]: [{ where: Fila }]) => args.where)
+      .filter((w: Fila) => w.tipoCoche === 'MA1');
+    expect(wheresConTipo.length).toBeGreaterThan(0);
   });
 });

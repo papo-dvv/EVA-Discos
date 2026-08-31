@@ -36,6 +36,11 @@ export interface LadoFilaEspejo {
   // una fila vacía o de solo lectura. kmInvalido/fechaInvalido (a nivel
   // ficha, no de esta fila) viajan aparte — ver PreviewFichaResult.
   motivos: MotivoInvalido[]
+  // Fecha del propio ScanRecord de este lado — null en una fila vacía. No la
+  // usa TablaFichaEspejo (que no muestra fecha por celda), pero sí
+  // ModalCompararCoche.tsx: cada rueda puede tener su propia última medición
+  // confirmada en una fecha distinta (ver ultimaMedicion en el backend).
+  fecha: string | null
 }
 
 export interface FilaEspejo {
@@ -63,6 +68,7 @@ function ladoVacio(pos: PosicionEsqueleto): LadoFilaEspejo {
     rdInvalido: false,
     antesInvalido: false,
     motivos: [],
+    fecha: null,
   }
 }
 
@@ -82,7 +88,43 @@ function ladoDeFila(pos: PosicionEsqueleto, fila: PreviewRow): LadoFilaEspejo {
     rdInvalido: fila.rdInvalido,
     antesInvalido: fila.antesInvalido,
     motivos: fila.motivos,
+    fecha: fila.fecha,
   }
+}
+
+export function claveCocheDe(fila: Pick<FilaEspejo, 'tipoCoche' | 'numeroCoche'>): string {
+  return `${fila.tipoCoche}|${fila.numeroCoche ?? ''}`
+}
+
+// Partición invalidas/válidas ACOTADA a cada coche — a diferencia de un
+// filter/filter global (que mezclaría, ej., una rueda inválida de MB2 por
+// encima de todas las de MA1), esto agrupa primero por coche (asumiendo que
+// `filas` ya viene con los coches contiguos, cierto para cualquier array que
+// salga de construirFilasEspejo) y solo reordena DENTRO de cada grupo — el
+// orden de los 6 coches entre sí nunca cambia. Genérica sobre T porque
+// TablaFichaEspejo la usa con FilaEspejoVisible (motivosVisibles calculados),
+// no con FilaEspejo crudo.
+export function ordenarPorVerificacionPorCoche<T extends FilaEspejo>(
+  filas: T[],
+  esInvalida: (fila: T) => boolean,
+): T[] {
+  const grupos: T[][] = []
+  const indicePorClave = new Map<string, number>()
+  for (const fila of filas) {
+    const clave = claveCocheDe(fila)
+    let indice = indicePorClave.get(clave)
+    if (indice === undefined) {
+      indice = grupos.length
+      grupos.push([])
+      indicePorClave.set(clave, indice)
+    }
+    grupos[indice].push(fila)
+  }
+  return grupos.flatMap((grupo) => {
+    const invalidas = grupo.filter(esInvalida)
+    const validas = grupo.filter((fila) => !esInvalida(fila))
+    return [...invalidas, ...validas]
+  })
 }
 
 export function construirFilasEspejo(

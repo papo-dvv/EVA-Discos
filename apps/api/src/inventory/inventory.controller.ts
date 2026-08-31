@@ -66,6 +66,12 @@ export class InventoryController {
     return this.inventory.obtenerCambiosDiscoAnio();
   }
 
+  @Get('cambios-reales-por-mes')
+  @Roles(...ROLES_LECTURA)
+  cambiosRealesPorMes() {
+    return this.inventory.obtenerCambiosRealesPorMes();
+  }
+
   @Post()
   @Roles(...ROLES_ESCRITURA)
   registrar(@Body() dto: RegistrarEjeDto) {

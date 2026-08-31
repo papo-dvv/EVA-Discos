@@ -1,6 +1,7 @@
 import {
   ClipboardList,
   Gauge,
+  History,
   LayoutDashboard,
   LineChart,
   PackageSearch,
@@ -45,6 +46,7 @@ export const SECCIONES_SIDEBAR: SeccionSidebar[] = [
       { etiqueta: 'Trazabilidad', ruta: '/trazabilidad', icono: LineChart },
       { etiqueta: 'Tasa de desgaste', ruta: '/tasa-desgaste', icono: Gauge },
       { etiqueta: 'Proyección', ruta: '/proyeccion', icono: TrendingUp },
+      { etiqueta: 'Historial', ruta: '/historial', icono: History },
     ],
   },
   {

@@ -151,6 +151,23 @@ export class NewMeasurementService {
     private readonly history: NewMeasurementHistoryService,
   ) {}
 
+  // Card "Archivos subidos (mediciones cargadas)" de Trenes Críticos —
+  // cuenta UploadedFile de tipo ficha_medicion_individual ya confirmados
+  // (status='committed'), sin importar tren/fabricante: es un indicador de
+  // actividad de carga, no de flota. uploadedAt es la fecha de subida real,
+  // no fechaFicha (que puede ser retroactiva).
+  async contarSubidasRecientes(dias = 30): Promise<number> {
+    const desde = new Date();
+    desde.setDate(desde.getDate() - dias);
+    return this.prisma.uploadedFile.count({
+      where: {
+        tipoCarga: 'ficha_medicion_individual',
+        status: 'committed',
+        uploadedAt: { gte: desde },
+      },
+    });
+  }
+
   async subirCsv(
     archivo: Express.Multer.File,
     dto: UploadCsvDto,

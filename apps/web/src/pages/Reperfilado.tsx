@@ -106,13 +106,26 @@ function mensajeConfirmarBloqueado(
   responsableVacio: boolean,
   cabeceraIncompleta: boolean,
   problemaInstrumentosFicha: string | null,
+  tecnicosSinCargo: boolean,
 ): string {
   const faltantes: string[] = []
   if (!tablaBloqueada) faltantes.push('bloquear la tabla de reperfilado')
   if (responsableVacio) faltantes.push('completar el Responsable de Mantenimiento')
   if (cabeceraIncompleta) faltantes.push('completar el P.T. y la fecha/hora de inicio')
   if (problemaInstrumentosFicha) faltantes.push(problemaInstrumentosFicha)
+  if (tecnicosSinCargo) faltantes.push('completar el Cargo de los técnicos con nombre o firma registrados')
   return `Falta ${juntarConY(faltantes)} para poder confirmar la ficha.`
+}
+
+// Un técnico de la tabla de firmas (Cargo|Nombre|Firma) con nombre y/o firma
+// ya cargados pero sin Cargo — igual que bloquePersonaIncompleto (FooterFicha.tsx)
+// pero acotado a este único campo, a pedido explícito del usuario: el Cargo
+// pasa a ser obligatorio para poder confirmar/descargar, no solo informativo.
+function tecnicoSinCargo(tecnico: { cargo: string | null; nombre: string | null; firma: string | null }): boolean {
+  const cargo = tecnico.cargo?.trim() ?? ''
+  const nombre = tecnico.nombre?.trim() ?? ''
+  const firma = tecnico.firma?.startsWith('data:image/') ? tecnico.firma : ''
+  return cargo === '' && (nombre !== '' || firma !== '')
 }
 
 function mensajeEstadoVerificacion(
@@ -178,11 +191,14 @@ export function Reperfilado({
     !ficha?.puestoTrabajo?.trim() ||
     !ficha?.fechaHoraInicio
   const problemaInstrumentosFicha = ficha ? problemaInstrumentos(ficha.instrumentos, ficha.fechaFicha) : null
-  const puedeConfirmar = tablaBloqueada && !responsableVacio && !cabeceraIncompleta && !problemaInstrumentosFicha
+  const tecnicosSinCargo = (ficha?.tecnicos ?? []).slice(0, 3).some(tecnicoSinCargo)
+  const puedeConfirmar = tablaBloqueada && !responsableVacio && !cabeceraIncompleta && !problemaInstrumentosFicha && !tecnicosSinCargo
   // Descargar PDF solo tiene sentido con la tabla ya bloqueada (Verificar) y
   // el Supervisor/Coordinador/Técnico Especialista (última fila de la tabla
   // de firmas) completo — antes de eso el PDF saldría con datos a medio llenar.
-  const puedeDescargarPdf = tablaBloqueada && !responsableVacio
+  // El Cargo de los técnicos (filas 1-3) cuenta igual: con nombre o firma
+  // pero sin cargo, el PDF saldría con esa fila a medio llenar también.
+  const puedeDescargarPdf = tablaBloqueada && !responsableVacio && !tecnicosSinCargo
   const motivosValidacion = resultado
     ? [
         resultado.kmInvalido?.motivo,
@@ -514,7 +530,13 @@ export function Reperfilado({
                     Descargar PDF
                   </GlassButton>
                 ) : (
-                  <WarningTooltip texto="Bloquea la tabla con Verificar y completa el Supervisor / Coordinador / Técnico Especialista para poder descargar el PDF.">
+                  <WarningTooltip
+                    texto={
+                      tecnicosSinCargo
+                        ? 'Completa el Cargo de los técnicos con nombre o firma registrados para poder descargar el PDF.'
+                        : 'Bloquea la tabla con Verificar y completa el Supervisor / Coordinador / Técnico Especialista para poder descargar el PDF.'
+                    }
+                  >
                     <GlassButton
                       type="button"
                       variante="secundario"
@@ -534,7 +556,7 @@ export function Reperfilado({
                     Confirmar ficha
                   </GlassButton>
                 ) : (
-                  <WarningTooltip texto={mensajeConfirmarBloqueado(tablaBloqueada, responsableVacio, cabeceraIncompleta, problemaInstrumentosFicha)}>
+                  <WarningTooltip texto={mensajeConfirmarBloqueado(tablaBloqueada, responsableVacio, cabeceraIncompleta, problemaInstrumentosFicha, tecnicosSinCargo)}>
                     <GlassButton
                       aria-disabled="true"
                       className="cursor-not-allowed opacity-60"

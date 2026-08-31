@@ -176,3 +176,12 @@ export interface PromedioPorTrenItem {
   datosLimitados: boolean
   porTipoCoche?: PromedioPorTrenTipoCocheItem[]
 }
+
+// Espejo de PuntoTasaPorTipoCoche (backend, TraceabilityService.obtenerSeriesPorTipoCoche)
+// — reemplaza el equivalente que antes vivía en wear-rate/types.ts
+// (PuntoChartTasaPorCoche, alimentado por WearRateService.obtenerChartPorTipoCoche).
+// Mismo TipoCoche de 6 valores Alstom que consume GraficoTasaPorCoche.tsx —
+// Ansaldo (M20/M21/M22) queda fuera, mismo criterio que el resto del módulo.
+export const TIPOS_COCHE_ALSTOM = ['MA1', 'MB1', 'MB3', 'REM', 'MB2', 'MA2'] as const
+export type TipoCocheAlstom = (typeof TIPOS_COCHE_ALSTOM)[number]
+export type PuntoTasaPorTipoCoche = { mes: string } & Record<TipoCocheAlstom, number | null>

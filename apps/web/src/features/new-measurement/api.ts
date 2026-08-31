@@ -295,3 +295,12 @@ export async function obtenerHistorialMediciones(limit = 50, motivo?: MotivoFich
   })
   return data
 }
+
+// Card "Archivos subidos" de Trenes Críticos (dashboard) — cuenta fichas de
+// medición confirmadas subidas en los últimos N días, fleet-wide.
+export async function obtenerSubidasRecientesCount(dias = 30): Promise<number> {
+  const { data } = await apiClient.get<{ total: number }>('/new-measurement/subidas-recientes-count', {
+    params: { dias },
+  })
+  return data.total
+}

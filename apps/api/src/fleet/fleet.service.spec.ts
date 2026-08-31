@@ -158,6 +158,79 @@ describe('FleetService', () => {
     });
   });
 
+  it('resumenTrenesCriticos calcula score compuesto, disco de menor Rd y promedio fleet-wide', async () => {
+    const prisma = {
+      brakeDisc: {
+        findMany: jest.fn().mockResolvedValue([
+          // Tren 6: 1 CRITICO (rd=-0.1) + 1 CAMBIO (rd=0.3) -> score 3*1+1=4
+          {
+            bogieCodigo: 'PB3',
+            ejeNumero: 1,
+            wagonUnit: { tipoCoche: 'MA1', tren: { numero: 6 } },
+            scanRecords: [{ rdValue: -0.1, hValue: 0 }],
+          },
+          {
+            bogieCodigo: 'PB3',
+            ejeNumero: 2,
+            wagonUnit: { tipoCoche: 'MA1', tren: { numero: 6 } },
+            scanRecords: [{ rdValue: 0.3, hValue: 0 }],
+          },
+          // Tren 7: 2 CAMBIO -> score 1*2=2 (menor que tren 6)
+          {
+            bogieCodigo: 'PB1',
+            ejeNumero: 1,
+            wagonUnit: { tipoCoche: 'MB1', tren: { numero: 7 } },
+            scanRecords: [{ rdValue: 0.35, hValue: 0 }],
+          },
+          {
+            bogieCodigo: 'PB1',
+            ejeNumero: 2,
+            wagonUnit: { tipoCoche: 'MB1', tren: { numero: 7 } },
+            scanRecords: [{ rdValue: 0.38, hValue: 0 }],
+          },
+          // Tren 8: OK, no cuenta como crítico ni afecta el score
+          {
+            bogieCodigo: 'PB2',
+            ejeNumero: 1,
+            wagonUnit: { tipoCoche: 'MB2', tren: { numero: 8 } },
+            scanRecords: [{ rdValue: 1.2, hValue: 0 }],
+          },
+        ]),
+      },
+    };
+    const service = crearService(prisma);
+
+    const resumen = await service.resumenTrenesCriticos();
+
+    expect(resumen.trenesConDiscosCriticos).toBe(2); // trenes 6 y 7
+    expect(resumen.discosCriticosTotales).toBe(4); // 1+1 (tren6) + 2 (tren7)
+    expect(resumen.trenMasCritico).toMatchObject({
+      trenNumero: 6,
+      discosCriticos: 1,
+      discosCambio: 1,
+      rdMinimo: -0.1,
+    });
+    expect(resumen.discoMenorRd).toMatchObject({ trenNumero: 6, rd: -0.1 });
+    expect(resumen.rdPromedio).toBeCloseTo((-0.1 + 0.3 + 0.35 + 0.38 + 1.2) / 5, 6);
+  });
+
+  it('resumenTrenesCriticos filtra por fabricante vía Train.modelo', async () => {
+    const prisma = { brakeDisc: { findMany: jest.fn().mockResolvedValue([]) } };
+    const service = crearService(prisma);
+
+    await service.resumenTrenesCriticos('ansaldo_mb300' as any);
+
+    expect(prisma.brakeDisc.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          wagonUnit: expect.objectContaining({
+            tren: expect.objectContaining({ modelo: 'ansaldo_mb300' }),
+          }),
+        }),
+      }),
+    );
+  });
+
   it('histórico de un disco específico no mezcla el otro lado', async () => {
     const prisma = {
       brakeDisc: {

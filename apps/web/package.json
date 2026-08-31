@@ -15,6 +15,7 @@
     "@tanstack/react-table": "^8.21.3",
     "@tanstack/react-virtual": "^3.14.8",
     "axios": "^1.18.1",
+    "html-to-image": "^1.11.13",
     "lucide-react": "^1.27.0",
     "pdf-lib": "^1.17.1",
     "qs": "^6.15.3",

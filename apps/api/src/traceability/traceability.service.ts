@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma, TipoCoche } from '../../generated/prisma';
 import { agruparPorMes, ordenarPorMes } from '../common/agrupar-por-mes';
+import { ORDEN_COCHE_FLOTA, type CocheFlota } from '../fleet/fleet.constants';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   ProyeccionConfigService,
@@ -146,6 +147,14 @@ export type TraceabilitySeriesResult =
 
 export type TraceabilitySeriesResponse =
   TraceabilitySeriesInsuficiente | TraceabilitySeriesResult;
+
+// mm/mes promedio por mes calendario, un campo por tipo de coche — ver
+// obtenerSeriesPorTipoCoche(). null cuando ese mes no tiene pares
+// suficientes (o ninguno) de ese tipo de coche.
+export type PuntoTasaPorTipoCoche = { mes: string } & Record<
+  CocheFlota,
+  number | null
+>;
 
 // Mismo desglose que PromedioPorTrenItem pero acotado a un tipoCoche
 // específico DENTRO de un tren (solo presente si incluirDetalle=true) — 6
@@ -410,6 +419,80 @@ export class TraceabilityService {
     };
   }
 
+  // Serie mensual de tasa de desgaste por tipo de coche (MA1/MB1/MB3/REM/
+  // MB2/MA2, ORDEN_COCHE_FLOTA — Ansaldo queda fuera, mismo criterio que el
+  // resto del módulo), para el gráfico "Tasa de desgaste mensual por tipo de
+  // coche" del dashboard. Reemplaza el cálculo que antes vivía en
+  // WearRateService.obtenerChartPorTipoCoche(): ese endpoint duplicaba su
+  // propio consenso Gauss∩Percentiles∩Tukey POR BALDE mes+tipo de coche, lo
+  // que lo hacía frágil ante un balde internamente sesgado (un mes con
+  // pares mezclados de intervalo corto y largo disparaba el promedio muy por
+  // encima de los meses vecinos — requirió parches sucesivos: umbral de
+  // diferenciaKm, salvaguarda de muestra mínima, etc.). Acá se reutiliza tal
+  // cual el mismo pipeline de /traceability/series: el consenso de cada tipo
+  // de coche se calcula UNA sola vez sobre su HISTÓRICO COMPLETO (estable,
+  // no depende de qué tan sesgado esté un mes puntual), y cada par se
+  // clasifica (normal/recortado/excluido) contra esos límites fijos antes de
+  // promediar por mes — mismo criterio de "dato limpio" que el resto de
+  // Trazabilidad.
+  //
+  // Siempre devuelve las 12 filas del año calendario en curso (enero a
+  // diciembre) para que el gráfico arranque en enero — el mes en curso
+  // nunca trae dato real (mismo criterio que WearRateService.obtenerChart:
+  // todavía está acumulando pares) y sale en null, igual que cualquier mes
+  // futuro sin pares aún.
+  async obtenerSeriesPorTipoCoche(): Promise<PuntoTasaPorTipoCoche[]> {
+    const anioActual = new Date().getUTCFullYear();
+    const inicioMesActual = this.inicioMesActualUtc();
+    const { fracciones, epsilon } = await this.obtenerConfigConsenso();
+
+    const promedioPorMesYTipo = new Map<CocheFlota, Map<string, number>>();
+    for (const tipoCoche of ORDEN_COCHE_FLOTA) {
+      const filas = await this.prisma.wearRatePair.findMany({
+        where: { esValido: true, tipoCoche, fecha2: { lt: inicioMesActual } },
+        select: { tasaMensual: true, fecha2: true },
+      });
+      const valores = filas.map((f) => Number(f.tasaMensual));
+      if (valores.length < CONTEO_MINIMO) continue;
+
+      const { consenso } = this.calcularMetodosCon(
+        valores,
+        fracciones,
+        epsilon,
+      );
+      const clasificados = this.stats.clasificarYLimpiarSerie(
+        filas.map((f) => ({ fecha: f.fecha2, valor: Number(f.tasaMensual) })),
+        consenso.limiteConsenso,
+        consenso.extremoConsenso,
+      );
+      const mensual = this.agregarPorMes(clasificados);
+      promedioPorMesYTipo.set(
+        tipoCoche,
+        new Map(mensual.map((p) => [p.mes, p.promedioValorLimpio])),
+      );
+    }
+
+    return Array.from({ length: 12 }, (_, i) => {
+      const mes = new Date(Date.UTC(anioActual, i, 1))
+        .toISOString()
+        .slice(0, 7);
+      const fila = { mes } as PuntoTasaPorTipoCoche;
+      for (const tipoCoche of ORDEN_COCHE_FLOTA) {
+        fila[tipoCoche] = promedioPorMesYTipo.get(tipoCoche)?.get(mes) ?? null;
+      }
+      return fila;
+    });
+  }
+
+  // Primer instante (UTC) del mes calendario en curso — mismo criterio que
+  // WearRateService.inicioMesActualUtc(), duplicado acá a propósito: son
+  // servicios de módulos distintos, sin una dependencia compartida que
+  // justifique extraerlo (un solo `new Date(Date.UTC(...))`).
+  private inicioMesActualUtc(): Date {
+    const ahora = new Date();
+    return new Date(Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth(), 1));
+  }
+
   // Aplica el rango de km de PROYECCIÓN (proyeccion_km_rango_min/max, MISMO
   // parámetro que ProyeccionRateService — reutilizado tal cual, nunca
   // duplicado) — mismo criterio de filtrarPorRangoKm en /summary, /series Y
@@ -493,7 +576,11 @@ export class TraceabilityService {
       extremoInferior: q1 - 3 * iqr,
       extremoSuperior: q3 + 3 * iqr,
     };
-    const consensoBruto = this.stats.calcularConsenso(gauss, percentiles, tukey);
+    const consensoBruto = this.stats.calcularConsenso(
+      gauss,
+      percentiles,
+      tukey,
+    );
     const consenso = this.stats.aplicarPisoExtremoInferior(
       consensoBruto,
       epsilon,
@@ -503,7 +590,9 @@ export class TraceabilityService {
     const condicionFecha = desde
       ? Prisma.sql`AND fecha_2 >= ${desde}`
       : Prisma.empty;
-    const filasPeriodo = await this.prisma.$queryRaw<FilaPeriodoSqlRow[]>(Prisma.sql`
+    const filasPeriodo = await this.prisma.$queryRaw<
+      FilaPeriodoSqlRow[]
+    >(Prisma.sql`
       SELECT fecha_2 AS "fecha2", (tasa_mensual)::float8 AS "tasaMensual"
       FROM wear_rate_pairs
       WHERE es_valido = true ${condiciones} ${condicionFecha}

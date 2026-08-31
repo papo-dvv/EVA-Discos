@@ -1,5 +1,6 @@
 import { apiClient } from '../../lib/apiClient'
-import type { FleetDetalle, FleetHistoricoDisco, FleetSummaryItem } from './types'
+import type { Fabricante } from '../inventory/types'
+import type { FleetDetalle, FleetHistoricoDisco, FleetSummaryItem, ResumenTrenesCriticos } from './types'
 
 export async function obtenerFleetSummary(): Promise<FleetSummaryItem[]> {
   const { data } = await apiClient.get<FleetSummaryItem[]>('/fleet/summary')
@@ -18,5 +19,12 @@ export async function obtenerFleetHistoricoDisco(
   const { data } = await apiClient.get<FleetHistoricoDisco>(
     `/fleet/disco/${encodeURIComponent(codigoDisco)}/${encodeURIComponent(lado)}/historico`,
   )
+  return data
+}
+
+export async function obtenerResumenTrenesCriticos(fabricante?: Fabricante): Promise<ResumenTrenesCriticos> {
+  const { data } = await apiClient.get<ResumenTrenesCriticos>('/fleet/trenes-criticos-resumen', {
+    params: fabricante ? { fabricante } : undefined,
+  })
   return data
 }

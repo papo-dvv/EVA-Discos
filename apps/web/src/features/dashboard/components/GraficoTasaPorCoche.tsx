@@ -2,7 +2,8 @@ import { Info, TrendingDown } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { GlassSurface } from '../../../components/GlassSurface'
 import { WarningTooltip } from '../../../components/WarningTooltip'
-import { TIPOS_COCHE_ALSTOM, type PuntoChartTasaPorCoche, type TipoCocheAlstom } from '../../wear-rate/types'
+import { TIPOS_COCHE_ALSTOM, type PuntoTasaPorTipoCoche, type TipoCocheAlstom } from '../../traceability/types'
+import type { PuntoChartWearRate } from '../../wear-rate/types'
 
 // Mismo criterio "SVG propio, sin librería" que GraficoTasaMensual.tsx (no
 // hay ninguna instalada en el proyecto) — acá con 6 series en vez de 1, una
@@ -47,23 +48,43 @@ function formatearMes(mes: string): string {
 }
 
 // El backend siempre devuelve los 12 meses del año (enero a diciembre, ver
-// WearRateService.obtenerChartPorTipoCoche) para que el gráfico arranque en
-// enero cuando SÍ hay datos ahí — pero si el primer par válido del año
+// TraceabilityService.obtenerSeriesPorTipoCoche) para que el gráfico arranque
+// en enero cuando SÍ hay datos ahí — pero si el primer par válido del año
 // recién aparece en, por ejemplo, marzo, mostrar enero/febrero vacíos deja
 // un hueco muerto al inicio que se lee como un gráfico roto/cortado. Se
 // recortan solo los meses de ARRANQUE sin ningún dato (de cualquier tipo de
 // coche); los meses futuros sin dato todavía (después del mes en curso) se
 // conservan tal cual, para que la línea de "Hoy" siga teniendo contexto.
-function recortarInicioVacio(puntos: PuntoChartTasaPorCoche[]): PuntoChartTasaPorCoche[] {
-  const primerIndiceConDato = puntos.findIndex((p) => TIPOS_COCHE_ALSTOM.some((t) => p[t] !== null))
+// Une, por mes, el promedio fleet-wide que ya trae /wear-rate/chart (la misma
+// fuente de la KPI "Tasa promedio por mes") al set de series por coche — sin
+// pedirle nada nuevo al backend.
+type PuntoConPromedio = PuntoTasaPorTipoCoche & { promedio: number | null }
+
+function mezclarPromedio(puntos: PuntoTasaPorTipoCoche[], promedioFlota: PuntoChartWearRate[]): PuntoConPromedio[] {
+  const mapa = new Map(promedioFlota.map((p) => [p.mes, p.tasaMensualPromedio]))
+  return puntos.map((p) => ({ ...p, promedio: mapa.get(p.mes) ?? null }))
+}
+
+function recortarInicioVacio(puntos: PuntoConPromedio[]): PuntoConPromedio[] {
+  const primerIndiceConDato = puntos.findIndex((p) => TIPOS_COCHE_ALSTOM.some((t) => p[t] !== null) || p.promedio !== null)
   return primerIndiceConDato <= 0 ? puntos : puntos.slice(primerIndiceConDato)
 }
 
-function calcularGeometria(puntos: PuntoChartTasaPorCoche[]) {
+// mesActualIdx: índice del mes calendario EN CURSO dentro de `puntos` (el
+// backend siempre lo incluye como null — todavía no cierra, ver comentario de
+// arriba). Cada serie que termina justo un mes antes agrega un tramo extra
+// PUNTEADO (mismo valor que su último dato real, en línea recta) desde ese
+// último punto hasta el mes en curso — así la línea "llega hasta hoy" en vez
+// de cortarse en seco en julio, sin inventar un dato real para agosto (pedido
+// explícito: truncar en julio por falta de datos, pero visualizarlo partido
+// por guiones en vez de con un hueco muerto al final).
+function calcularGeometria(puntos: PuntoConPromedio[], mesActualIdx: number) {
   const anchoUtil = ANCHO - MARGEN.left - MARGEN.right
   const altoUtil = ALTO - MARGEN.top - MARGEN.bottom
 
-  const valores = puntos.flatMap((p) => TIPOS_COCHE_ALSTOM.map((t) => p[t]).filter((v): v is number => v !== null))
+  const valores = puntos.flatMap((p) =>
+    [...TIPOS_COCHE_ALSTOM.map((t) => p[t]), p.promedio].filter((v): v is number => v !== null),
+  )
   const minDato = valores.length ? Math.min(...valores) : 0
   const maxDato = valores.length ? Math.max(...valores) : 1
   const rangoDatos = maxDato - minDato || maxDato || 1
@@ -84,8 +105,25 @@ function calcularGeometria(puntos: PuntoChartTasaPorCoche[]) {
     const conValor = nodos.filter((n): n is { x: number; y: number; valor: number } => n.y !== null)
     const path = conValor.map((n, i) => `${i === 0 ? 'M' : 'L'} ${n.x.toFixed(1)} ${n.y.toFixed(1)}`).join(' ')
     const ultimo = conValor.at(-1) ?? null
-    return { tipo, nodos, path, ultimo }
+    const ultimoIdx = ultimo ? nodos.findIndex((n) => n === ultimo) : -1
+    const colaPunteada =
+      ultimo && mesActualIdx > ultimoIdx
+        ? `M ${ultimo.x.toFixed(1)} ${ultimo.y.toFixed(1)} L ${escalaX(mesActualIdx).toFixed(1)} ${ultimo.y.toFixed(1)}`
+        : null
+    return { tipo, nodos, path, ultimo, colaPunteada }
   })
+
+  const nodosPromedio = puntos.map((p, i) => ({
+    x: escalaX(i),
+    y: p.promedio !== null ? escalaY(p.promedio) : null,
+    valor: p.promedio,
+  }))
+  const conValorPromedio = nodosPromedio.filter((n): n is { x: number; y: number; valor: number } => n.y !== null)
+  const seriePromedio = {
+    nodos: nodosPromedio,
+    path: conValorPromedio.map((n, i) => `${i === 0 ? 'M' : 'L'} ${n.x.toFixed(1)} ${n.y.toFixed(1)}`).join(' '),
+    ultimo: conValorPromedio.at(-1) ?? null,
+  }
 
   const yTicks = Array.from({ length: N_TICKS_Y + 1 }, (_, i) => {
     const valor = min + (rango * i) / N_TICKS_Y
@@ -95,21 +133,36 @@ function calcularGeometria(puntos: PuntoChartTasaPorCoche[]) {
   const pasoEtiqueta = Math.max(1, Math.ceil(puntos.length / 8))
   const xs = puntos.map((_, i) => escalaX(i))
 
-  return { series, yTicks, pasoEtiqueta, xs }
+  return { series, seriePromedio, yTicks, pasoEtiqueta, xs }
 }
 
 type Props = {
-  puntos: PuntoChartTasaPorCoche[]
+  puntos: PuntoTasaPorTipoCoche[]
+  promedioFlota: PuntoChartWearRate[]
   cargando: boolean
 }
 
-export function GraficoTasaPorCoche({ puntos: puntosCompletos, cargando }: Props) {
+export function GraficoTasaPorCoche({ puntos: puntosCompletos, promedioFlota, cargando }: Props) {
   const [activo, setActivo] = useState<number | null>(null)
   const [ocultas, setOcultas] = useState<Set<TipoCocheAlstom>>(() => new Set())
-  const puntos = useMemo(() => recortarInicioVacio(puntosCompletos), [puntosCompletos])
-  const { series, yTicks, pasoEtiqueta, xs } = useMemo(() => calcularGeometria(puntos), [puntos])
-  const mesActual = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`
+  const [ocultoPromedio, setOcultoPromedio] = useState(false)
+  const puntos = useMemo(
+    () => recortarInicioVacio(mezclarPromedio(puntosCompletos, promedioFlota)),
+    [puntosCompletos, promedioFlota],
+  )
+  // "Hoy" apunta al mes calendario EN CURSO (siempre presente en `puntos`,
+  // aunque venga null: el backend nunca lo cierra — ver comentario de
+  // calcularGeometria). Es también hasta dónde llega el tramo punteado de
+  // cada serie.
+  const mesActual = useMemo(() => {
+    const fecha = new Date()
+    return `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`
+  }, [])
   const indiceHoy = puntos.findIndex((p) => p.mes === mesActual)
+  const { series, seriePromedio, yTicks, pasoEtiqueta, xs } = useMemo(
+    () => calcularGeometria(puntos, indiceHoy),
+    [puntos, indiceHoy],
+  )
 
   function alternar(tipo: TipoCocheAlstom) {
     setOcultas((prev) => {
@@ -127,7 +180,7 @@ export function GraficoTasaPorCoche({ puntos: puntosCompletos, cargando }: Props
         <h3 className="font-display text-base font-semibold text-concreto-oscuro">
           Tasa de desgaste mensual por tipo de coche
         </h3>
-        <WarningTooltip texto="Promedio mensual de mm de desgaste por par de mediciones válido, desglosado por tipo de coche. Solo el año en curso. Clic en la leyenda oculta/muestra una línea.">
+        <WarningTooltip texto="Promedio mensual de mm de desgaste por par de mediciones válido, desglosado por tipo de coche (dato limpio de Trazabilidad: consenso Gauss∩Percentiles∩Tukey sobre el histórico completo de cada tipo). Solo el año en curso. El tramo punteado hasta hoy repite el último valor real — el mes en curso todavía no tiene datos cerrados. Clic en la leyenda oculta/muestra una línea.">
           <Info size={14} className="text-concreto" aria-label="Más información" />
         </WarningTooltip>
       </div>
@@ -149,6 +202,18 @@ export function GraficoTasaPorCoche({ puntos: puntosCompletos, cargando }: Props
             </button>
           )
         })}
+        <button
+          type="button"
+          onClick={() => setOcultoPromedio((v) => !v)}
+          aria-pressed={!ocultoPromedio}
+          className={`flex items-center gap-1.5 rounded-full px-2 py-1 transition-colors ${ocultoPromedio ? 'text-concreto opacity-45' : 'text-concreto-oscuro hover:bg-black/[0.03]'}`}
+        >
+          <span
+            className="h-0 w-3 border-t-2 border-dashed"
+            style={{ borderColor: ocultoPromedio ? 'var(--color-gris-concreto)' : '#40403c' }}
+          />
+          Promedio
+        </button>
       </div>
 
       {cargando ? (
@@ -201,6 +266,37 @@ export function GraficoTasaPorCoche({ puntos: puntosCompletos, cargando }: Props
                   strokeLinejoin="round"
                 />
               ))}
+
+            {/* Tramo punteado: del último mes con dato real (julio) hasta
+                "Hoy" — mismo valor, en línea recta, sin marcador ni etiqueta
+                propia (no es un dato real, solo visualiza que la serie sigue
+                "viva" mientras agosto todavía no cierra). */}
+            {series
+              .filter((serie) => !ocultas.has(serie.tipo) && serie.colaPunteada !== null)
+              .map((serie) => (
+                <path
+                  key={`cola-${serie.tipo}`}
+                  d={serie.colaPunteada!}
+                  fill="none"
+                  stroke={COLOR_COCHE[serie.tipo]}
+                  strokeWidth={2}
+                  strokeDasharray="5 4"
+                  strokeLinecap="round"
+                  opacity={0.55}
+                />
+              ))}
+
+            {!ocultoPromedio && (
+              <path
+                d={seriePromedio.path}
+                fill="none"
+                stroke="#40403c"
+                strokeWidth={2}
+                strokeDasharray="6 4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            )}
 
             {series
               .filter((serie) => !ocultas.has(serie.tipo))
@@ -292,10 +388,24 @@ export function GraficoTasaPorCoche({ puntos: puntosCompletos, cargando }: Props
                   {serie.ultimo?.valor?.toFixed(3)}
                 </span>
               ))}
+
+            {!ocultoPromedio && seriePromedio.ultimo !== null && (
+              <span
+                className="absolute whitespace-nowrap font-data text-[10px] font-bold"
+                style={{
+                  left: `${pctX(seriePromedio.ultimo.x + 6)}%`,
+                  top: `${pctY(seriePromedio.ultimo.y)}%`,
+                  transform: 'translate(0, -50%)',
+                  color: '#40403c',
+                }}
+              >
+                {seriePromedio.ultimo.valor.toFixed(3)}
+              </span>
+            )}
           </div>
 
           {activo !== null && puntos[activo] && (
-            <TooltipMes punto={puntos[activo]} x={xs[activo]} ocultas={ocultas} />
+            <TooltipMes punto={puntos[activo]} x={xs[activo]} ocultas={ocultas} ocultoPromedio={ocultoPromedio} />
           )}
         </div>
       )}
@@ -307,10 +417,12 @@ function TooltipMes({
   punto,
   x,
   ocultas,
+  ocultoPromedio,
 }: {
-  punto: PuntoChartTasaPorCoche
+  punto: PuntoConPromedio
   x: number
   ocultas: Set<TipoCocheAlstom>
+  ocultoPromedio: boolean
 }) {
   const izquierda = Math.min(88, Math.max(12, pctX(x)))
   return (
@@ -332,6 +444,17 @@ function TooltipMes({
               </dd>
             </div>
           ))}
+          {!ocultoPromedio && (
+            <div className="flex items-center justify-between gap-3 border-t border-black/[0.06] pt-0.5 font-data text-[0.6875rem]">
+              <dt className="flex items-center gap-1.5 text-concreto">
+                <span className="h-0 w-2 border-t-2 border-dashed" style={{ borderColor: '#40403c' }} />
+                Promedio
+              </dt>
+              <dd className="font-semibold text-concreto-oscuro">
+                {punto.promedio !== null ? punto.promedio.toFixed(4) : '—'}
+              </dd>
+            </div>
+          )}
         </dl>
       </div>
     </div>

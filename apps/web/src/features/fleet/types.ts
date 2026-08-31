@@ -74,3 +74,28 @@ export interface FleetHistoricoDisco {
   actual: FleetHistoricoPunto
   historico: FleetHistoricoPunto[]
 }
+
+// Espejo de FleetService.resumenTrenesCriticos (backend) — las 6 cards de
+// Trenes Críticos del dashboard. fabricante-aware, a diferencia de Proyección
+// (Alstom-only por diseño): reclasifica cada disco desde su última medición
+// confirmada, sin pasar por el módulo de proyección.
+export interface TrenMasCritico {
+  trenNumero: number
+  discosCriticos: number
+  discosCambio: number
+  rdMinimo: number | null
+}
+
+export interface DiscoMenorRd {
+  trenNumero: number
+  codigoDisco: string | null
+  rd: number
+}
+
+export interface ResumenTrenesCriticos {
+  discosCriticosTotales: number
+  trenesConDiscosCriticos: number
+  trenMasCritico: TrenMasCritico | null
+  discoMenorRd: DiscoMenorRd | null
+  rdPromedio: number | null
+}
