@@ -135,6 +135,17 @@ export interface SemaforoTrenMediciones {
   estadoSemaforo: EstadoSemaforoMediciones
 }
 
+export interface UmbralesSemaforoMediciones {
+  alerta: number
+  critico: number
+  prioridad: number
+}
+
+export interface RespuestaSemaforoMediciones {
+  trenes: SemaforoTrenMediciones[]
+  umbrales: UmbralesSemaforoMediciones
+}
+
 export type ColumnaOrdenable =
   | 'responsable'
   | 'kilometraje'

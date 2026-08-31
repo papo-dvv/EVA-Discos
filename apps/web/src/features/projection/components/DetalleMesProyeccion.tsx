@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, Wrench } from 'lucide-react'
+import { AlertTriangle, ChevronDown, ChevronRight, Clock3, Wrench } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { GlassSurface } from '../../../components/GlassSurface'
@@ -22,6 +22,15 @@ type CocheGrupo = {
 type TrenGrupo = {
   trenNumero: number
   coches: CocheGrupo[]
+}
+
+function resumenTren(tren: TrenGrupo) {
+  const reperfilados = tren.coches.reduce((total, coche) => total + coche.reperfilados.length, 0)
+  const cambios = tren.coches.reduce((total, coche) => total + coche.cambios.length, 0)
+  const diasMasProximos = Math.min(
+    ...tren.coches.flatMap((coche) => [...coche.reperfilados, ...coche.cambios].map((evento) => evento.diasHastaEvento)),
+  )
+  return { reperfilados, cambios, diasMasProximos }
 }
 
 function agruparPorTrenYCoche(reperfilados: EventoPronostico[], cambios: EventoPronostico[]): TrenGrupo[] {
@@ -53,18 +62,35 @@ function agruparPorTrenYCoche(reperfilados: EventoPronostico[], cambios: EventoP
       trenNumero,
       coches: Array.from(porCoche.values()).sort((a, b) => a.numeroCoche - b.numeroCoche),
     }))
-    .sort((a, b) => a.trenNumero - b.trenNumero)
+    // Orden operativo: cambios primero, luego volumen de reperfilados y al
+    // final la fecha más próxima. Así cada mes abre los trenes críticos arriba.
+    .sort((a, b) => {
+      const resumenA = resumenTren(a)
+      const resumenB = resumenTren(b)
+      if (resumenA.cambios !== resumenB.cambios) return resumenB.cambios - resumenA.cambios
+      if (resumenA.reperfilados !== resumenB.reperfilados) return resumenB.reperfilados - resumenA.reperfilados
+      if (resumenA.diasMasProximos !== resumenB.diasMasProximos) return resumenA.diasMasProximos - resumenB.diasMasProximos
+      return a.trenNumero - b.trenNumero
+    })
 }
 
 function TablaEventos({ titulo, eventos }: { titulo: string; eventos: EventoPronostico[] }) {
   if (eventos.length === 0) return null
+  const esCambio = titulo.toLowerCase().includes('cambiar')
+  const acento = esCambio
+    ? 'border-red-200 bg-red-50/45 text-red-700'
+    : 'border-amber-200 bg-amber-50/45 text-amber-700'
   return (
-    <div className="mt-2 overflow-x-auto rounded-lg border border-concreto/15">
-      <p className="bg-white/50 px-3 py-1.5 font-body text-xs font-semibold text-concreto-oscuro">
-        {titulo} ({eventos.length})
-      </p>
+    <div className={`mt-3 overflow-x-auto rounded-xl border ${acento}`}>
+      <div className="flex items-center justify-between gap-3 px-3 py-2">
+        <p className="flex items-center gap-1.5 font-body text-xs font-bold">
+          {esCambio ? <AlertTriangle size={14} aria-hidden /> : <Clock3 size={14} aria-hidden />}
+          {titulo}
+        </p>
+        <span className="rounded-full bg-white/80 px-2 py-0.5 font-data text-[0.65rem] font-bold">{eventos.length}</span>
+      </div>
       <table className="w-full text-left font-body text-[0.75rem]">
-        <thead className="bg-white/30">
+        <thead className="border-y border-concreto/10 bg-white/70 text-[0.68rem] uppercase tracking-[0.08em]">
           <tr>
             <th className="px-3 py-1.5 font-semibold text-concreto">Bogie</th>
             <th className="px-3 py-1.5 text-right font-semibold text-concreto">Eje</th>
@@ -78,7 +104,7 @@ function TablaEventos({ titulo, eventos }: { titulo: string; eventos: EventoPron
           {eventos.map((evento, indice) => (
             <tr
               key={`${evento.fechaEstimada}-${evento.trenNumero}-${indice}`}
-              className="border-t border-concreto/10"
+              className="border-t border-concreto/10 bg-white/25 transition-colors hover:bg-white/70"
             >
               <td className="px-3 py-1.5 text-concreto-oscuro">{evento.posiciones[0]?.bogieCodigo}</td>
               <td className="px-3 py-1.5 text-right font-data text-concreto-oscuro">
@@ -88,7 +114,11 @@ function TablaEventos({ titulo, eventos }: { titulo: string; eventos: EventoPron
                 {evento.posiciones.map((posicion) => posicion.lado).join(' / ')}
               </td>
               <td className="px-3 py-1.5 font-data text-concreto-oscuro">{evento.fechaUltimaMedicion}</td>
-              <td className="px-3 py-1.5 text-right font-data text-concreto-oscuro">{evento.diasHastaEvento}</td>
+              <td className="px-3 py-1.5 text-right">
+                <span className={`rounded-full px-2 py-0.5 font-data text-[0.68rem] font-bold ${esCambio ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                  {evento.diasHastaEvento} d
+                </span>
+              </td>
               <td className="px-3 py-1.5">
                 <span className="font-data text-concreto-oscuro">{evento.fechaEstimada}</span>
                 {evento.pendiente && (
@@ -125,20 +155,30 @@ function DetalleMesContenido({ periodo }: { periodo: string }) {
 
   return (
     <div className="space-y-3 px-3 pb-3">
-      {trenes.map((tren) => (
-        <details key={tren.trenNumero} className="rounded-lg border border-concreto/15 bg-white/30">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2 [&::-webkit-details-marker]:hidden">
-            <span className="font-body text-sm font-semibold text-concreto-oscuro">Tren {tren.trenNumero}</span>
-            <span className="font-body text-xs text-concreto">
-              {tren.coches.length} {tren.coches.length === 1 ? 'coche' : 'coches'}
+      <div className="rounded-lg border border-concreto/15 bg-white/45 px-3 py-2">
+        <p className="font-body text-[0.68rem] font-bold uppercase tracking-[0.12em] text-concreto">Orden de atención</p>
+        <p className="mt-0.5 font-body text-xs text-concreto">Cambios primero; luego reperfilados y fecha más próxima.</p>
+      </div>
+      {trenes.map((tren) => {
+        const resumen = resumenTren(tren)
+        const esPrioridad = resumen.cambios > 0
+        return (
+        <details key={tren.trenNumero} className={`overflow-hidden rounded-xl border bg-white/50 ${esPrioridad ? 'border-red-200/80' : 'border-amber-200/80'}`}>
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 border-l-4 border-transparent px-3 py-3 transition-colors hover:bg-white/70 [&::-webkit-details-marker]:hidden" style={{ borderLeftColor: esPrioridad ? 'var(--color-estado-critico)' : 'var(--color-estado-seguimiento)' }}>
+            <span className="flex items-center gap-2">
+              <span className="font-body text-sm font-semibold text-concreto-oscuro">Tren {tren.trenNumero}</span>
+              <span className={`rounded-full px-2 py-0.5 font-body text-[0.65rem] font-bold ${esPrioridad ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                {esPrioridad ? 'Prioridad · cambio' : 'Seguimiento · reperfilado'}
+              </span>
             </span>
+            <span className="hidden font-body text-xs text-concreto sm:inline">{resumen.cambios} cambios · {resumen.reperfilados} reperfilados · {tren.coches.length} coches</span>
           </summary>
-          <div className="space-y-2 px-2 pb-2">
+          <div className="space-y-3 bg-slate-50/35 p-3">
             {tren.coches.map((coche) => (
-              <div key={coche.numeroCoche} className="rounded-lg border border-concreto/10 bg-white/40 p-2">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="font-body text-sm text-concreto-oscuro">
-                    Coche {coche.tipoCoche} <span className="text-concreto">(N.° {coche.numeroCoche})</span>
+              <div key={coche.numeroCoche} className="rounded-xl border border-slate-200 bg-white/80 p-3 shadow-[0_4px_14px_rgba(15,23,42,0.04)]">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-2">
+                  <span className="font-body text-sm font-semibold text-concreto-oscuro">
+                    Coche {coche.tipoCoche} <span className="font-normal text-concreto">· N.° {coche.numeroCoche}</span>
                   </span>
                   <button
                     type="button"
@@ -155,7 +195,8 @@ function DetalleMesContenido({ periodo }: { periodo: string }) {
             ))}
           </div>
         </details>
-      ))}
+        )
+      })}
     </div>
   )
 }
@@ -183,30 +224,44 @@ export function DetalleMesProyeccion({ meses }: Props) {
         Clic en un mes para ver qué trenes y coches tienen discos a reperfilar o cambiar.
       </p>
 
-      <ul className="mt-3 divide-y divide-concreto/10">
+      <ul className="mt-4 grid gap-2">
         {meses.map((mes) => {
           const expandido = mesesExpandidos.has(mes.periodo)
+          const tieneCambio = mes.cambios > 0
+          const esCritico = mes.criticos > 0 || mes.cambios >= 5
           return (
-            <li key={mes.periodo}>
+            <li key={mes.periodo} className="overflow-hidden rounded-xl">
               <button
                 type="button"
                 onClick={() => alternarMes(mes.periodo)}
-                className="flex w-full items-center justify-between gap-3 py-2.5 text-left transition-colors hover:bg-white/40"
+                className={`group flex w-full items-center justify-between gap-3 border-l-4 px-4 py-3 text-left transition-all ${
+                  expandido
+                    ? 'border-verde-institucional bg-white shadow-[0_6px_18px_rgba(15,23,42,0.08)]'
+                    : esCritico
+                      ? 'border-red-400 bg-red-50/35 hover:bg-red-50/65'
+                      : tieneCambio
+                        ? 'border-amber-400 bg-amber-50/35 hover:bg-amber-50/65'
+                        : 'border-emerald-400 bg-white/45 hover:bg-white/80'
+                }`}
               >
-                <span className="flex items-center gap-2 font-body text-sm font-medium text-concreto-oscuro">
+                <span className="flex items-center gap-3 font-body text-sm font-medium text-concreto-oscuro">
                   {expandido ? (
-                    <ChevronDown size={15} className="text-concreto" aria-hidden />
+                    <span className="grid h-7 w-7 place-items-center rounded-full bg-verde-claro text-verde-oscuro"><ChevronDown size={16} aria-hidden /></span>
                   ) : (
-                    <ChevronRight size={15} className="text-concreto" aria-hidden />
+                    <span className={`grid h-7 w-7 place-items-center rounded-full ${esCritico ? 'bg-red-100 text-red-700' : tieneCambio ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}><ChevronRight size={16} aria-hidden /></span>
                   )}
-                  {mes.etiqueta}
+                  <span>
+                    <span className="block text-base font-semibold">{mes.etiqueta}</span>
+                    <span className="block text-[0.65rem] uppercase tracking-[0.1em] text-concreto">Plan operativo mensual</span>
+                  </span>
                 </span>
-                <span className="font-body text-xs text-concreto">
-                  <span className="font-data font-semibold text-concreto-oscuro">{mes.reperfilados}</span> reperfilados ·{' '}
-                  <span className="font-data font-semibold text-concreto-oscuro">{mes.cambios}</span> cambios
+                <span className="flex flex-wrap justify-end gap-1.5">
+                  <span className="rounded-full bg-amber-100 px-2.5 py-1 font-body text-[0.68rem] font-bold text-amber-700"><span className="font-data">{mes.reperfilados}</span> reperfilar</span>
+                  <span className={`rounded-full px-2.5 py-1 font-body text-[0.68rem] font-bold ${tieneCambio ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-500'}`}><span className="font-data">{mes.cambios}</span> cambiar</span>
+                  {mes.criticos > 0 && <span className="hidden rounded-full bg-red-600 px-2 py-1 font-data text-[0.68rem] font-bold text-white lg:inline">{mes.criticos} críticos</span>}
                 </span>
               </button>
-              {expandido && <DetalleMesContenido periodo={mes.periodo} />}
+              {expandido && <div className="border-x border-b border-slate-200 bg-white/70"><DetalleMesContenido periodo={mes.periodo} /></div>}
             </li>
           )
         })}

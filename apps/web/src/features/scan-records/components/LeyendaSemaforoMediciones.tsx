@@ -1,10 +1,19 @@
 import { GlassSurface } from '../../../components/GlassSurface'
+import type { UmbralesSemaforoMediciones } from '../types'
 import { ORDEN_SEMAFORO_MEDICIONES, SEMAFORO_MEDICIONES_META } from './semaforoMedicionesVisual'
 
 // Leyenda del semáforo "días sin medir" de las tarjetas de Mediciones —
 // mismos umbrales que dias_semaforo_alerta/critico/prioridad, ver
 // Configuración para editarlos.
-export function LeyendaSemaforoMediciones() {
+export function LeyendaSemaforoMediciones({ umbrales }: { umbrales?: UmbralesSemaforoMediciones }) {
+  const rangos = umbrales
+    ? {
+        NORMAL: `0 – ${umbrales.alerta - 1} días`,
+        ALERTA: `${umbrales.alerta} – ${umbrales.critico - 1} días`,
+        CRITICO: `${umbrales.critico} – ${umbrales.prioridad - 1} días`,
+        PRIORIDAD: `${umbrales.prioridad}+ días`,
+      }
+    : null
   return (
     <GlassSurface fuerte className="rounded-glass px-4 py-3">
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
@@ -21,7 +30,7 @@ export function LeyendaSemaforoMediciones() {
                 aria-hidden
               />
               <span className="font-semibold text-concreto-oscuro">{meta.etiqueta}</span>
-              <span className="text-concreto">— {meta.rango}</span>
+              <span className="text-concreto">— {rangos?.[estado] ?? meta.rango}</span>
             </span>
           )
         })}

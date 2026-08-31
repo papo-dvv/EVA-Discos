@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 import { GlassSurface } from '../../../components/GlassSurface'
 import { WarningTooltip } from '../../../components/WarningTooltip'
 import { FABRICANTE_PILDORA, fabricanteDeTren } from '../../fleet/components/fabricante'
-import type { SemaforoTrenMediciones } from '../types'
+import type { SemaforoTrenMediciones, UmbralesSemaforoMediciones } from '../types'
 import { SEMAFORO_MEDICIONES_META } from './semaforoMedicionesVisual'
 
 // Fichas de medición aún no habilitadas para la flota Ansaldo (sin catálogo
@@ -25,13 +25,33 @@ function formatearFecha(iso: string | null): string {
 // lenguaje visual que la referencia.
 type Props = {
   tren: SemaforoTrenMediciones
+  umbrales: UmbralesSemaforoMediciones
   onAbrirCarga: (modo: 'csv' | 'manual') => void
 }
 
-export function TrenSemaforoCard({ tren, onAbrirCarga }: Props) {
+function progresoDias(dias: number | null, umbrales: UmbralesSemaforoMediciones): number {
+  if (dias === null) return 100
+  return Math.min(100, Math.max(0, (dias / umbrales.prioridad) * 100))
+}
+
+function mensajeSemaforo(tren: SemaforoTrenMediciones, umbrales: UmbralesSemaforoMediciones): string {
+  if (tren.diasSinMedir === null) return 'Sin medición: atención prioritaria.'
+  if (tren.estadoSemaforo === 'PRIORIDAD') return `Excede el umbral prioritario por ${tren.diasSinMedir - umbrales.prioridad + 1} día(s).`
+  if (tren.estadoSemaforo === 'CRITICO') return `A ${umbrales.prioridad - tren.diasSinMedir} día(s) de prioridad.`
+  if (tren.estadoSemaforo === 'ALERTA') return `A ${umbrales.critico - tren.diasSinMedir} día(s) de estado crítico.`
+  return `${umbrales.alerta - tren.diasSinMedir} día(s) para pasar a alerta.`
+}
+
+export function TrenSemaforoCard({ tren, umbrales, onAbrirCarga }: Props) {
   const meta = SEMAFORO_MEDICIONES_META[tren.estadoSemaforo]
   const fabricante = fabricanteDeTren(tren.tren)
   const esAnsaldo = fabricante === 'ANSALDO'
+  const progreso = progresoDias(tren.diasSinMedir, umbrales)
+  const diasTexto = tren.diasSinMedir === null ? 'Sin registro' : `${tren.diasSinMedir} días`
+  const mensaje = mensajeSemaforo(tren, umbrales)
+  const anchoNormal = (umbrales.alerta / umbrales.prioridad) * 100
+  const anchoAlerta = ((umbrales.critico - umbrales.alerta) / umbrales.prioridad) * 100
+  const anchoCritico = ((umbrales.prioridad - umbrales.critico) / umbrales.prioridad) * 100
 
   return (
     <GlassSurface
@@ -50,20 +70,38 @@ export function TrenSemaforoCard({ tren, onAbrirCarga }: Props) {
           </span>
         </div>
 
-        <div className="mt-3 flex items-center justify-between gap-2">
+        <div className="mt-4 flex items-center justify-between gap-2">
           <span className="flex items-center gap-1.5 font-body text-sm font-semibold" style={{ color: meta.cssVar }}>
             <meta.Icono className="h-4 w-4" aria-hidden />
             {meta.etiqueta}
           </span>
-          <span className="font-data text-2xl font-bold leading-none text-concreto-oscuro">
-            {tren.diasSinMedir ?? '—'}
-            {tren.diasSinMedir !== null && <span className="ml-0.5 text-sm font-semibold text-concreto">d</span>}
+          <span className="rounded-full px-2.5 py-1 font-data text-xs font-bold" style={{ backgroundColor: `color-mix(in srgb, ${meta.cssVar} 14%, white)`, color: meta.cssVar }}>
+            {diasTexto}
           </span>
         </div>
 
-        <p className="mt-2 font-body text-xs text-concreto">
-          Última: <span className="font-data">{formatearFecha(tren.fechaUltimaMedicion)}</span>
-        </p>
+        <div className="mt-3 rounded-xl border border-slate-200/80 bg-white/65 px-3 py-2.5">
+          <div className="flex items-end justify-between gap-3">
+            <div>
+              <p className="font-body text-[10px] font-bold uppercase tracking-[0.12em] text-concreto">Desde la última medición</p>
+              <p className="mt-0.5 font-body text-xs text-concreto">{tren.fechaUltimaMedicion ? formatearFecha(tren.fechaUltimaMedicion) : 'No hay una medición registrada'}</p>
+            </div>
+            <span className="font-data text-xl font-bold leading-none text-concreto-oscuro">{tren.diasSinMedir ?? '—'}<span className="ml-0.5 text-xs text-concreto">{tren.diasSinMedir === null ? '' : 'd'}</span></span>
+          </div>
+          <div className="relative mt-3 h-2.5 overflow-visible rounded-full" aria-label={`${diasTexto} desde la última medición`}>
+            <div className="flex h-full overflow-hidden rounded-full">
+              <span style={{ width: `${anchoNormal}%`, backgroundColor: 'var(--color-estado-ok)' }} />
+              <span style={{ width: `${anchoAlerta}%`, backgroundColor: 'var(--color-estado-seguimiento)' }} />
+              <span style={{ width: `${anchoCritico}%`, backgroundColor: 'var(--color-estado-cambio)' }} />
+              <span className="flex-1" style={{ backgroundColor: 'var(--color-estado-critico)' }} />
+            </div>
+            <span className="absolute top-1/2 z-10 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-white bg-concreto-oscuro shadow-md transition-[left] duration-500" style={{ left: `${progreso}%` }} title={diasTexto} />
+          </div>
+          <div className="mt-1.5 flex justify-between font-data text-[9px] text-concreto">
+            <span>0d</span><span>{umbrales.alerta}d</span><span>{umbrales.critico}d</span><span>{umbrales.prioridad}d+</span>
+          </div>
+          <p className="mt-2 border-t border-slate-200/80 pt-2 font-body text-[0.68rem] font-medium" style={{ color: meta.cssVar }}>{mensaje}</p>
+        </div>
 
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-arena pt-3">
           <div className="flex items-center gap-1.5">

@@ -23,6 +23,16 @@ function celdaNumero(v: number | null, esSupuesto: boolean) {
   return <span className={esSupuesto ? 'italic opacity-60' : undefined}>{numero(v)}</span>
 }
 
+function hCentral(row: InventoryRow): { texto: string; esSupuesto: boolean } {
+  const izquierda = row.izquierdo?.hValue ?? null
+  const derecha = row.derecho?.hValue ?? null
+  const esSupuesto = Boolean(row.izquierdo?.esSupuesto || row.derecho?.esSupuesto)
+  if (izquierda === null && derecha === null) return { texto: '—', esSupuesto }
+  if (izquierda === null) return { texto: numero(derecha), esSupuesto }
+  if (derecha === null || izquierda === derecha) return { texto: numero(izquierda), esSupuesto }
+  return { texto: `${numero(izquierda)} | ${numero(derecha)}`, esSupuesto }
+}
+
 function EstadoChip({ estado, esSupuesto }: { estado: string | null; esSupuesto?: boolean }) {
   if (!estado) return <span>—</span>
   const chip = <span className={`tabla-chip tabla-chip--pequeno ${CLASE_CHIP_ESTADO[estado]} ${esSupuesto ? 'opacity-60' : ''}`}>{estado}</span>
@@ -127,28 +137,31 @@ export function TablaInventario({
   onEliminar: (row: InventoryRow) => void
 }) {
   const columnasExtra = COLUMNAS_EXTRA[stage]
-  const totalCeldas = (seleccionables ? 1 : 0) + 1 + 8 + columnasExtra.length + 1
+  const totalCeldas = (seleccionables ? 1 : 0) + 1 + 7 + columnasExtra.length + 1
 
   return (
     <div className="w-full overflow-x-auto">
       <table className="w-full min-w-[80rem] table-fixed border-collapse font-body text-xs">
         <thead className="sticky top-0 z-10 bg-[color:var(--color-arena-suave)]">
           <tr className="border-b border-concreto/10">
-            {seleccionables && <th rowSpan={2} className="w-8 px-2 py-2.5" />}
-            <th rowSpan={2} className="px-3 py-2.5 text-left align-bottom">Serie</th>
-            <th colSpan={8} className="px-2 py-1.5 text-center border-b border-concreto/10">Disco</th>
+            {seleccionables && <th rowSpan={3} className="w-8 px-2 py-2.5" />}
+            <th rowSpan={3} className="px-3 py-2.5 text-left align-bottom">Serie</th>
+            <th colSpan={7} className="px-2 py-1.5 text-center border-b border-concreto/10">Disco</th>
             {columnasExtra.map((c) => (
-              <th key={c} rowSpan={2} className="px-3 py-2.5 text-left align-bottom">{ETIQUETA_COLUMNA[c]}</th>
+              <th key={c} rowSpan={3} className="px-3 py-2.5 text-left align-bottom">{ETIQUETA_COLUMNA[c]}</th>
             ))}
-            <th rowSpan={2} className="px-3 py-2.5 text-center align-bottom">Acciones</th>
+            <th rowSpan={3} className="px-3 py-2.5 text-center align-bottom">Acciones</th>
+          </tr>
+          <tr className="border-b border-concreto/20">
+            <th colSpan={3} className="px-1.5 py-1 text-center text-[0.65rem] uppercase tracking-[0.12em] text-concreto">Izquierda</th>
+            <th rowSpan={2} className="px-1.5 py-1 text-center align-bottom text-[0.65rem] uppercase tracking-[0.12em] text-concreto">H</th>
+            <th colSpan={3} className="px-1.5 py-1 text-center text-[0.65rem] uppercase tracking-[0.12em] text-concreto">Derecha</th>
           </tr>
           <tr className="border-b border-concreto/20">
             <th className="px-1.5 py-1.5 text-center">Estado</th>
             <th className="px-1.5 py-1.5 text-right">Rd</th>
             <th className="px-1.5 py-1.5 text-right">T</th>
-            <th className="px-1.5 py-1.5 text-right">H</th>
             <th className="px-1.5 py-1.5 text-right">T</th>
-            <th className="px-1.5 py-1.5 text-right">H</th>
             <th className="px-1.5 py-1.5 text-right">Rd</th>
             <th className="px-1.5 py-1.5 text-center">Estado</th>
           </tr>
@@ -169,14 +182,13 @@ export function TablaInventario({
               )}
               <td className="px-3 py-2 font-semibold text-concreto-oscuro">{r.serie ? `${r.serie}-D` : '—'}</td>
 
-              {/* Izquierdo: Estado, Rd, T, H */}
+              {/* Izquierdo: Estado, Rd, T */}
               <td className="px-1.5 py-2 text-center">{r.izquierdo ? <EstadoChip estado={r.izquierdo.estadoCalculado} esSupuesto={r.izquierdo.esSupuesto} /> : '—'}</td>
               <td className="px-1.5 py-2 text-right font-data">{r.izquierdo ? celdaNumero(r.izquierdo.rdValue, r.izquierdo.esSupuesto) : '—'}</td>
               <td className="px-1.5 py-2 text-right font-data">{r.izquierdo ? celdaNumero(r.izquierdo.tValue, r.izquierdo.esSupuesto) : '—'}</td>
-              <td className="px-1.5 py-2 text-right font-data">{r.izquierdo ? celdaNumero(r.izquierdo.hValue, r.izquierdo.esSupuesto) : '—'}</td>
-              {/* Derecho: T, H, Rd, Estado (orden invertido a propósito) */}
+              <td className={`px-1.5 py-2 text-center font-data ${hCentral(r).esSupuesto ? 'italic opacity-60' : ''}`} title="H izquierda | H derecha">{hCentral(r).texto}</td>
+              {/* Derecho en espejo; H compartida se muestra una sola vez al centro. */}
               <td className="px-1.5 py-2 text-right font-data">{r.derecho ? celdaNumero(r.derecho.tValue, r.derecho.esSupuesto) : '—'}</td>
-              <td className="px-1.5 py-2 text-right font-data">{r.derecho ? celdaNumero(r.derecho.hValue, r.derecho.esSupuesto) : '—'}</td>
               <td className="px-1.5 py-2 text-right font-data">{r.derecho ? celdaNumero(r.derecho.rdValue, r.derecho.esSupuesto) : '—'}</td>
               <td className="px-1.5 py-2 text-center">{r.derecho ? <EstadoChip estado={r.derecho.estadoCalculado} esSupuesto={r.derecho.esSupuesto} /> : '—'}</td>
 
