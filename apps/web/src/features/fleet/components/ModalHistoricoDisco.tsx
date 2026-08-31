@@ -1,6 +1,5 @@
 import { Activity, CalendarDays, Disc3, Rotate3D } from 'lucide-react'
-import { animate } from 'animejs'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { GlassModal } from '../../../components/GlassModal'
 import { ScrollArea } from '../../../components/ScrollArea'
 import { useFleetHistorico } from '../queries'
@@ -19,12 +18,14 @@ function formato(valor: number | null | undefined): string {
 }
 
 export function ModalHistoricoDisco({ disco, onCerrar }: Props) {
-  const historico = useFleetHistorico(disco.codigoDisco, disco.lado)
+  const [ladoActivo, setLadoActivo] = useState(disco.lado)
+  const historico = useFleetHistorico(disco.codigoDisco, ladoActivo)
   const [metricaActiva, setMetricaActiva] = useState<Metrica>('rd')
+  useEffect(() => setLadoActivo(disco.lado), [disco.lado])
 
   return (
     <GlassModal
-      titulo={`Disco ${disco.codigoDisco ?? 'sin código'} · ${disco.lado}`}
+      titulo={`Disco ${disco.codigoDisco ?? 'sin código'} · ${ladoActivo}`}
       onCerrar={onCerrar}
       ancho={960}
       altoMaximo="min(760px, calc(100dvh - 1.5rem))"
@@ -43,10 +44,11 @@ export function ModalHistoricoDisco({ disco, onCerrar }: Props) {
           <div className="space-y-4 pr-2">
             <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr]">
               <DiscoInteractivo3D
-                disco={disco}
+                disco={{ ...disco, lado: ladoActivo }}
                 actual={historico.data.actual}
                 metricaActiva={metricaActiva}
                 onSeleccionar={setMetricaActiva}
+                onSeleccionarLado={setLadoActivo}
               />
               <div className="grid content-start gap-3 sm:grid-cols-3 lg:grid-cols-1">
                 <DatoActual metrica="rd" activa={metricaActiva === 'rd'} etiqueta="Rd actual" valor={historico.data.actual.rd} tono="emerald" onSeleccionar={setMetricaActiva} />
@@ -116,29 +118,15 @@ function DiscoInteractivo3D({
   actual,
   metricaActiva,
   onSeleccionar,
+  onSeleccionarLado,
 }: {
   disco: FleetDiscoDetalle
   actual: FleetHistoricoPunto
   metricaActiva: Metrica
   onSeleccionar: (metrica: Metrica) => void
+  onSeleccionarLado: (lado: FleetDiscoDetalle['lado']) => void
 }) {
-  const [giro, setGiro] = useState({ x: 0, y: 0 })
-  const [girando, setGirando] = useState(false)
   const [vista, setVista] = useState<'3d' | '2d'>('3d')
-  const modeloRef = useRef<HTMLSpanElement>(null)
-  useEffect(() => {
-    if (disco.posicion !== 'unica' || vista !== '3d' || !modeloRef.current) return
-    const animacion = animate(modeloRef.current, {
-      rotateY: [0, 18, 0],
-      rotateX: [0, -4, 0],
-      duration: 5200,
-      ease: 'inOutSine',
-      loop: true,
-    })
-    return () => {
-      animacion.pause()
-    }
-  }, [disco.posicion, vista])
   const metrica = {
     rd: { etiqueta: 'Radio de desgaste (Rd)', color: '#34d399', halo: 'rgba(52,211,153,.75)' },
     h: { etiqueta: 'Altura de pestaña (H)', color: '#f97316', halo: 'rgba(249,115,22,.75)' },
@@ -170,30 +158,13 @@ function DiscoInteractivo3D({
       <div
         aria-label={`${vista === '3d' ? 'Modelo tridimensional' : 'Vista técnica bidimensional'} del disco; métrica activa ${metrica.etiqueta}`}
         className={`group relative z-10 mx-auto mt-4 h-52 w-full select-none ${vista === '3d' ? 'cursor-grab touch-none active:cursor-grabbing' : 'cursor-default'}`}
-        onPointerMove={(event) => {
-          if (vista !== '3d') return
-          if (event.pointerType !== 'mouse' && !girando) return
-          const rect = event.currentTarget.getBoundingClientRect()
-          setGiro({
-            x: ((event.clientY - rect.top) / rect.height - 0.5) * -30,
-            y: ((event.clientX - rect.left) / rect.width - 0.5) * 55,
-          })
-        }}
-        onPointerDown={(event) => {
-          if (vista !== '3d') return
-          setGirando(true)
-          event.currentTarget.setPointerCapture(event.pointerId)
-        }}
-        onPointerUp={() => setGirando(false)}
-        onPointerCancel={() => setGirando(false)}
-        onPointerLeave={() => { if (!girando) setGiro({ x: 0, y: 0 }) }}
       >
         {vista === '3d' ? (
-          <div className="h-full w-full" style={{ transform: `perspective(650px) rotateX(${giro.x}deg) rotateY(${giro.y}deg)` }}>
-            <DiscoModelo3D lado={disco.lado} color={metrica.color} />
+          <div className="h-full w-full">
+            <DiscoModelo3D ladoSeleccionado={disco.lado} color={metrica.color} onSeleccionarLado={onSeleccionarLado} />
           </div>
         ) : (
-          <span ref={modeloRef} className="absolute left-1/2 top-1/2 block h-44 w-44 -translate-x-1/2 -translate-y-1/2 transition-transform duration-200 ease-out">
+          <span className="absolute left-1/2 top-1/2 block h-44 w-44 -translate-x-1/2 -translate-y-1/2 transition-transform duration-200 ease-out">
           {disco.posicion === 'unica' && <span className="absolute left-1/2 top-1/2 h-9 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full bg-gradient-to-b from-slate-200 via-slate-500 to-slate-800 shadow-[0_8px_16px_rgba(0,0,0,.55)]" />}
           <span className="absolute inset-0 rounded-full border-2 border-slate-300 bg-slate-950/80 shadow-[0_0_0_8px_rgba(255,255,255,.08)]" />
           <span className="absolute inset-[9px] rounded-full border border-emerald-400/70" />

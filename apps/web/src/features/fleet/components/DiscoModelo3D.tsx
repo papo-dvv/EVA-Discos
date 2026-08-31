@@ -1,75 +1,121 @@
 import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 
-type Props = { lado: 'izquierdo' | 'derecho'; color?: string }
+type Lado = 'izquierdo' | 'derecho'
+type Props = { ladoSeleccionado: Lado; color: string; onSeleccionarLado: (lado: Lado) => void }
 
-/** Visor del activo GLB modelado en Blender para los discos Alstom. */
-export function DiscoModelo3D({ lado, color = '#34d399' }: Props) {
+/** Visor real del GLB de Blender. Arrastrar rota la cámara; clic selecciona una pista. */
+export function DiscoModelo3D({ ladoSeleccionado, color, onSeleccionarLado }: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
+  const callbackRef = useRef(onSeleccionarLado)
+  callbackRef.current = onSeleccionarLado
+
   useEffect(() => {
     const host = hostRef.current
     if (!host) return
+
     const scene = new THREE.Scene()
-    const camera = new THREE.PerspectiveCamera(28, 1, 0.1, 100)
-    camera.position.set(4.8, 2.7, 5.3)
-    camera.lookAt(0, 0, 0)
+    const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100)
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
-    renderer.setSize(host.clientWidth, host.clientHeight)
+    renderer.outputColorSpace = THREE.SRGBColorSpace
     renderer.shadowMap.enabled = true
+    renderer.setSize(host.clientWidth, host.clientHeight)
     host.replaceChildren(renderer.domElement)
 
-    const root = new THREE.Group()
-    root.rotation.set(-0.25, lado === 'derecho' ? -0.42 : 0.42, 0.04)
-    scene.add(root)
-    const light = new THREE.HemisphereLight('#e8f7ff', '#122033', 2.1)
-    scene.add(light)
-    const key = new THREE.DirectionalLight('#ffffff', 2.8)
-    key.position.set(3, 4, 5)
+    const controls = new OrbitControls(camera, renderer.domElement)
+    controls.enableDamping = true
+    controls.dampingFactor = 0.07
+    controls.enablePan = false
+    controls.minDistance = 3.3
+    controls.maxDistance = 10
+    controls.target.set(0, 0, 0)
+    camera.position.set(4.6, 2.1, 4.8)
+    controls.update()
+
+    scene.add(new THREE.HemisphereLight('#e6f6ff', '#071324', 2.4))
+    const key = new THREE.DirectionalLight('#ffffff', 3.4)
+    key.position.set(4, 5, 5)
     key.castShadow = true
     scene.add(key)
-    const floor = new THREE.Mesh(new THREE.CircleGeometry(2.9, 64), new THREE.ShadowMaterial({ opacity: 0.24 }))
+    const rim = new THREE.DirectionalLight('#36d399', 1.7)
+    rim.position.set(-4, 1, -3)
+    scene.add(rim)
+
+    const floor = new THREE.Mesh(new THREE.CircleGeometry(3.1, 64), new THREE.ShadowMaterial({ opacity: 0.22 }))
     floor.rotation.x = -Math.PI / 2
-    floor.position.y = -1.65
+    floor.position.y = -1.55
+    floor.receiveShadow = true
     scene.add(floor)
-    let model: THREE.Object3D | null = null
-    const loader = new GLTFLoader()
-    loader.load('/models/alstom_disc.glb', (gltf) => {
+
+    let model: THREE.Group | null = null
+    const nombrePista = ladoSeleccionado === 'izquierdo' ? 'Pista izquierda' : 'Pista derecha'
+    const selectedMaterial = new THREE.MeshStandardMaterial({ color, metalness: 0.78, roughness: 0.2, emissive: color, emissiveIntensity: 0.16 })
+    new GLTFLoader().load('/models/alstom_disc.glb', (gltf) => {
       model = gltf.scene
       model.traverse((child) => {
         if (!(child instanceof THREE.Mesh)) return
         child.castShadow = true
         child.receiveShadow = true
-        if (child.name === `Pista ${lado}`) {
-          const selected = new THREE.MeshStandardMaterial({ color, metalness: 0.8, roughness: 0.2, emissive: color, emissiveIntensity: 0.18 })
-          child.material = selected
-        }
+        if (child.name === nombrePista) child.material = selectedMaterial
       })
-      root.add(model)
+      scene.add(model)
     })
-    let raf = 0
-    const tick = () => {
-      root.rotation.z += 0.0014
-      renderer.render(scene, camera)
-      raf = requestAnimationFrame(tick)
+
+    const raycaster = new THREE.Raycaster()
+    const pointer = new THREE.Vector2()
+    let startPoint: { x: number; y: number } | null = null
+    const onPointerDown = (event: PointerEvent) => { startPoint = { x: event.clientX, y: event.clientY } }
+    const onPointerUp = (event: PointerEvent) => {
+      if (!startPoint || Math.hypot(event.clientX - startPoint.x, event.clientY - startPoint.y) > 6 || !model) return
+      const rect = renderer.domElement.getBoundingClientRect()
+      pointer.set(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1)
+      raycaster.setFromCamera(pointer, camera)
+      const clicked = raycaster.intersectObjects(model.children, true).find((hit) => hit.object.name === 'Pista izquierda' || hit.object.name === 'Pista derecha')
+      if (clicked?.object.name === 'Pista izquierda') callbackRef.current('izquierdo')
+      if (clicked?.object.name === 'Pista derecha') callbackRef.current('derecho')
     }
-    tick()
-    const resize = () => { camera.aspect = host.clientWidth / Math.max(host.clientHeight, 1); camera.updateProjectionMatrix(); renderer.setSize(host.clientWidth, host.clientHeight) }
-    window.addEventListener('resize', resize)
+    renderer.domElement.addEventListener('pointerdown', onPointerDown)
+    renderer.domElement.addEventListener('pointerup', onPointerUp)
+
+    const resize = () => {
+      const width = Math.max(host.clientWidth, 1)
+      const height = Math.max(host.clientHeight, 1)
+      camera.aspect = width / height
+      camera.updateProjectionMatrix()
+      renderer.setSize(width, height)
+    }
+    const resizeObserver = new ResizeObserver(resize)
+    resizeObserver.observe(host)
+
+    let frame = 0
+    const render = () => {
+      controls.update()
+      renderer.render(scene, camera)
+      frame = requestAnimationFrame(render)
+    }
+    render()
+
     return () => {
-      cancelAnimationFrame(raf)
-      window.removeEventListener('resize', resize)
+      cancelAnimationFrame(frame)
+      resizeObserver.disconnect()
+      renderer.domElement.removeEventListener('pointerdown', onPointerDown)
+      renderer.domElement.removeEventListener('pointerup', onPointerUp)
+      controls.dispose()
+      selectedMaterial.dispose()
       model?.traverse((child) => {
         if (child instanceof THREE.Mesh) {
           child.geometry.dispose()
           const materials = Array.isArray(child.material) ? child.material : [child.material]
-          materials.forEach((material) => material.dispose())
+          materials.forEach((material) => material !== selectedMaterial && material.dispose())
         }
       })
       renderer.dispose()
       host.replaceChildren()
     }
-  }, [color, lado])
-  return <div ref={hostRef} className="h-full min-h-[220px] w-full" aria-label={`Modelo 3D del disco Alstom lado ${lado}`} />
+  }, [color, ladoSeleccionado])
+
+  return <div ref={hostRef} className="h-full min-h-[220px] w-full touch-none" aria-label="Modelo 3D interactivo del disco de freno Alstom" />
 }
