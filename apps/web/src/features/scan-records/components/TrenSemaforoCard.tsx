@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 import { GlassSurface } from '../../../components/GlassSurface'
 import { WarningTooltip } from '../../../components/WarningTooltip'
 import { FABRICANTE_PILDORA, fabricanteDeTren } from '../../fleet/components/fabricante'
-import type { SemaforoTrenMediciones } from '../types'
+import type { SemaforoTrenMediciones, UmbralesSemaforoMediciones } from '../types'
 import { SEMAFORO_MEDICIONES_META } from './semaforoMedicionesVisual'
 
 // Fichas de medición aún no habilitadas para la flota Ansaldo (sin catálogo
@@ -25,13 +25,21 @@ function formatearFecha(iso: string | null): string {
 // lenguaje visual que la referencia.
 type Props = {
   tren: SemaforoTrenMediciones
+  umbrales: UmbralesSemaforoMediciones
   onAbrirCarga: (modo: 'csv' | 'manual') => void
 }
 
-export function TrenSemaforoCard({ tren, onAbrirCarga }: Props) {
+function progresoDias(dias: number | null, umbrales: UmbralesSemaforoMediciones): number {
+  if (dias === null) return 100
+  return Math.min(100, Math.max(0, (dias / umbrales.prioridad) * 100))
+}
+
+export function TrenSemaforoCard({ tren, umbrales, onAbrirCarga }: Props) {
   const meta = SEMAFORO_MEDICIONES_META[tren.estadoSemaforo]
   const fabricante = fabricanteDeTren(tren.tren)
   const esAnsaldo = fabricante === 'ANSALDO'
+  const progreso = progresoDias(tren.diasSinMedir, umbrales)
+  const diasTexto = tren.diasSinMedir === null ? 'Sin registro' : `${tren.diasSinMedir} días`
 
   return (
     <GlassSurface
@@ -50,20 +58,34 @@ export function TrenSemaforoCard({ tren, onAbrirCarga }: Props) {
           </span>
         </div>
 
-        <div className="mt-3 flex items-center justify-between gap-2">
+        <div className="mt-4 flex items-center justify-between gap-2">
           <span className="flex items-center gap-1.5 font-body text-sm font-semibold" style={{ color: meta.cssVar }}>
             <meta.Icono className="h-4 w-4" aria-hidden />
             {meta.etiqueta}
           </span>
-          <span className="font-data text-2xl font-bold leading-none text-concreto-oscuro">
-            {tren.diasSinMedir ?? '—'}
-            {tren.diasSinMedir !== null && <span className="ml-0.5 text-sm font-semibold text-concreto">d</span>}
+          <span className="rounded-full px-2.5 py-1 font-data text-xs font-bold" style={{ backgroundColor: `color-mix(in srgb, ${meta.cssVar} 14%, white)`, color: meta.cssVar }}>
+            {diasTexto}
           </span>
         </div>
 
-        <p className="mt-2 font-body text-xs text-concreto">
-          Última: <span className="font-data">{formatearFecha(tren.fechaUltimaMedicion)}</span>
-        </p>
+        <div className="mt-3 rounded-xl border border-slate-200/80 bg-white/65 px-3 py-2.5">
+          <div className="flex items-end justify-between gap-3">
+            <div>
+              <p className="font-body text-[10px] font-bold uppercase tracking-[0.12em] text-concreto">Desde la última medición</p>
+              <p className="mt-0.5 font-body text-xs text-concreto">{tren.fechaUltimaMedicion ? formatearFecha(tren.fechaUltimaMedicion) : 'No hay una medición registrada'}</p>
+            </div>
+            <span className="font-data text-xl font-bold leading-none text-concreto-oscuro">{tren.diasSinMedir ?? '—'}<span className="ml-0.5 text-xs text-concreto">{tren.diasSinMedir === null ? '' : 'd'}</span></span>
+          </div>
+          <div className="relative mt-3 h-2 overflow-hidden rounded-full bg-slate-200" aria-label={`${diasTexto} desde la última medición`}>
+            <span className="absolute inset-y-0 left-0 rounded-full transition-[width] duration-500" style={{ width: `${progreso}%`, backgroundColor: meta.cssVar }} />
+            {[umbrales.alerta, umbrales.critico, umbrales.prioridad].map((umbral) => (
+              <span key={umbral} className="absolute top-1/2 z-10 h-3 w-px -translate-y-1/2 bg-white/90" style={{ left: `${Math.min(100, (umbral / umbrales.prioridad) * 100)}%` }} />
+            ))}
+          </div>
+          <div className="mt-1.5 flex justify-between font-data text-[9px] text-concreto">
+            <span>0d</span><span>{umbrales.alerta}d</span><span>{umbrales.critico}d</span><span>{umbrales.prioridad}d+</span>
+          </div>
+        </div>
 
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-arena pt-3">
           <div className="flex items-center gap-1.5">

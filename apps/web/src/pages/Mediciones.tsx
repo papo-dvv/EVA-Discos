@@ -16,7 +16,7 @@ export function Mediciones() {
             <p className="font-body text-xs font-semibold uppercase tracking-[0.18em] text-concreto">EVA</p>
             <h1 className="font-display text-3xl font-semibold text-concreto-oscuro">Mediciones</h1>
             <p className="mt-1 font-body text-sm text-concreto">
-              {semaforo.data ? semaforo.data.length : '—'} trenes · ordenados por criticidad
+              {semaforo.data ? semaforo.data.trenes.length : '—'} trenes · ordenados por criticidad
             </p>
           </div>
         </div>

@@ -33,6 +33,11 @@ export interface SemaforoTrenMediciones {
   estadoSemaforo: EstadoSemaforoMediciones;
 }
 
+export interface RespuestaSemaforoMediciones {
+  trenes: SemaforoTrenMediciones[];
+  umbrales: { alerta: number; critico: number; prioridad: number };
+}
+
 const CAMPOS_NUMERICOS = new Set<string>([
   'kilometraje',
   'hValue',
@@ -77,14 +82,14 @@ export class ScanRecordsService {
   // Semáforo "días sin medir" por tren (vista de tarjetas de Mediciones) —
   // universo TRENES_FLOTA (Alstom + Ansaldo, sin el pseudo-tren Reserva),
   // mismo criterio que FleetService.summary().
-  async obtenerSemaforoMediciones(): Promise<SemaforoTrenMediciones[]> {
+  async obtenerSemaforoMediciones(): Promise<RespuestaSemaforoMediciones> {
     const [fechas, umbrales] = await Promise.all([
       obtenerFechaUltimaMedicionPorTren(this.prisma, SOLO_CONFIRMADOS),
       this.semaforoConfig.obtenerUmbrales(),
     ]);
 
     const hoy = Date.now();
-    return TRENES_FLOTA.map((tren) => {
+    const trenes = TRENES_FLOTA.map((tren) => {
       const fecha = fechas.get(tren) ?? null;
       const diasSinMedir = fecha
         ? Math.floor((hoy - fecha.getTime()) / 86_400_000)
@@ -96,6 +101,8 @@ export class ScanRecordsService {
         estadoSemaforo: clasificarSemaforoMediciones(diasSinMedir, umbrales),
       };
     });
+
+    return { trenes, umbrales };
   }
 
   // Valores distintos de Coche y Bogie presentes ENTRE LOS CONFIRMADOS, para

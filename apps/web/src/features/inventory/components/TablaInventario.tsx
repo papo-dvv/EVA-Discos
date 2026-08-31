@@ -120,21 +120,25 @@ export function TablaInventario({
       <table className="w-full min-w-[80rem] table-fixed border-collapse font-body text-xs">
         <thead className="sticky top-0 z-10 bg-[color:var(--color-arena-suave)]">
           <tr className="border-b border-concreto/10">
-            {seleccionables && <th rowSpan={2} className="w-8 px-2 py-2.5" />}
-            <th rowSpan={2} className="px-3 py-2.5 text-left align-bottom">Serie</th>
+            {seleccionables && <th rowSpan={3} className="w-8 px-2 py-2.5" />}
+            <th rowSpan={3} className="px-3 py-2.5 text-left align-bottom">Serie</th>
             <th colSpan={8} className="px-2 py-1.5 text-center border-b border-concreto/10">Disco</th>
             {columnasExtra.map((c) => (
-              <th key={c} rowSpan={2} className="px-3 py-2.5 text-left align-bottom">{ETIQUETA_COLUMNA[c]}</th>
+              <th key={c} rowSpan={3} className="px-3 py-2.5 text-left align-bottom">{ETIQUETA_COLUMNA[c]}</th>
             ))}
-            <th rowSpan={2} className="px-3 py-2.5 text-center align-bottom">Acciones</th>
+            <th rowSpan={3} className="px-3 py-2.5 text-center align-bottom">Acciones</th>
+          </tr>
+          <tr className="border-b border-concreto/20">
+            <th colSpan={4} className="px-1.5 py-1 text-center text-[0.65rem] uppercase tracking-[0.12em] text-concreto">Izquierda</th>
+            <th colSpan={4} className="px-1.5 py-1 text-center text-[0.65rem] uppercase tracking-[0.12em] text-concreto">Derecha</th>
           </tr>
           <tr className="border-b border-concreto/20">
             <th className="px-1.5 py-1.5 text-center">Estado</th>
             <th className="px-1.5 py-1.5 text-right">Rd</th>
             <th className="px-1.5 py-1.5 text-right">T</th>
             <th className="px-1.5 py-1.5 text-right">H</th>
-            <th className="px-1.5 py-1.5 text-right">T</th>
             <th className="px-1.5 py-1.5 text-right">H</th>
+            <th className="px-1.5 py-1.5 text-right">T</th>
             <th className="px-1.5 py-1.5 text-right">Rd</th>
             <th className="px-1.5 py-1.5 text-center">Estado</th>
           </tr>
@@ -160,9 +164,9 @@ export function TablaInventario({
               <td className="px-1.5 py-2 text-right font-data">{r.izquierdo ? numero(r.izquierdo.rdValue) : '—'}</td>
               <td className="px-1.5 py-2 text-right font-data">{r.izquierdo ? numero(r.izquierdo.tValue) : '—'}</td>
               <td className="px-1.5 py-2 text-right font-data">{r.izquierdo ? numero(r.izquierdo.hValue) : '—'}</td>
-              {/* Derecho: T, H, Rd, Estado (orden invertido a propósito) */}
-              <td className="px-1.5 py-2 text-right font-data">{r.derecho ? numero(r.derecho.tValue) : '—'}</td>
+              {/* Derecho en espejo: H queda junto al H izquierdo, al centro. */}
               <td className="px-1.5 py-2 text-right font-data">{r.derecho ? numero(r.derecho.hValue) : '—'}</td>
+              <td className="px-1.5 py-2 text-right font-data">{r.derecho ? numero(r.derecho.tValue) : '—'}</td>
               <td className="px-1.5 py-2 text-right font-data">{r.derecho ? numero(r.derecho.rdValue) : '—'}</td>
               <td className="px-1.5 py-2 text-center">{r.derecho ? <EstadoChip estado={r.derecho.estadoCalculado} /> : '—'}</td>
 

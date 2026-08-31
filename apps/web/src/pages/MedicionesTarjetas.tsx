@@ -65,7 +65,7 @@ export function MedicionesTarjetas() {
     const trimmed = busqueda.trim()
     const comparar = criterioOrden === 'prioridad' ? compararPorPrioridad : compararPorNumero
     const signo = direccionOrden === 'asc' ? 1 : -1
-    return (semaforo.data ?? [])
+    return (semaforo.data?.trenes ?? [])
       .filter((tren) => {
         if (fabricante !== 'todos' && fabricanteDeTren(tren.tren) !== fabricante) return false
         if (trimmed && !String(tren.tren).includes(trimmed)) return false
@@ -78,7 +78,7 @@ export function MedicionesTarjetas() {
     <div className="px-3 pb-6 sm:px-5">
       <div className="mx-auto max-w-[112.5rem]">
       <div className="mb-4">
-        <LeyendaSemaforoMediciones />
+        <LeyendaSemaforoMediciones umbrales={semaforo.data?.umbrales} />
       </div>
 
       <div className="mb-6 flex flex-col gap-3 lg:flex-row lg:items-end">
@@ -130,12 +130,13 @@ export function MedicionesTarjetas() {
         <p className="py-12 text-center font-body text-sm text-concreto">Sin coincidencias con los filtros actuales.</p>
       )}
 
-      {filtrados.length > 0 && (
+      {semaforo.data && filtrados.length > 0 && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
           {filtrados.map((tren) => (
             <TrenSemaforoCard
               key={tren.tren}
               tren={tren}
+              umbrales={semaforo.data.umbrales}
               onAbrirCarga={(modo) => setCargaAbierta({ tren: tren.tren, modo })}
             />
           ))}
