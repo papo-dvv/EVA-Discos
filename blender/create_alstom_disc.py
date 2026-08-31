@@ -26,11 +26,11 @@ def material(name, color, metallic=0.0, roughness=0.35):
     bsdf.inputs["Roughness"].default_value = roughness
     return m
 
-STEEL = material("Acero mecanizado", (0.34, 0.40, 0.48), 0.92, 0.2)
-STEEL_DARK = material("Acero interior", (0.10, 0.14, 0.19), 0.8, 0.27)
-VENT = material("Canales ventilados", (0.25, 0.12, 0.06), 0.55, 0.32)
-LEFT = material("Lado izquierdo seleccionable", (0.38, 0.44, 0.52), 0.9, 0.19)
-RIGHT = material("Lado derecho seleccionable", (0.32, 0.38, 0.46), 0.9, 0.19)
+STEEL = material("Acero mecanizado", (0.55, 0.59, 0.64), 0.92, 0.2)
+STEEL_DARK = material("Acero interior", (0.18, 0.23, 0.29), 0.8, 0.27)
+VENT = material("Aletas ventiladas", (0.19, 0.11, 0.055), 0.68, 0.28)
+LEFT = material("Lado izquierdo seleccionable", (0.48, 0.53, 0.59), 0.9, 0.19)
+RIGHT = material("Lado derecho seleccionable", (0.44, 0.49, 0.55), 0.9, 0.19)
 
 root = bpy.data.collections.new("DISCO_ALSTOM_COMPLETO")
 bpy.context.scene.collection.children.link(root)
@@ -66,29 +66,31 @@ def torus(name, major, minor, x, mat):
 
 # Cubo central. El visor de flota muestra el disco de freno, no el eje del bogie.
 for spec in [
-    ("Cubo izquierdo", 0.52, 0.42, -0.48, STEEL),
-    ("Cubo derecho", 0.52, 0.42, 0.48, STEEL),
-    ("Brida interior izquierda", 0.70, 0.18, -0.28, STEEL_DARK),
-    ("Brida interior derecha", 0.70, 0.18, 0.28, STEEL_DARK),
+    ("Cubo izquierdo", 0.50, 0.25, -0.46, STEEL),
+    ("Cubo derecho", 0.50, 0.25, 0.46, STEEL),
+    ("Brida interior izquierda", 0.73, 0.12, -0.35, STEEL_DARK),
+    ("Brida interior derecha", 0.73, 0.12, 0.35, STEEL_DARK),
 ]:
     cylinder(*spec)
 
 # Las dos pistas son objetos independientes: el frontend puede cambiar su material.
-for name, x, mat in [("Pista izquierda", -0.24, LEFT), ("Pista derecha", 0.24, RIGHT)]:
-    cylinder(name, 1.46, 0.16, x, mat)
+for name, x, mat in [("Pista izquierda", -0.35, LEFT), ("Pista derecha", 0.35, RIGHT)]:
+    cylinder(name, 1.46, 0.13, x, mat)
     torus(name + " borde exterior", 1.29, 0.10, x, STEEL)
     torus(name + " borde interior", 0.72, 0.07, x, STEEL_DARK)
+    torus(name + " canal de desgaste", 1.02, 0.028, x - (0.08 if x < 0 else -0.08), STEEL_DARK)
 
-cylinder("Alma ventilada", 0.72, 0.38, 0, VENT)
+cylinder("Nucleo central ventilado", 0.66, 0.28, 0, STEEL_DARK)
 
-# 24 aletas entre las dos pistas: generan el relieve y la ventilación visibles.
-for i in range(24):
-    angle = (2 * math.pi * i) / 24
-    y, z = math.cos(angle) * 1.04, math.sin(angle) * 1.04
+# 30 aletas independientes entre las pistas. Los espacios libres forman los
+# canales de ventilación que se aprecian al girar el modelo.
+for i in range(30):
+    angle = (2 * math.pi * i) / 30
+    y, z = math.cos(angle) * 1.07, math.sin(angle) * 1.07
     bpy.ops.mesh.primitive_cube_add(location=(0, y, z))
     vent = bpy.context.object
     vent.name = f"Canal ventilacion {i + 1:02d}"
-    vent.dimensions = (0.32, 0.13, 0.38)
+    vent.dimensions = (0.57, 0.12, 0.44)
     vent.rotation_euler[0] = angle
     vent.data.materials.append(VENT)
     bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)

@@ -32,7 +32,7 @@ export function DiscoModelo3D({ ladoSeleccionado, color, onSeleccionarLado }: Pr
     controls.minDistance = 3.3
     controls.maxDistance = 10
     controls.target.set(0, 0, 0)
-    camera.position.set(3.7, 1.65, 4.15)
+    camera.position.set(4.1, 1.5, 3.55)
     controls.update()
 
     scene.add(new THREE.HemisphereLight('#e6f6ff', '#071324', 2.4))
@@ -66,7 +66,10 @@ export function DiscoModelo3D({ ladoSeleccionado, color, onSeleccionarLado }: Pr
 
     const raycaster = new THREE.Raycaster()
     const pointer = new THREE.Vector2()
-    const onClick = (event: MouseEvent) => {
+    let pointerStart: { x: number; y: number } | null = null
+    const onPointerDown = (event: PointerEvent) => { pointerStart = { x: event.clientX, y: event.clientY } }
+    const onPointerUp = (event: PointerEvent) => {
+      if (!pointerStart || Math.hypot(event.clientX - pointerStart.x, event.clientY - pointerStart.y) > 7 || !model) return
       if (!model) return
       const rect = renderer.domElement.getBoundingClientRect()
       pointer.set(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1)
@@ -75,7 +78,8 @@ export function DiscoModelo3D({ ladoSeleccionado, color, onSeleccionarLado }: Pr
       if (clicked?.object.name.startsWith('Pista izquierda')) callbackRef.current('izquierdo')
       if (clicked?.object.name.startsWith('Pista derecha')) callbackRef.current('derecho')
     }
-    renderer.domElement.addEventListener('click', onClick)
+    renderer.domElement.addEventListener('pointerdown', onPointerDown, true)
+    renderer.domElement.addEventListener('pointerup', onPointerUp, true)
 
     const resize = () => {
       const width = Math.max(host.clientWidth, 1)
@@ -98,7 +102,8 @@ export function DiscoModelo3D({ ladoSeleccionado, color, onSeleccionarLado }: Pr
     return () => {
       cancelAnimationFrame(frame)
       resizeObserver.disconnect()
-      renderer.domElement.removeEventListener('click', onClick)
+      renderer.domElement.removeEventListener('pointerdown', onPointerDown, true)
+      renderer.domElement.removeEventListener('pointerup', onPointerUp, true)
       controls.dispose()
       selectedMaterial.dispose()
       model?.traverse((child) => {
