@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, Wrench } from 'lucide-react'
+import { AlertTriangle, ChevronDown, ChevronRight, Clock3, Wrench } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { GlassSurface } from '../../../components/GlassSurface'
@@ -76,13 +76,21 @@ function agruparPorTrenYCoche(reperfilados: EventoPronostico[], cambios: EventoP
 
 function TablaEventos({ titulo, eventos }: { titulo: string; eventos: EventoPronostico[] }) {
   if (eventos.length === 0) return null
+  const esCambio = titulo.toLowerCase().includes('cambiar')
+  const acento = esCambio
+    ? 'border-red-200 bg-red-50/45 text-red-700'
+    : 'border-amber-200 bg-amber-50/45 text-amber-700'
   return (
-    <div className="mt-2 overflow-x-auto rounded-lg border border-concreto/15">
-      <p className="bg-white/50 px-3 py-1.5 font-body text-xs font-semibold text-concreto-oscuro">
-        {titulo} ({eventos.length})
-      </p>
+    <div className={`mt-3 overflow-x-auto rounded-xl border ${acento}`}>
+      <div className="flex items-center justify-between gap-3 px-3 py-2">
+        <p className="flex items-center gap-1.5 font-body text-xs font-bold">
+          {esCambio ? <AlertTriangle size={14} aria-hidden /> : <Clock3 size={14} aria-hidden />}
+          {titulo}
+        </p>
+        <span className="rounded-full bg-white/80 px-2 py-0.5 font-data text-[0.65rem] font-bold">{eventos.length}</span>
+      </div>
       <table className="w-full text-left font-body text-[0.75rem]">
-        <thead className="bg-white/30">
+        <thead className="border-y border-concreto/10 bg-white/70 text-[0.68rem] uppercase tracking-[0.08em]">
           <tr>
             <th className="px-3 py-1.5 font-semibold text-concreto">Bogie</th>
             <th className="px-3 py-1.5 text-right font-semibold text-concreto">Eje</th>
@@ -96,7 +104,7 @@ function TablaEventos({ titulo, eventos }: { titulo: string; eventos: EventoPron
           {eventos.map((evento, indice) => (
             <tr
               key={`${evento.fechaEstimada}-${evento.trenNumero}-${indice}`}
-              className="border-t border-concreto/10"
+              className="border-t border-concreto/10 bg-white/25 transition-colors hover:bg-white/70"
             >
               <td className="px-3 py-1.5 text-concreto-oscuro">{evento.posiciones[0]?.bogieCodigo}</td>
               <td className="px-3 py-1.5 text-right font-data text-concreto-oscuro">
@@ -106,7 +114,11 @@ function TablaEventos({ titulo, eventos }: { titulo: string; eventos: EventoPron
                 {evento.posiciones.map((posicion) => posicion.lado).join(' / ')}
               </td>
               <td className="px-3 py-1.5 font-data text-concreto-oscuro">{evento.fechaUltimaMedicion}</td>
-              <td className="px-3 py-1.5 text-right font-data text-concreto-oscuro">{evento.diasHastaEvento}</td>
+              <td className="px-3 py-1.5 text-right">
+                <span className={`rounded-full px-2 py-0.5 font-data text-[0.68rem] font-bold ${esCambio ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                  {evento.diasHastaEvento} d
+                </span>
+              </td>
               <td className="px-3 py-1.5">
                 <span className="font-data text-concreto-oscuro">{evento.fechaEstimada}</span>
                 {evento.pendiente && (
@@ -151,22 +163,22 @@ function DetalleMesContenido({ periodo }: { periodo: string }) {
         const resumen = resumenTren(tren)
         const esPrioridad = resumen.cambios > 0
         return (
-        <details key={tren.trenNumero} className="rounded-lg border border-concreto/15 bg-white/30">
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2 [&::-webkit-details-marker]:hidden">
+        <details key={tren.trenNumero} className={`overflow-hidden rounded-xl border bg-white/50 ${esPrioridad ? 'border-red-200/80' : 'border-amber-200/80'}`}>
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 border-l-4 border-transparent px-3 py-3 transition-colors hover:bg-white/70 [&::-webkit-details-marker]:hidden" style={{ borderLeftColor: esPrioridad ? 'var(--color-estado-critico)' : 'var(--color-estado-seguimiento)' }}>
             <span className="flex items-center gap-2">
               <span className="font-body text-sm font-semibold text-concreto-oscuro">Tren {tren.trenNumero}</span>
               <span className={`rounded-full px-2 py-0.5 font-body text-[0.65rem] font-bold ${esPrioridad ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
                 {esPrioridad ? 'Prioridad · cambio' : 'Seguimiento · reperfilado'}
               </span>
             </span>
-            <span className="font-body text-xs text-concreto">{resumen.cambios} cambios · {resumen.reperfilados} reperfilados · {tren.coches.length} coches</span>
+            <span className="hidden font-body text-xs text-concreto sm:inline">{resumen.cambios} cambios · {resumen.reperfilados} reperfilados · {tren.coches.length} coches</span>
           </summary>
-          <div className="space-y-2 px-2 pb-2">
+          <div className="space-y-3 bg-slate-50/35 p-3">
             {tren.coches.map((coche) => (
-              <div key={coche.numeroCoche} className="rounded-lg border border-concreto/10 bg-white/40 p-2">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="font-body text-sm text-concreto-oscuro">
-                    Coche {coche.tipoCoche} <span className="text-concreto">(N.° {coche.numeroCoche})</span>
+              <div key={coche.numeroCoche} className="rounded-xl border border-slate-200 bg-white/80 p-3 shadow-[0_4px_14px_rgba(15,23,42,0.04)]">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-2">
+                  <span className="font-body text-sm font-semibold text-concreto-oscuro">
+                    Coche {coche.tipoCoche} <span className="font-normal text-concreto">· N.° {coche.numeroCoche}</span>
                   </span>
                   <button
                     type="button"
