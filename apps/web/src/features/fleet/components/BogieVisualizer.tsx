@@ -29,6 +29,12 @@ function formatoRd(rd: number | null): string {
   return rd === null ? 'Sin datos' : `Rd ${rd.toFixed(2)}`
 }
 
+// En el esquema compacto el texto largo “Sin datos” se superpone entre los
+// dos discos; el detalle completo permanece disponible al pasar el cursor.
+function formatoRdEsquema(rd: number | null): string {
+  return rd === null ? '—' : `Rd ${rd.toFixed(2)}`
+}
+
 function textoEstado(disco: FleetDiscoDetalle): string {
   if (!disco.estadoCalculado) return 'Sin datos'
   return ESTADO_META[disco.estadoCalculado].etiqueta
@@ -181,19 +187,17 @@ export function BogieVisualizer({ bogie, onSeleccionarDisco, posicion, total }: 
 
             return (
               <g key={eje.eje}>
-                <line x1="78" y1={discoCentroY} x2="482" y2={discoCentroY} stroke="rgba(31,41,55,0.18)" strokeWidth="8" strokeLinecap="round" />
-                <circle cx="58" cy={discoCentroY} r={RADIO_RUEDA} fill={`url(#metal-${bogie.bogie})`} stroke="#cbd5e1" strokeWidth="2" />
-                <circle cx="502" cy={discoCentroY} r={RADIO_RUEDA} fill={`url(#metal-${bogie.bogie})`} stroke="#cbd5e1" strokeWidth="2" />
+                {/* En Ansaldo se representa únicamente el conjunto de discos:
+                    sin ruedas laterales y con el eje limpio como en la ficha. */}
+                <line x1="8" y1={discoCentroY} x2="552" y2={discoCentroY} stroke="#cbd5e1" strokeWidth="8" />
                 <text x="280" y={y - 6} textAnchor="middle" className="fill-concreto font-body text-[12px] font-semibold">
                   Eje {eje.eje}: {codigoRef ? `Disco ${codigoRef}` : 'Disco sin código'}
                 </text>
 
-                {/* Ansaldo tiene dos discos por lado. Se distribuyen sobre un
-                    solo eje horizontal, en vez de apilarlos verticalmente. */}
-                <DiscoAnsaldoHorizontal x={202} y={discoCentroY} lado="izquierdo" posicion="exterior" disco={izqExt} activo={discoActivo === izqExt} onSeleccionarDisco={seleccionar} />
-                <DiscoAnsaldoHorizontal x={246} y={discoCentroY} lado="izquierdo" posicion="interior" disco={izqInt} activo={discoActivo === izqInt} onSeleccionarDisco={seleccionar} />
-                <DiscoAnsaldoHorizontal x={314} y={discoCentroY} lado="derecho" posicion="interior" disco={derInt} activo={discoActivo === derInt} onSeleccionarDisco={seleccionar} />
-                <DiscoAnsaldoHorizontal x={358} y={discoCentroY} lado="derecho" posicion="exterior" disco={derExt} activo={discoActivo === derExt} onSeleccionarDisco={seleccionar} />
+                {/* Ansaldo tiene dos discos por eje. Cada disco conserva sus
+                    dos lecturas (exterior/interior) como mitades verticales. */}
+                <DiscoAnsaldoDoble x={205} y={discoCentroY} lado="izquierdo" exterior={izqExt} interior={izqInt} activo={discoActivo} onSeleccionarDisco={seleccionar} />
+                <DiscoAnsaldoDoble x={355} y={discoCentroY} lado="derecho" exterior={derExt} interior={derInt} activo={discoActivo} onSeleccionarDisco={seleccionar} />
               </g>
             )
           }
@@ -291,75 +295,75 @@ function MitadDisco({ x, y, lado, disco, activo, onSeleccionarDisco }: MitadDisc
   )
 }
 
-type DiscoAnsaldoHorizontalProps = {
+type DiscoAnsaldoDobleProps = {
   x: number
   y: number
   lado: 'izquierdo' | 'derecho'
-  posicion: 'interior' | 'exterior'
-  disco: FleetDiscoDetalle | null
-  activo: boolean
+  exterior: FleetDiscoDetalle | null
+  interior: FleetDiscoDetalle | null
+  activo: FleetDiscoDetalle | null
   onSeleccionarDisco: (disco: FleetDiscoDetalle) => void
 }
 
-// Ansaldo: los dos discos de cada lado comparten una misma línea de eje;
-// se dibujan como cuatro discos completos y pequeños, en orden horizontal.
-function DiscoAnsaldoHorizontal({ x, y, lado, posicion, disco, activo, onSeleccionarDisco }: DiscoAnsaldoHorizontalProps) {
-  const disponible = Boolean(disco?.codigoDisco && disco.estadoCalculado)
-  const color = disco?.estadoCalculado
-    ? colorEstado(disco.estadoCalculado)
-    : posicion === 'exterior'
-      ? '#dbeafe'
-      : '#c4b5fd'
-  const etiqueta = disco
-    ? `${lado} ${posicion}: ${textoEstado(disco)} · ${formatoRd(disco.rd)}`
-    : `${lado} ${posicion}: Sin datos`
-  const tooltip = useTooltipHover()
+function DiscoAnsaldoDoble({ x, y, lado, exterior, interior, activo, onSeleccionarDisco }: DiscoAnsaldoDobleProps) {
+  const disponibleExterior = Boolean(exterior?.codigoDisco && exterior.estadoCalculado)
+  const disponibleInterior = Boolean(interior?.codigoDisco && interior.estadoCalculado)
+  const colorExterior = exterior?.estadoCalculado ? colorEstado(exterior.estadoCalculado) : '#dbeafe'
+  const colorInterior = interior?.estadoCalculado ? colorEstado(interior.estadoCalculado) : '#c4b5fd'
+  const tooltipExterior = useTooltipHover()
+  const tooltipInterior = useTooltipHover()
+  const arriba = y - RY
+  const abajo = y + RY
+  const pathExterior = `M ${x} ${arriba} A ${RX} ${RY} 0 0 0 ${x} ${abajo} Z`
+  const pathInterior = `M ${x} ${arriba} A ${RX} ${RY} 0 0 1 ${x} ${abajo} Z`
 
   return (
     <>
       <g
-        ref={tooltip.ref}
-        role={disponible ? 'button' : 'img'}
-        tabIndex={disponible ? 0 : undefined}
-        aria-label={etiqueta}
+        ref={tooltipExterior.ref}
+        role={disponibleExterior ? 'button' : 'img'}
+        tabIndex={disponibleExterior ? 0 : undefined}
+        aria-label={exterior ? `${lado} exterior: ${textoEstado(exterior)} · ${formatoRd(exterior.rd)}` : `${lado} exterior: Sin datos`}
         onClick={() => {
-          if (disponible && disco) onSeleccionarDisco(disco)
+          if (disponibleExterior && exterior) onSeleccionarDisco(exterior)
         }}
         onKeyDown={(e) => {
-          if (!disponible || !disco) return
+          if (!disponibleExterior || !exterior) return
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault()
-            onSeleccionarDisco(disco)
+            onSeleccionarDisco(exterior)
           }
         }}
-        onMouseEnter={tooltip.mostrar}
-        onMouseLeave={tooltip.ocultar}
-        onFocus={tooltip.mostrar}
-        onBlur={tooltip.ocultar}
-        className={disponible ? 'cursor-pointer outline-none' : 'cursor-default'}
+        onMouseEnter={tooltipExterior.mostrar}
+        onMouseLeave={tooltipExterior.ocultar}
+        onFocus={tooltipExterior.mostrar}
+        onBlur={tooltipExterior.ocultar}
+        className={disponibleExterior ? 'cursor-pointer outline-none' : 'cursor-default'}
       >
-        <title>{etiqueta}</title>
-        <ellipse
-          className={activo ? 'eva-disco-seleccionado' : undefined}
-          cx={x}
-          cy={y}
-          rx="20"
-          ry="29"
-          fill={color}
-          opacity={1}
-          stroke={disco?.estadoCalculado ? '#ffffff' : '#64748b'}
-          strokeOpacity="0.9"
-          strokeWidth="2"
-          style={{ filter: activo ? 'drop-shadow(0 0 10px rgba(16,185,129,0.95))' : 'drop-shadow(0 6px 6px rgba(15,23,42,0.1))' }}
-        />
-        <circle cx={x} cy={y} r="8" fill="#475569" stroke="#f8fafc" strokeWidth="2" pointerEvents="none" />
-        <text x={x} y={y + 43} textAnchor="middle" className="fill-concreto font-data text-[9px]">
-          {posicion === 'exterior' ? 'EXT.' : 'INT.'}
-        </text>
+        <path className={activo === exterior ? 'eva-disco-seleccionado' : undefined} d={pathExterior} fill={colorExterior} stroke="#ffffff" strokeWidth="2" style={{ filter: 'drop-shadow(0 7px 7px rgba(15,23,42,0.12))' }} />
       </g>
-      {tooltip.visible && disco && (
-        <TooltipDiscoContenido disco={disco} lado={lado} posicion={posicion} coords={tooltip.coords} />
-      )}
+      <g
+        ref={tooltipInterior.ref}
+        role={disponibleInterior ? 'button' : 'img'}
+        tabIndex={disponibleInterior ? 0 : undefined}
+        aria-label={interior ? `${lado} interior: ${textoEstado(interior)} · ${formatoRd(interior.rd)}` : `${lado} interior: Sin datos`}
+        onClick={() => { if (disponibleInterior && interior) onSeleccionarDisco(interior) }}
+        onKeyDown={(e) => { if (disponibleInterior && interior && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onSeleccionarDisco(interior) } }}
+        onMouseEnter={tooltipInterior.mostrar}
+        onMouseLeave={tooltipInterior.ocultar}
+        onFocus={tooltipInterior.mostrar}
+        onBlur={tooltipInterior.ocultar}
+        className={disponibleInterior ? 'cursor-pointer outline-none' : 'cursor-default'}
+      >
+        <path className={activo === interior ? 'eva-disco-seleccionado' : undefined} d={pathInterior} fill={colorInterior} stroke="#ffffff" strokeWidth="2" style={{ filter: 'drop-shadow(0 7px 7px rgba(15,23,42,0.12))' }} />
+      </g>
+      <ellipse cx={x} cy={y} rx={RX} ry={RY} fill="none" stroke="#64748b" strokeWidth="2.5" pointerEvents="none" />
+      <circle cx={x} cy={y} r="16" fill="#475569" stroke="#f8fafc" strokeWidth="3" pointerEvents="none" />
+      <circle cx={x} cy={y} r="7" fill="#0f172a" stroke="#94a3b8" strokeWidth="2" pointerEvents="none" />
+      <text x={x - RX - 18} y={y + RY + 21} textAnchor="middle" className="fill-concreto-oscuro font-data text-[12px]">{formatoRdEsquema(exterior?.rd ?? null)}</text>
+      <text x={x + RX + 18} y={y + RY + 21} textAnchor="middle" className="fill-concreto-oscuro font-data text-[12px]">{formatoRdEsquema(interior?.rd ?? null)}</text>
+      {tooltipExterior.visible && exterior && <TooltipDiscoContenido disco={exterior} lado={lado} posicion="exterior" coords={tooltipExterior.coords} />}
+      {tooltipInterior.visible && interior && <TooltipDiscoContenido disco={interior} lado={lado} posicion="interior" coords={tooltipInterior.coords} />}
     </>
   )
 }
