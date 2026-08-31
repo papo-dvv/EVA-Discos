@@ -64,29 +64,52 @@ def torus(name, major, minor, x, mat):
     obj.data.materials.append(mat)
     return finish(obj, 0.012)
 
-# Cubo central. El visor de flota muestra el disco de freno, no el eje del bogie.
-for spec in [
-    ("Cubo izquierdo", 0.50, 0.25, -0.46, STEEL),
-    ("Cubo derecho", 0.50, 0.25, 0.46, STEEL),
-    ("Brida interior izquierda", 0.73, 0.12, -0.35, STEEL_DARK),
-    ("Brida interior derecha", 0.73, 0.12, 0.35, STEEL_DARK),
-]:
-    cylinder(*spec)
+def annulus(name, outer_radius, inner_radius, depth, x, mat, segments=128):
+    """Placa de freno anular maciza, con abertura central real."""
+    vertices, faces = [], []
+    for face_x in (x - depth / 2, x + depth / 2):
+        for radius in (outer_radius, inner_radius):
+            for i in range(segments):
+                angle = 2 * math.pi * i / segments
+                vertices.append((face_x, math.cos(angle) * radius, math.sin(angle) * radius))
+    outer_l, inner_l, outer_r, inner_r = 0, segments, segments * 2, segments * 3
+    for i in range(segments):
+        nxt = (i + 1) % segments
+        faces += [
+            (outer_l + i, outer_l + nxt, inner_l + nxt, inner_l + i),
+            (outer_r + nxt, outer_r + i, inner_r + i, inner_r + nxt),
+            (outer_l + nxt, outer_l + i, outer_r + i, outer_r + nxt),
+            (inner_l + i, inner_l + nxt, inner_r + nxt, inner_r + i),
+        ]
+    mesh = bpy.data.meshes.new(name + " malla")
+    mesh.from_pydata(vertices, [], faces)
+    mesh.materials.append(mat)
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(obj)
+    return finish(obj, 0.026)
 
-# Las dos pistas son objetos independientes: el frontend puede cambiar su material.
+# Dos placas anulares independientes: cada una puede iluminarse por separado.
 for name, x, mat in [("Pista izquierda", -0.35, LEFT), ("Pista derecha", 0.35, RIGHT)]:
-    cylinder(name, 1.46, 0.13, x, mat)
-    torus(name + " borde exterior", 1.29, 0.10, x, STEEL)
-    torus(name + " borde interior", 0.72, 0.07, x, STEEL_DARK)
-    torus(name + " canal de desgaste", 1.02, 0.028, x - (0.08 if x < 0 else -0.08), STEEL_DARK)
+    annulus(name, 1.48, 0.58, 0.13, x, mat)
+    torus(name + " borde exterior", 1.40, 0.055, x, STEEL)
+    torus(name + " borde interior", 0.62, 0.045, x, STEEL_DARK)
+    torus(name + " canal de desgaste", 1.08, 0.022, x - (0.078 if x < 0 else -0.078), STEEL_DARK)
 
-cylinder("Nucleo central ventilado", 0.66, 0.28, 0, STEEL_DARK)
+# Anillo de fijación interior y 12 conjuntos de pernos, según el plano técnico.
+annulus("Aro de fijación", 0.78, 0.50, 0.46, 0, STEEL_DARK)
+for i in range(12):
+    angle = (2 * math.pi * i) / 12
+    y, z = math.cos(angle) * 0.66, math.sin(angle) * 0.66
+    for side, x in (("izquierdo", -0.45), ("derecho", 0.45)):
+        bolt = cylinder(f"Perno {side} {i + 1:02d}", 0.065, 0.12, x, STEEL_DARK, 32)
+        bolt.location.y, bolt.location.z = y, z
+        torus(f"Arandela {side} {i + 1:02d}", 0.09, 0.018, x - (0.07 if x < 0 else -0.07), STEEL)
+        bpy.context.object.location.y, bpy.context.object.location.z = y, z
 
-# 30 aletas independientes entre las pistas. Los espacios libres forman los
-# canales de ventilación que se aprecian al girar el modelo.
+# Aletas separadas: dejan libre la cámara de ventilación entre ambas pistas.
 for i in range(30):
     angle = (2 * math.pi * i) / 30
-    y, z = math.cos(angle) * 1.07, math.sin(angle) * 1.07
+    y, z = math.cos(angle) * 1.05, math.sin(angle) * 1.05
     bpy.ops.mesh.primitive_cube_add(location=(0, y, z))
     vent = bpy.context.object
     vent.name = f"Canal ventilacion {i + 1:02d}"

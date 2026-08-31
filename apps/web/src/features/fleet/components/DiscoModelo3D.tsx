@@ -17,12 +17,13 @@ export function DiscoModelo3D({ ladoSeleccionado, color, onSeleccionarLado }: Pr
     if (!host) return
 
     const scene = new THREE.Scene()
-    const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100)
+    const camera = new THREE.PerspectiveCamera(27, 1, 0.1, 100)
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     renderer.outputColorSpace = THREE.SRGBColorSpace
     renderer.shadowMap.enabled = true
     renderer.setSize(host.clientWidth, host.clientHeight)
+    renderer.domElement.style.cursor = 'grab'
     host.replaceChildren(renderer.domElement)
 
     const controls = new OrbitControls(camera, renderer.domElement)
@@ -32,7 +33,9 @@ export function DiscoModelo3D({ ladoSeleccionado, color, onSeleccionarLado }: Pr
     controls.minDistance = 3.3
     controls.maxDistance = 10
     controls.target.set(0, 0, 0)
-    camera.position.set(4.1, 1.5, 3.55)
+    // Vista oblicua: permite ver las dos pistas y el canal de ventilación,
+    // sin ocultar la cara del disco detrás de un eje.
+    camera.position.set(2.5, 1.8, 4.05)
     controls.update()
 
     scene.add(new THREE.HemisphereLight('#e6f6ff', '#071324', 2.4))
@@ -52,7 +55,7 @@ export function DiscoModelo3D({ ladoSeleccionado, color, onSeleccionarLado }: Pr
 
     let model: THREE.Group | null = null
     const nombrePista = ladoSeleccionado === 'izquierdo' ? 'Pista izquierda' : 'Pista derecha'
-    const selectedMaterial = new THREE.MeshStandardMaterial({ color, metalness: 0.72, roughness: 0.22, emissive: color, emissiveIntensity: 0.42 })
+    const selectedMaterial = new THREE.MeshStandardMaterial({ color, metalness: 0.72, roughness: 0.2, emissive: color, emissiveIntensity: 0.62 })
     new GLTFLoader().load('/models/alstom_disc.glb', (gltf) => {
       model = gltf.scene
       model.traverse((child) => {
@@ -67,19 +70,32 @@ export function DiscoModelo3D({ ladoSeleccionado, color, onSeleccionarLado }: Pr
     const raycaster = new THREE.Raycaster()
     const pointer = new THREE.Vector2()
     let pointerStart: { x: number; y: number } | null = null
-    const onPointerDown = (event: PointerEvent) => { pointerStart = { x: event.clientX, y: event.clientY } }
-    const onPointerUp = (event: PointerEvent) => {
-      if (!pointerStart || Math.hypot(event.clientX - pointerStart.x, event.clientY - pointerStart.y) > 7 || !model) return
-      if (!model) return
+    let lastSelectionAt = 0
+    const onPointerDown = (event: PointerEvent) => {
+      pointerStart = { x: event.clientX, y: event.clientY }
+      renderer.domElement.style.cursor = 'grabbing'
+    }
+    const onPointerUp = (event: MouseEvent) => {
+      const moved = pointerStart && Math.hypot(event.clientX - pointerStart.x, event.clientY - pointerStart.y) > 7
+      pointerStart = null
+      renderer.domElement.style.cursor = 'grab'
+      if (moved || !model || performance.now() - lastSelectionAt < 120) return
       const rect = renderer.domElement.getBoundingClientRect()
       pointer.set(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1)
       raycaster.setFromCamera(pointer, camera)
-      const clicked = raycaster.intersectObjects(model.children, true).find((hit) => hit.object.name.startsWith('Pista izquierda') || hit.object.name.startsWith('Pista derecha'))
+      const intersections = raycaster.intersectObjects(model.children, true)
+      const clicked = intersections.find((hit) => hit.object.name.startsWith('Pista izquierda') || hit.object.name.startsWith('Pista derecha'))
       if (clicked?.object.name.startsWith('Pista izquierda')) callbackRef.current('izquierdo')
-      if (clicked?.object.name.startsWith('Pista derecha')) callbackRef.current('derecho')
+      else if (clicked?.object.name.startsWith('Pista derecha')) callbackRef.current('derecho')
+      // Los pernos y aletas cubren zonas de la pista. Cuando se pulsa uno de
+      // esos detalles, conservamos una selección directa e intuitiva por mitad.
+      else if (intersections.length > 0) callbackRef.current(event.clientX - rect.left < rect.width / 2 ? 'izquierdo' : 'derecho')
+      else return
+      lastSelectionAt = performance.now()
     }
     renderer.domElement.addEventListener('pointerdown', onPointerDown, true)
     renderer.domElement.addEventListener('pointerup', onPointerUp, true)
+    renderer.domElement.addEventListener('click', onPointerUp, true)
 
     const resize = () => {
       const width = Math.max(host.clientWidth, 1)
@@ -104,6 +120,7 @@ export function DiscoModelo3D({ ladoSeleccionado, color, onSeleccionarLado }: Pr
       resizeObserver.disconnect()
       renderer.domElement.removeEventListener('pointerdown', onPointerDown, true)
       renderer.domElement.removeEventListener('pointerup', onPointerUp, true)
+      renderer.domElement.removeEventListener('click', onPointerUp, true)
       controls.dispose()
       selectedMaterial.dispose()
       model?.traverse((child) => {
