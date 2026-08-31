@@ -224,30 +224,44 @@ export function DetalleMesProyeccion({ meses }: Props) {
         Clic en un mes para ver qué trenes y coches tienen discos a reperfilar o cambiar.
       </p>
 
-      <ul className="mt-3 divide-y divide-concreto/10">
+      <ul className="mt-4 grid gap-2">
         {meses.map((mes) => {
           const expandido = mesesExpandidos.has(mes.periodo)
+          const tieneCambio = mes.cambios > 0
+          const esCritico = mes.criticos > 0 || mes.cambios >= 5
           return (
-            <li key={mes.periodo}>
+            <li key={mes.periodo} className="overflow-hidden rounded-xl">
               <button
                 type="button"
                 onClick={() => alternarMes(mes.periodo)}
-                className="flex w-full items-center justify-between gap-3 py-2.5 text-left transition-colors hover:bg-white/40"
+                className={`group flex w-full items-center justify-between gap-3 border-l-4 px-4 py-3 text-left transition-all ${
+                  expandido
+                    ? 'border-verde-institucional bg-white shadow-[0_6px_18px_rgba(15,23,42,0.08)]'
+                    : esCritico
+                      ? 'border-red-400 bg-red-50/35 hover:bg-red-50/65'
+                      : tieneCambio
+                        ? 'border-amber-400 bg-amber-50/35 hover:bg-amber-50/65'
+                        : 'border-emerald-400 bg-white/45 hover:bg-white/80'
+                }`}
               >
-                <span className="flex items-center gap-2 font-body text-sm font-medium text-concreto-oscuro">
+                <span className="flex items-center gap-3 font-body text-sm font-medium text-concreto-oscuro">
                   {expandido ? (
-                    <ChevronDown size={15} className="text-concreto" aria-hidden />
+                    <span className="grid h-7 w-7 place-items-center rounded-full bg-verde-claro text-verde-oscuro"><ChevronDown size={16} aria-hidden /></span>
                   ) : (
-                    <ChevronRight size={15} className="text-concreto" aria-hidden />
+                    <span className={`grid h-7 w-7 place-items-center rounded-full ${esCritico ? 'bg-red-100 text-red-700' : tieneCambio ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}><ChevronRight size={16} aria-hidden /></span>
                   )}
-                  {mes.etiqueta}
+                  <span>
+                    <span className="block text-base font-semibold">{mes.etiqueta}</span>
+                    <span className="block text-[0.65rem] uppercase tracking-[0.1em] text-concreto">Plan operativo mensual</span>
+                  </span>
                 </span>
-                <span className="font-body text-xs text-concreto">
-                  <span className="font-data font-semibold text-concreto-oscuro">{mes.reperfilados}</span> reperfilados ·{' '}
-                  <span className="font-data font-semibold text-concreto-oscuro">{mes.cambios}</span> cambios
+                <span className="flex flex-wrap justify-end gap-1.5">
+                  <span className="rounded-full bg-amber-100 px-2.5 py-1 font-body text-[0.68rem] font-bold text-amber-700"><span className="font-data">{mes.reperfilados}</span> reperfilar</span>
+                  <span className={`rounded-full px-2.5 py-1 font-body text-[0.68rem] font-bold ${tieneCambio ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-500'}`}><span className="font-data">{mes.cambios}</span> cambiar</span>
+                  {mes.criticos > 0 && <span className="hidden rounded-full bg-red-600 px-2 py-1 font-data text-[0.68rem] font-bold text-white lg:inline">{mes.criticos} críticos</span>}
                 </span>
               </button>
-              {expandido && <DetalleMesContenido periodo={mes.periodo} />}
+              {expandido && <div className="border-x border-b border-slate-200 bg-white/70"><DetalleMesContenido periodo={mes.periodo} /></div>}
             </li>
           )
         })}
