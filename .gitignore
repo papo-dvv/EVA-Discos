@@ -30,3 +30,8 @@ Thumbs.db
 # Temporales
 *.tmp
 .temp
+tmp/
+
+# Archivos locales de soporte y credenciales
+_env
+*.traineddata

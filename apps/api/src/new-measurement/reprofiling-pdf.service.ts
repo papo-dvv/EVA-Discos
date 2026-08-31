@@ -110,6 +110,15 @@ export class ReprofilingPdfService {
           color: tinta,
         });
     };
+    // Todo texto que entra en un recuadro se recorta a su ancho útil. La
+    // plantilla es muy densa: sin este límite un P.T., observación o nombre
+    // largo invade la celda siguiente al exportar el PDF.
+    const ajustarTexto = (valor: unknown, ancho: number, size: number) => {
+      let contenido = String(valor ?? '').trim();
+      while (contenido && font.widthOfTextAtSize(`${contenido}...`, size) > ancho)
+        contenido = contenido.slice(0, -1);
+      return contenido === String(valor ?? '').trim() ? contenido : `${contenido}...`;
+    };
     const escribirCentrado = (
       valor: unknown,
       centroX: number,
@@ -128,8 +137,28 @@ export class ReprofilingPdfService {
         negrita,
       );
     };
+    const escribirCentradoAjustado = (
+      valor: unknown,
+      centroX: number,
+      y: number,
+      anchoMaximo: number,
+      sizeInicial = 5.5,
+      sizeMinimo = 3.8,
+      negrita = false,
+    ) => {
+      const contenido = String(valor ?? '').trim();
+      if (!contenido) return;
+      const tipo = negrita ? bold : font;
+      let size = sizeInicial;
+      while (
+        size > sizeMinimo &&
+        tipo.widthOfTextAtSize(contenido, size) > anchoMaximo
+      )
+        size -= 0.1;
+      escribirCentrado(contenido, centroX, y, size, negrita);
+    };
     const numero = (valor: unknown) =>
-      valor === null || valor === undefined ? '' : Number(valor).toFixed(1);
+      valor === null || valor === undefined ? '' : Number(valor).toFixed(2);
     const fecha = (valor: Date | null) =>
       valor
         ? valor.toLocaleDateString('es-PE', { timeZone: 'America/Lima' })
@@ -141,7 +170,9 @@ export class ReprofilingPdfService {
 
     // Coordenadas calibradas contra la plantilla oficial tamaño carta.
     // Los textos se anclan dentro de cada línea, no sobre sus rótulos.
-    escribir(ficha.trenNumero, 166, 708, 7.2, true);
+    // La línea de N° Tren ocupa x=83..113; antes se usaba x=166, que cae en
+    // el campo MARCA. Se centra el número en su línea correspondiente.
+    escribirCentrado(ficha.trenNumero, 98, 708, 7.2, true);
     // La plantilla enviada corresponde a ALSTOM. Para ANSALDO se tapa solo
     // el texto fijo de marca, preservando el resto del encabezado oficial.
     if (ficha.trenNumero <= 5) {
@@ -154,7 +185,7 @@ export class ReprofilingPdfService {
       });
       escribir('ANSALDO MB300', 181, 707, 6.3, true);
     }
-    escribir(ficha.puestoTrabajo, 315, 708, 7.2, true);
+    escribir(ajustarTexto(ficha.puestoTrabajo, 104, 7.2), 315, 708, 7.2, true);
     escribir(ficha.kilometraje, 442, 708, 7.2, true);
     escribir(fechaHora(ficha.fechaHoraInicio), 116, 691, 6.2, true);
     escribir(fechaHora(ficha.fechaHoraFin), 302, 691, 6.2, true);
@@ -172,10 +203,17 @@ export class ReprofilingPdfService {
       derDespuesH: 488,
       derRa: 521,
     };
+    const altoFilaTabla = 12.35;
+    // La plantilla agrega 1.6 pt en cada separador grueso de cuatro ejes. Si
+    // se usa una progresión uniforme, el desfase se acumula hasta casi una
+    // fila completa al final de la tabla.
+    const altoSeparadorBloque = 1.6;
+    const yFilaTabla = (eje: number, baselineInicial = 568.5) =>
+      baselineInicial -
+      (eje - 1) * altoFilaTabla -
+      Math.floor((eje - 1) / 4) * altoSeparadorBloque;
     for (let eje = 1; eje <= 24; eje++) {
-      // La plantilla mantiene la misma altura de celda para los 24 ejes; los
-      // separadores de bloque son solo trazos más gruesos, no filas extra.
-      const y = 568.5 - (eje - 1) * 12.35;
+      const y = yFilaTabla(eje);
       const izq = porPosicion.get(`${eje}|izquierdo`);
       const der = porPosicion.get(`${eje}|derecho`);
       escribirCentrado(numero(izq?.reperfiladoTAntes), columnas.izqAntesT, y);
@@ -188,14 +226,15 @@ export class ReprofilingPdfService {
       escribirCentrado(numero(der?.tValue), columnas.derDespuesT, y, 6.7, true);
       escribirCentrado(numero(der?.hValue), columnas.derDespuesH, y, 6.7, true);
       escribirCentrado(numero(der ? 2.5 : null), columnas.derRa, y, 6.7, true);
-      escribir(der?.observacion ?? izq?.observacion, 548, y, 5.2);
+      escribir(ajustarTexto(der?.observacion ?? izq?.observacion, 42, 5.2), 548, y, 5.2);
     }
 
     // La plantilla imprime el tipo de coche y deja una línea vacía debajo.
     // Se completa con el código físico que corresponde al tren seleccionado.
     const coches = ['MA1', 'MB1', 'MB3', 'REM', 'MB2', 'MA2'] as const;
     coches.forEach((tipo, indice) => {
-      escribir(numerosCoche[tipo], 315, 535 - indice * 51.8, 7, true);
+      // Código centrado sobre la línea reservada debajo del tipo de coche.
+      escribirCentrado(numerosCoche[tipo], 312, 543 - indice * 51, 7, true);
     });
     const posicionesBogie = [
       ['MA1:PB3', 1],
@@ -212,40 +251,83 @@ export class ReprofilingPdfService {
       ['MA2:PB3', 23],
     ] as const;
     posicionesBogie.forEach(([posicion, ejeInicio]) => {
-      const y =
-        561 - (ejeInicio - 1) * 12.35;
+      const y = yFilaTabla(ejeInicio, 561);
       escribirCentrado(codigosBogie[posicion], 59, y, 5.8, true);
     });
 
     if (ficha.todasConformes !== null)
-      escribir('X', ficha.todasConformes ? 390 : 438, 193, 8, true);
+      // Centros reales de los espacios entre corchetes: Si [  ] / No [  ].
+      escribir('X', ficha.todasConformes ? 384 : 434, 196, 8, true);
     ficha.instrumentos.slice(0, 4).forEach((instrumento, indice) => {
-      const y = 158 - indice * 10.2;
-      escribir(instrumento.codigo, 53, y, 5.7);
-      escribir(instrumento.descripcion, 112, y, 5.7);
-      escribir(instrumento.modeloMarca, 293, y, 5.7);
-      escribir(fecha(instrumento.fechaCalibracion), 387, y, 5.4);
-      escribir(fecha(instrumento.fechaVencimientoCalibracion), 460, y, 5.4);
-      escribir(instrumento.observaciones, 532, y, 5.2);
+      const y = 161.5 - indice * 10.2;
+      // El código nunca se trunca: se reduce solo lo necesario para conservar
+      // todos sus caracteres dentro de la primera columna.
+      escribirCentradoAjustado(instrumento.codigo, 61.5, y, 31, 5.5, 2.5);
+      escribir(ajustarTexto(instrumento.descripcion, 184, 5.7), 84, y, 5.7);
+      escribir(ajustarTexto(instrumento.modeloMarca, 88, 5.7), 276, y, 5.7);
+      escribirCentrado(fecha(instrumento.fechaCalibracion), 403, y, 5.2);
+      escribirCentrado(fecha(instrumento.fechaVencimientoCalibracion), 471, y, 5.2);
+      escribir(ajustarTexto(instrumento.observaciones, 55, 5.2), 508, y, 5.2);
     });
-    const comentarios =
-      (ficha.comentariosActividad ?? '').match(/.{1,115}(?:\s|$)/g) ?? [];
-    comentarios
-      .slice(0, 5)
-      .forEach((linea, indice) =>
-        escribir(linea.trim(), 45, 115 - indice * 9, 5.7),
-      );
-    for (const [indice, tecnico] of ficha.tecnicos.slice(0, 2).entries()) {
-      const y = 72 - indice * 10;
-      escribir(tecnico.cargo || 'TÉCNICO', 52, y, 5.5, true);
-      escribir(tecnico.nombre, 210, y, 6.1, true);
+    // El área de comentarios termina antes de la tabla de firmas. Se ajusta
+    // por ancho real y se limita a cuatro renglones para que nunca invada los
+    // encabezados de CARGO / NOMBRES / FIRMA.
+    const palabrasComentario = (ficha.comentariosActividad ?? '')
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+    const comentarios: string[] = [];
+    let lineaComentario = '';
+    for (const palabra of palabrasComentario) {
+      const candidata = lineaComentario
+        ? `${lineaComentario} ${palabra}`
+        : palabra;
+      if (
+        lineaComentario &&
+        font.widthOfTextAtSize(candidata, 5.2) > 510
+      ) {
+        comentarios.push(lineaComentario);
+        lineaComentario = palabra;
+      } else {
+        lineaComentario = candidata;
+      }
+    }
+    if (lineaComentario) comentarios.push(lineaComentario);
+    comentarios.slice(0, 4).forEach((linea, indice) =>
+      escribir(ajustarTexto(linea, 510, 5.2), 45, 111 - indice * 8.5, 5.2),
+    );
+    // Las posiciones vacías se crean como placeholders al abrir una ficha.
+    // Sólo se imprimen técnicos que realmente hayan sido registrados.
+    const tecnicosConDatos = ficha.tecnicos.filter(
+      (tecnico) =>
+        tecnico.cargo?.trim() ||
+        tecnico.nombre?.trim() ||
+        tecnico.firma?.startsWith('data:image/') ||
+        tecnico.fecha,
+    );
+    for (const [indice, tecnico] of tecnicosConDatos.slice(0, 2).entries()) {
+      const y = 62 - indice * 10;
+      escribirCentrado(tecnico.cargo, 95, y, 5.5, true);
+      escribirCentrado(ajustarTexto(tecnico.nombre, 325, 6.1), 310, y, 6.1, true);
       await dibujarFirma(pdf, page, tecnico.firma, 520, y + 1);
     }
-    escribir('RESPONSABLE DE MANTENIMIENTO', 52, 53, 5.1, true);
-    escribir(ficha.responsableMantenimientoNombre, 210, 53, 6.1, true);
-    await dibujarFirma(pdf, page, ficha.responsableMantenimientoFirma, 520, 54);
-    escribir(ficha.ingMrNombre, 210, 34, 6.1, true);
-    await dibujarFirma(pdf, page, ficha.ingMrFirma, 520, 35);
+    // El formato de reperfilado no incluye una fila de Ing. MR. El responsable
+    // de mantenimiento firma únicamente en la última fila, rotulada por la
+    // plantilla como Supervisor / Coordinador / Técnico Especialista.
+    escribirCentrado(
+      ajustarTexto(ficha.responsableMantenimientoNombre, 325, 6.1),
+      310,
+      28,
+      6.1,
+      true,
+    );
+    await dibujarFirma(
+      pdf,
+      page,
+      ficha.responsableMantenimientoFirma,
+      520,
+      29,
+    );
 
     return pdf.save();
   }

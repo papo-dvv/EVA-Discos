@@ -128,6 +128,11 @@ function TooltipDiscoContenido({
 
 export function BogieVisualizer({ bogie, onSeleccionarDisco, posicion, total }: Props) {
   const ejes = bogie.ejes.slice(0, 2)
+  const [discoActivo, setDiscoActivo] = useState<FleetDiscoDetalle | null>(null)
+  const seleccionar = (disco: FleetDiscoDetalle) => {
+    setDiscoActivo(disco)
+    onSeleccionarDisco(disco)
+  }
   const altoSvg = FILA_Y_INICIAL + ejes.length * FILA_ALTO
 
   return (
@@ -183,10 +188,10 @@ export function BogieVisualizer({ bogie, onSeleccionarDisco, posicion, total }: 
                   Eje {eje.eje}: {codigoRef ? `Disco ${codigoRef}` : 'Disco sin código'}
                 </text>
 
-                <CuartoDisco x={190} y={y} lado="izquierdo" posicion="exterior" disco={izqExt} onSeleccionarDisco={onSeleccionarDisco} />
-                <CuartoDisco x={190} y={y} lado="izquierdo" posicion="interior" disco={izqInt} onSeleccionarDisco={onSeleccionarDisco} />
-                <CuartoDisco x={280} y={y} lado="derecho" posicion="interior" disco={derInt} onSeleccionarDisco={onSeleccionarDisco} />
-                <CuartoDisco x={280} y={y} lado="derecho" posicion="exterior" disco={derExt} onSeleccionarDisco={onSeleccionarDisco} />
+                <CuartoDisco x={190} y={y} lado="izquierdo" posicion="exterior" disco={izqExt} activo={false} onSeleccionarDisco={seleccionar} />
+                <CuartoDisco x={190} y={y} lado="izquierdo" posicion="interior" disco={izqInt} activo={false} onSeleccionarDisco={seleccionar} />
+                <CuartoDisco x={280} y={y} lado="derecho" posicion="interior" disco={derInt} activo={false} onSeleccionarDisco={seleccionar} />
+                <CuartoDisco x={280} y={y} lado="derecho" posicion="exterior" disco={derExt} activo={false} onSeleccionarDisco={seleccionar} />
 
                 <line x1="280" y1={y + 4} x2="280" y2={discoAbajoY} stroke="rgba(255,255,255,0.8)" strokeWidth="2" />
                 <text x={280 - RX - 40} y={y + 4 + RY / 2} textAnchor="end" dominantBaseline="middle" className="fill-concreto-oscuro font-data text-[11px]">
@@ -210,14 +215,19 @@ export function BogieVisualizer({ bogie, onSeleccionarDisco, posicion, total }: 
           return (
             <g key={eje.eje}>
               <line x1="78" y1={discoCentroY} x2="482" y2={discoCentroY} stroke="rgba(31,41,55,0.18)" strokeWidth="8" strokeLinecap="round" />
+              <line x1="92" y1={discoCentroY} x2="468" y2={discoCentroY} stroke="#64748b" strokeWidth="12" strokeLinecap="round" opacity="0.75" />
+              <circle cx="280" cy={discoCentroY} r="25" fill="#cbd5e1" stroke="#475569" strokeWidth="3" />
+              <circle cx="280" cy={discoCentroY} r="13" fill="#334155" stroke="#e2e8f0" strokeWidth="3" />
               <circle cx="58" cy={discoCentroY} r={RADIO_RUEDA} fill={`url(#metal-${bogie.bogie})`} stroke="#cbd5e1" strokeWidth="2" />
               <circle cx="502" cy={discoCentroY} r={RADIO_RUEDA} fill={`url(#metal-${bogie.bogie})`} stroke="#cbd5e1" strokeWidth="2" />
               <text x="280" y={y - 6} textAnchor="middle" className="fill-concreto font-body text-[12px] font-semibold">
                 Eje {eje.eje}: {izquierdo?.codigoDisco ?? derecho?.codigoDisco ? `Disco ${izquierdo?.codigoDisco ?? derecho?.codigoDisco}` : 'Disco sin código'}
               </text>
 
-              <MitadDisco x={190} y={y} disco={izquierdo} lado="izquierdo" onSeleccionarDisco={onSeleccionarDisco} />
-              <MitadDisco x={280} y={y} disco={derecho} lado="derecho" onSeleccionarDisco={onSeleccionarDisco} />
+              <MitadDisco x={190} y={y} disco={izquierdo} lado="izquierdo" activo={discoActivo === izquierdo} onSeleccionarDisco={seleccionar} />
+              <MitadDisco x={280} y={y} disco={derecho} lado="derecho" activo={discoActivo === derecho} onSeleccionarDisco={seleccionar} />
+              <circle cx="280" cy={discoCentroY} r="16" fill="#475569" stroke="#f8fafc" strokeWidth="3" pointerEvents="none" />
+              <circle cx="280" cy={discoCentroY} r="7" fill="#0f172a" stroke="#94a3b8" strokeWidth="2" pointerEvents="none" />
 
               <line x1="280" y1={y + 4} x2="280" y2={discoAbajoY} stroke="rgba(255,255,255,0.8)" strokeWidth="2" />
               <text x={280 - RX - 30} y={discoAbajoY + 18} textAnchor="middle" className="fill-concreto-oscuro font-data text-[14px]">
@@ -239,11 +249,13 @@ type MitadDiscoProps = {
   y: number
   lado: 'izquierdo' | 'derecho'
   disco: FleetDiscoDetalle | null
+  activo: boolean
   onSeleccionarDisco: (disco: FleetDiscoDetalle) => void
 }
 
-function MitadDisco({ x, y, lado, disco, onSeleccionarDisco }: MitadDiscoProps) {
+function MitadDisco({ x, y, lado, disco, activo, onSeleccionarDisco }: MitadDiscoProps) {
   const disponible = Boolean(disco?.codigoDisco && disco.estadoCalculado)
+  const color = disco?.estadoCalculado ? colorEstado(disco.estadoCalculado) : '#cbd5e1'
   const etiqueta = disco ? `${lado}: ${textoEstado(disco)} · ${formatoRd(disco.rd)}` : `${lado}: Sin datos`
   const cx = lado === 'izquierdo' ? x + 90 : x
   const arriba = y + 4
@@ -277,12 +289,13 @@ function MitadDisco({ x, y, lado, disco, onSeleccionarDisco }: MitadDiscoProps) 
       >
         <title>{etiqueta}</title>
         <path
+          className={activo ? 'eva-disco-seleccionado' : undefined}
           d={path}
-          fill={colorEstado(disco?.estadoCalculado ?? null)}
-          opacity={disco?.estadoCalculado ? 0.92 : 0.32}
+          fill={color}
+          opacity={1}
           stroke="rgba(255,255,255,0.82)"
           strokeWidth="2"
-          style={{ filter: 'drop-shadow(0 8px 8px rgba(15,23,42,0.12))' }}
+        style={{ filter: activo ? 'drop-shadow(0 0 12px rgba(16,185,129,0.9))' : 'drop-shadow(0 8px 8px rgba(15,23,42,0.12))' }}
         />
       </g>
       {tooltip.visible && disco && <TooltipDiscoContenido disco={disco} lado={lado} coords={tooltip.coords} />}
@@ -296,14 +309,20 @@ type CuartoDiscoProps = {
   lado: 'izquierdo' | 'derecho'
   posicion: 'interior' | 'exterior'
   disco: FleetDiscoDetalle | null
+  activo: boolean
   onSeleccionarDisco: (disco: FleetDiscoDetalle) => void
 }
 
 // Ansaldo: mismo "medio disco" que MitadDisco, pero partido además en altura
 // (exterior arriba, interior abajo) para representar los 2 discos por lado —
 // cada cuarto es una media elipse de la mitad de alto (RY/2).
-function CuartoDisco({ x, y, lado, posicion, disco, onSeleccionarDisco }: CuartoDiscoProps) {
+function CuartoDisco({ x, y, lado, posicion, disco, activo, onSeleccionarDisco }: CuartoDiscoProps) {
   const disponible = Boolean(disco?.codigoDisco && disco.estadoCalculado)
+  const color = disco?.estadoCalculado
+    ? colorEstado(disco.estadoCalculado)
+    : posicion === 'exterior'
+      ? '#dbeafe'
+      : '#c4b5fd'
   const etiqueta = disco
     ? `${lado} ${posicion}: ${textoEstado(disco)} · ${formatoRd(disco.rd)}`
     : `${lado} ${posicion}: Sin datos`
@@ -339,12 +358,14 @@ function CuartoDisco({ x, y, lado, posicion, disco, onSeleccionarDisco }: Cuarto
       >
         <title>{etiqueta}</title>
         <path
+          className={activo ? 'eva-disco-seleccionado' : undefined}
           d={path}
-          fill={colorEstado(disco?.estadoCalculado ?? null)}
-          opacity={disco?.estadoCalculado ? 0.92 : 0.32}
-          stroke="rgba(255,255,255,0.82)"
-          strokeWidth="1.5"
-          style={{ filter: 'drop-shadow(0 6px 6px rgba(15,23,42,0.1))' }}
+          fill={color}
+          opacity={1}
+          stroke={disco?.estadoCalculado ? '#ffffff' : '#64748b'}
+          strokeOpacity="0.9"
+          strokeWidth="2"
+          style={{ filter: activo ? 'drop-shadow(0 0 10px rgba(16,185,129,0.95))' : 'drop-shadow(0 6px 6px rgba(15,23,42,0.1))' }}
         />
       </g>
       {tooltip.visible && disco && (

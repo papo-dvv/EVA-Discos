@@ -28,7 +28,7 @@ export function TopBar() {
   const { pathname } = useLocation()
 
   return (
-    <header className="flex h-16 shrink-0 items-center justify-between border-b border-arena bg-white px-6">
+    <header className="flex h-14 shrink-0 items-center justify-between border-b border-arena bg-white px-3 sm:h-16 sm:px-6">
       <p className="font-body text-sm text-concreto">
         <span className="text-concreto">EVA</span>
         <span className="mx-1.5 text-concreto/50">›</span>

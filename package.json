@@ -5,5 +5,10 @@
   "workspaces": [
     "apps/*",
     "packages/*"
-  ]
+  ],
+  "dependencies": {
+    "@types/three": "^0.185.4",
+    "animejs": "^4.5.0",
+    "three": "^0.185.1"
+  }
 }

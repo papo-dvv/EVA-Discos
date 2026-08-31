@@ -114,7 +114,7 @@ export function FlotaDetalle() {
                   {ESTADO_META[estado].etiqueta}
                 </p>
                 <p className="mt-1 font-display text-3xl font-bold" style={{ color: ESTADO_META[estado].cssVar }}>
-                  {detalle.data.conteoEstado[estado.toLowerCase() as keyof typeof detalle.data.conteoEstado]}
+                  {detalle.data.conteoEstado?.[estado.toLowerCase() as keyof typeof detalle.data.conteoEstado] ?? 0}
                 </p>
               </GlassSurface>
             ))}

@@ -101,15 +101,15 @@ export function ModalRetiroMasivo({ onCerrar }: { onCerrar: () => void }) {
     >
       <div className="flex min-h-0 flex-1 flex-col gap-4">
         <div className="grid shrink-0 grid-cols-3 gap-3">
-          <div className="rounded-2xl border border-concreto/10 bg-white/45 px-3 py-2">
+          <div className="rounded-2xl border border-sky-200 bg-sky-50 px-3 py-2 shadow-sm">
             <p className="font-body text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-concreto">Discos en Almacén</p>
             <p className="mt-0.5 font-data text-xl font-semibold text-concreto-oscuro">{stats.data?.almacen ?? '—'}</p>
           </div>
-          <div className="rounded-2xl border border-concreto/10 bg-white/45 px-3 py-2">
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 shadow-sm">
             <p className="font-body text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-concreto">Seleccionadas</p>
             <p className="mt-0.5 font-data text-xl font-semibold text-concreto-oscuro">{seleccion.size}</p>
           </div>
-          <div className="rounded-2xl border border-concreto/10 bg-white/45 px-3 py-2">
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 shadow-sm">
             <p className="font-body text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-concreto">A mover a Taller</p>
             <p className="mt-0.5 font-data text-xl font-semibold text-concreto-oscuro">{seleccion.size}</p>
           </div>
