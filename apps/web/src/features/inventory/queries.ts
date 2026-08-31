@@ -4,6 +4,7 @@ import {
   editarEje,
   eliminarEje,
   obtenerCambiosDiscoAnio,
+  obtenerCambiosRealesPorMes,
   obtenerInventario,
   obtenerRetirosPorMes,
   obtenerStatsInventario,
@@ -16,6 +17,7 @@ export const clavesInventory = {
   stats: ['inventory', 'stats'] as const,
   retirosPorMes: ['inventory', 'retiros-por-mes'] as const,
   cambiosDiscoAnio: ['inventory', 'cambios-disco-anio'] as const,
+  cambiosRealesPorMes: ['inventory', 'cambios-reales-por-mes'] as const,
 }
 
 export function useInventario(query: InventoryQuery) {
@@ -46,6 +48,14 @@ export function useCambiosDiscoAnio() {
   return useQuery({
     queryKey: clavesInventory.cambiosDiscoAnio,
     queryFn: obtenerCambiosDiscoAnio,
+    staleTime: 30 * 1000,
+  })
+}
+
+export function useCambiosRealesPorMes() {
+  return useQuery({
+    queryKey: clavesInventory.cambiosRealesPorMes,
+    queryFn: obtenerCambiosRealesPorMes,
     staleTime: 30 * 1000,
   })
 }

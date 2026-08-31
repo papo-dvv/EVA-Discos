@@ -1,4 +1,14 @@
+import type { Fabricante } from '../../inventory/types'
+
 export type FabricanteTren = 'ALSTOM' | 'ANSALDO'
+
+// Puente hacia el enum real de Train.modelo (ModeloTren en el backend, mismo
+// valor que BrakeDisc.fabricante en Inventario) — el toggle del dashboard usa
+// las siglas cortas, pero los endpoints filtran por el valor completo.
+export const FABRICANTE_TREN_A_MODELO: Record<FabricanteTren, Fabricante> = {
+  ALSTOM: 'alstom_metropolis9000',
+  ANSALDO: 'ansaldo_mb300',
+}
 
 export function fabricanteDeTren(tren: number): FabricanteTren {
   // Ansaldo cubre los trenes 1-5, Alstom 6-44. Hoy la flota Ansaldo no tiene

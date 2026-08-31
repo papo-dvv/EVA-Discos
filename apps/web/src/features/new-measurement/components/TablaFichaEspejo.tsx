@@ -2,12 +2,14 @@ import { useMemo } from 'react'
 import { GlassSurface } from '../../../components/GlassSurface'
 import { WarningTooltip } from '../../../components/WarningTooltip'
 import { useSyncedState } from '../../../hooks/useSyncedState'
-import { useAgregarFilaFicha, useEditarFilaFicha } from '../queries'
 import {
+  claveCocheDe,
   construirFilasEspejo,
+  ordenarPorVerificacionPorCoche,
   type FilaEspejo,
   type LadoFilaEspejo,
 } from '../filaEspejo'
+import { useLadoEditable } from '../useLadoEditable'
 import type {
   CampoInvalido,
   CodigosBogie,
@@ -18,14 +20,18 @@ import type {
   PreviewRow,
 } from '../types'
 
-type Lado = 'izquierdo' | 'derecho'
-
 type Props = {
   fichaId: string
   esqueleto: PosicionEsqueleto[]
   rows: PreviewRow[]
   codigosBogie?: CodigosBogie | null
   deshabilitada?: boolean
+  // Si está definido, la celda de Coche (rowSpan por grupo) muestra un botón
+  // "Comparar" que llama esto con el tipoCoche/numeroCoche de ese grupo —
+  // ausente en la tabla de solo lectura de ModalMedicionAnterior.tsx (no
+  // tiene sentido comparar "contra sí misma"), definido solo en la instancia
+  // principal de NuevasMediciones.tsx.
+  onComparar?: (tipoCoche: string, numeroCoche: number | null) => void
   // true recién después de que el usuario presionó "Verificar" al menos una
   // vez (ver NuevasMediciones.tsx: se activa con la response de POST
   // .../validate y NO se apaga al cerrar el modal — solo lo reemplaza una
@@ -69,6 +75,7 @@ export function TablaFichaEspejo({
   deshabilitada = false,
   resaltarInvalidos = false,
   filasExcluidasVerificacion = [],
+  onComparar,
 }: Props) {
   const filasBase = useMemo(
     () => construirFilasEspejo(esqueleto, rows),
@@ -104,19 +111,17 @@ export function TablaFichaEspejo({
     [filasBase, motivosVerificadosPorRecord],
   )
 
-  // Invalidas primero (mismo orden eje ASC ya usado en filasBase, solo
-  // particionado), válidas después en su orden habitual — ver punto 3 del
-  // enunciado. Partición estable: filasBase ya viene eje ASC, así que cada
-  // mitad conserva ese orden.
+  // Invalidas primero, válidas después — pero ACOTADO a cada coche (ver
+  // ordenarPorVerificacionPorCoche en filaEspejo.ts): un eje con error nunca
+  // sube por encima de otro coche, solo por encima de los ejes SIN error de
+  // su propio coche. filasConMotivos ya viene con los coches contiguos
+  // (mismo orden eje ASC de filasBase), condición que asume la función.
   const filas = useMemo(() => {
     if (!resaltarInvalidos) return filasConMotivos
-    const invalidas = filasConMotivos.filter(
+    return ordenarPorVerificacionPorCoche(
+      filasConMotivos,
       (f) => hayMotivoVisible(f.izquierdo) || hayMotivoVisible(f.derecho),
     )
-    const validas = filasConMotivos.filter(
-      (f) => !hayMotivoVisible(f.izquierdo) && !hayMotivoVisible(f.derecho),
-    )
-    return [...invalidas, ...validas]
   }, [filasConMotivos, resaltarInvalidos])
 
   const filasRender = useMemo(() => calcularRowSpanCoche(filas), [filas])
@@ -187,6 +192,7 @@ export function TablaFichaEspejo({
                 resaltarInvalidos={resaltarInvalidos}
                 mostrarColumnaMotivo={mostrarColumnaMotivo}
                 codigosBogie={codigosBogie}
+                onComparar={onComparar}
               />
             ))}
           </tbody>
@@ -260,21 +266,17 @@ function textoMotivosFila(fila: FilaEspejoVisible): string {
   return partes.join(' — ')
 }
 
-function claveCoche(fila: FilaEspejoVisible): string {
-  return `${fila.tipoCoche}|${fila.numeroCoche ?? ''}`
-}
-
 function calcularRowSpanCoche(filas: FilaEspejoVisible[]): FilaRender[] {
   return filas.map((fila, indice) => {
-    const clave = claveCoche(fila)
+    const clave = claveCocheDe(fila)
     const anterior = filas[indice - 1]
-    if (anterior && claveCoche(anterior) === clave) {
+    if (anterior && claveCocheDe(anterior) === clave) {
       return { ...fila, mostrarCoche: false, cocheRowSpan: 0 }
     }
 
     let rowSpan = 1
     for (let i = indice + 1; i < filas.length; i += 1) {
-      if (claveCoche(filas[i]) !== clave) break
+      if (claveCocheDe(filas[i]) !== clave) break
       rowSpan += 1
     }
     return { ...fila, mostrarCoche: true, cocheRowSpan: rowSpan }
@@ -320,51 +322,6 @@ function Celda({
   )
 }
 
-// Coordina, para UN lado (izquierdo o derecho) de UN eje, el borrador local
-// de T/H y decide si cada edición dispara un PATCH (la fila ya existe como
-// scan_record) o un POST (todavía no existe: el backend exige T Y H juntos
-// para crearla — ver AgregarFilaDto — así que un POST solo se dispara cuando
-// ambos ya están presentes en el borrador). UNA sola instancia por lado
-// (llamado desde FilaEspejoRow, no desde cada celda) — así las 2 celdas
-// editables de ese lado comparten el mismo borrador en vez de 2 copias
-// aisladas que nunca se enterarían la una de la otra.
-function useLadoEditable(
-  fichaId: string,
-  eje: number,
-  lado: Lado,
-  datos: LadoFilaEspejo,
-) {
-  const agregar = useAgregarFilaFicha(fichaId)
-  const editar = useEditarFilaFicha(fichaId)
-
-  const [tValue, setTValue] = useSyncedState(datos.tValue)
-  const [hValue, setHValue] = useSyncedState(datos.hValue)
-
-  function intentarCrear(t: number | null, h: number | null) {
-    if (datos.recordId || t === null || h === null) return
-    agregar.mutate({ ejeNumero: eje, lado, tValue: t, hValue: h })
-  }
-
-  function guardarT(n: number) {
-    setTValue(n)
-    if (datos.recordId)
-      editar.mutate({ recordId: datos.recordId, cambios: { tValue: n } })
-    else intentarCrear(n, hValue)
-  }
-  function guardarH(n: number) {
-    setHValue(n)
-    if (datos.recordId)
-      editar.mutate({ recordId: datos.recordId, cambios: { hValue: n } })
-    else intentarCrear(tValue, n)
-  }
-
-  const pendiente =
-    !datos.recordId &&
-    (tValue !== null || hValue !== null) &&
-    (tValue === null || hValue === null)
-
-  return { tValue, hValue, guardarT, guardarH, pendiente }
-}
 
 // Punto 3 del enunciado: ámbar — el valor es válido de formato, solo quedó
 // marcado por la validación cruzada contra el historial. Ring en vez de
@@ -404,6 +361,7 @@ function FilaEspejoRow({
   resaltarInvalidos,
   mostrarColumnaMotivo,
   codigosBogie,
+  onComparar,
 }: {
   fichaId: string
   fila: FilaRender
@@ -411,6 +369,7 @@ function FilaEspejoRow({
   resaltarInvalidos: boolean
   mostrarColumnaMotivo: boolean
   codigosBogie: CodigosBogie | null
+  onComparar?: (tipoCoche: string, numeroCoche: number | null) => void
 }) {
   const izq = useLadoEditable(
     fichaId,
@@ -485,9 +444,20 @@ function FilaEspejoRow({
           rowSpan={fila.cocheRowSpan}
           className="bg-white/40 text-center align-middle font-semibold"
         >
-          {fila.tipoCoche}
-          {fila.numeroCoche !== null && (
-            <span className="text-concreto"> · {fila.numeroCoche}</span>
+          <span className="block">
+            {fila.tipoCoche}
+            {fila.numeroCoche !== null && (
+              <span className="text-concreto"> · {fila.numeroCoche}</span>
+            )}
+          </span>
+          {onComparar && (
+            <button
+              type="button"
+              onClick={() => onComparar(fila.tipoCoche, fila.numeroCoche)}
+              className="mt-1 rounded-full border border-verde-institucional/30 bg-verde-institucional/[0.06] px-2 py-0.5 font-body text-[0.625rem] font-semibold uppercase tracking-wide text-verde-oscuro transition-colors hover:bg-verde-institucional/[0.12]"
+            >
+              Comparar
+            </button>
           )}
         </Celda>
       )}

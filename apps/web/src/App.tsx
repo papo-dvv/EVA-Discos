@@ -8,6 +8,7 @@ import { Configuracion } from './pages/Configuracion'
 import { Galeria } from './pages/Galeria'
 import { Flota } from './pages/Flota'
 import { FlotaDetalle } from './pages/FlotaDetalle'
+import { Historial } from './pages/Historial'
 import { Inicio } from './pages/Inicio'
 import { Inventario } from './pages/Inventario'
 import { Login } from './pages/Login'
@@ -98,6 +99,7 @@ function App() {
         <Route path="/fleet/:tren" element={<FlotaDetalle />} />
         <Route path="/tasa-desgaste" element={<TasaDesgaste />} />
         <Route path="/trazabilidad" element={<Trazabilidad />} />
+        <Route path="/historial" element={<Historial />} />
         <Route path="/proyeccion" element={<Proyeccion />} />
         <Route path="/proyeccion/tabla" element={<ProyeccionTabla />} />
         <Route path="/relacion-bogies" element={<RelacionBogies />} />

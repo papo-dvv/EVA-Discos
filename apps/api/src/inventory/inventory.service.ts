@@ -30,6 +30,11 @@ export interface CambiosDiscoAnio {
   total: number;
 }
 
+export interface PuntoCambiosRealesMes {
+  mes: string;
+  cambiosReales: number;
+}
+
 function esViolacionUnicidad(err: unknown): boolean {
   return (
     typeof err === 'object' &&
@@ -111,6 +116,58 @@ export class InventoryService {
       },
     });
     return { anio: anioActual, total };
+  }
+
+  // Serie mensual de cambios de disco REALMENTE ejecutados (Taller ->
+  // en_servicio, ver OperationsCambioDiscoService.cambiar), contados por EJE
+  // — no por disco suelto ni por fila de InventoryMovement: montar una
+  // posición escribe 2 filas etapaDestino='en_servicio' (un disco por lado) y
+  // una sola operación puede cubrir varios ejes a la vez
+  // (CambioDiscoDto.asignaciones), así que ni "contar filas" ni "contar
+  // operacionId distintos" da el número correcto. Se deduplica en memoria por
+  // wagonUnitId+bogieCodigo+ejeNumero dentro de cada mes. Mismo criterio de
+  // conteo (por eje) que ProyeccionService.agregarMes usa para los cambios
+  // PROYECTADOS — para que la card "Cambio real vs. proyectado" del
+  // dashboard compare peras con peras. Mismo año calendario en curso +
+  // filtro Alstom-only que obtenerRetirosPorMes (ver comentario ahí).
+  async obtenerCambiosRealesPorMes(): Promise<PuntoCambiosRealesMes[]> {
+    const anioActual = new Date().getUTCFullYear();
+
+    const movimientos = await this.prisma.inventoryMovement.findMany({
+      where: {
+        tipo: 'cambio_disco',
+        etapaDestino: 'en_servicio',
+        fecha: {
+          gte: new Date(Date.UTC(anioActual, 0, 1)),
+          lt: new Date(Date.UTC(anioActual + 1, 0, 1)),
+        },
+        brakeDisc: { fabricante: 'alstom_metropolis9000' },
+      },
+      select: {
+        fecha: true,
+        brakeDisc: {
+          select: { wagonUnitId: true, bogieCodigo: true, ejeNumero: true },
+        },
+      },
+    });
+
+    const porMes = agruparPorMes(
+      movimientos,
+      (m) => m.fecha,
+      () => new Set<string>(),
+      (acumulado, m) => {
+        const { wagonUnitId, bogieCodigo, ejeNumero } = m.brakeDisc;
+        acumulado.add(`${wagonUnitId}:${bogieCodigo}:${ejeNumero}`);
+        return acumulado;
+      },
+    );
+
+    return Array.from({ length: 12 }, (_, i) => {
+      const mes = new Date(Date.UTC(anioActual, i, 1))
+        .toISOString()
+        .slice(0, 7);
+      return { mes, cambiosReales: porMes.get(mes)?.size ?? 0 };
+    });
   }
 
   // Alta de un EJE nuevo (izquierdo + derecho juntos) — wagonUnitId/

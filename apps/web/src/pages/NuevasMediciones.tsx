@@ -12,6 +12,7 @@ import { ConteoEstadosFicha } from '../features/new-measurement/components/Conte
 import { FooterFicha } from '../features/new-measurement/components/FooterFicha'
 import { HeaderFicha } from '../features/new-measurement/components/HeaderFicha'
 import { ModalFilasConProblemas } from '../features/new-measurement/components/ModalFilasConProblemas'
+import { ModalCompararCoche } from '../features/new-measurement/components/ModalCompararCoche'
 import { ModalMedicionAnterior } from '../features/new-measurement/components/ModalMedicionAnterior'
 import { PanelHistorialMediciones } from '../features/new-measurement/components/PanelHistorialMediciones'
 import { TablaFichaEspejo } from '../features/new-measurement/components/TablaFichaEspejo'
@@ -237,6 +238,7 @@ function NuevasMedicionesMedicion({
   const [cancelando, setCancelando] = useState(false)
   const [confirmando, setConfirmando] = useState(false)
   const [medicionAnteriorAbierta, setMedicionAnteriorAbierta] = useState(false)
+  const [comparando, setComparando] = useState<{ tipoCoche: string; numeroCoche: number | null } | null>(null)
   const [descargandoPdf, setDescargandoPdf] = useState(false)
   const [errorPdf, setErrorPdf] = useState<string | null>(null)
   // Última response de /validate — se usa para el contenido del modal de
@@ -650,6 +652,7 @@ function NuevasMedicionesMedicion({
                         filasExcluidasVerificacion={
                           resultadoVerificacion?.filasExcluidas
                         }
+                        onComparar={(tipoCoche, numeroCoche) => setComparando({ tipoCoche, numeroCoche })}
                       />
 
                       {/* id usado por manejarLlenarAhora para el scroll del modal de bloqueo */}
@@ -858,6 +861,19 @@ function NuevasMedicionesMedicion({
           fichaId={fichaId!}
           trenNumero={ficha.trenNumero}
           onCerrar={() => setMedicionAnteriorAbierta(false)}
+        />
+      )}
+
+      {comparando && ficha && preview.data && (
+        <ModalCompararCoche
+          fichaId={fichaId!}
+          trenNumero={ficha.trenNumero}
+          tipoCoche={comparando.tipoCoche}
+          numeroCoche={comparando.numeroCoche}
+          esqueletoActual={preview.data.esqueleto}
+          rowsActual={rows}
+          deshabilitada={tablaBloqueada}
+          onCerrar={() => setComparando(null)}
         />
       )}
     </div>

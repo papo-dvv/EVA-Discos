@@ -88,6 +88,11 @@ export interface CambiosDiscoAnio {
   total: number
 }
 
+export interface PuntoCambiosRealesMes {
+  mes: string // YYYY-MM
+  cambiosReales: number
+}
+
 export interface InventoryQuery {
   page: number
   pageSize: number

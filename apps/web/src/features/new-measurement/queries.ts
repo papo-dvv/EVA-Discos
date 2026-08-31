@@ -14,6 +14,7 @@ import {
   obtenerCatalogoBogies,
   obtenerPreviewFicha,
   obtenerReferenciaFicha,
+  obtenerSubidasRecientesCount,
   reiniciarFicha,
   verificarFicha,
 } from './api'
@@ -52,6 +53,14 @@ export function useHistorialMediciones(limit?: number, motivo?: MotivoFicha) {
 export function useInvalidarHistorialMediciones() {
   const queryClient = useQueryClient()
   return () => queryClient.invalidateQueries({ queryKey: claveHistorial })
+}
+
+export function useSubidasRecientesCount(dias = 30) {
+  return useQuery({
+    queryKey: ['new-measurement', 'subidas-recientes-count', dias] as const,
+    queryFn: () => obtenerSubidasRecientesCount(dias),
+    staleTime: 60 * 1000,
+  })
 }
 
 export function useCatalogoBogies() {

@@ -1,4 +1,7 @@
+import type { BrakeDiscRulesService } from '../brake-disc-rules/brake-disc-rules.service';
 import type { PrismaService } from '../prisma/prisma.service';
+import type { ConsensoConfigService } from '../traceability/consenso-config.service';
+import type { TraceabilityStatsService } from '../traceability/traceability-stats.service';
 import { WearRateCalculatorService } from './wear-rate-calculator.service';
 import { WearRateService } from './wear-rate.service';
 
@@ -162,8 +165,18 @@ function registro(overrides: Partial<FakeScanRecord>): FakeScanRecord {
   };
 }
 
+// Los tests de este archivo solo ejercitan recalcularParaDiscos, que no toca
+// brakeDiscRules/stats/consensoConfig (esos solo los usan buscarPares/
+// obtenerChart*) — se pasan como stubs vacíos únicamente para satisfacer la
+// firma del constructor.
 function servicio(prisma: PrismaService) {
-  return new WearRateService(prisma, new WearRateCalculatorService());
+  return new WearRateService(
+    prisma,
+    new WearRateCalculatorService(),
+    {} as BrakeDiscRulesService,
+    {} as TraceabilityStatsService,
+    {} as ConsensoConfigService,
+  );
 }
 
 describe('WearRateService.recalcularParaDiscos', () => {

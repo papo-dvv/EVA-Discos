@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import type {
   EstadoDisco,
   LadoDisco,
+  ModeloTren,
   PosicionDisco,
 } from '../../generated/prisma';
 import { BrakeDiscRulesService } from '../brake-disc-rules/brake-disc-rules.service';
@@ -140,6 +141,131 @@ export class FleetService {
     }
 
     return [...porTren.values()].sort((a, b) => a.tren - b.tren);
+  }
+
+  // Agregados para las 6 cards de "Trenes Críticos" del dashboard —
+  // deliberadamente NO usa ProyeccionService (Alstom-only por diseño, ver
+  // comentario de resolverDiscosEnScope en proyeccion.service.ts): acá se
+  // reclasifica cada disco directo desde su última medición confirmada, igual
+  // que summary(), lo que sí funciona para ambos fabricantes. `fabricante`
+  // filtra por Train.modelo (ModeloTren) — ausente = flota completa.
+  //
+  // "Tren más crítico" = score compuesto (peso alto a discos CRITICO, menor a
+  // CAMBIO), desempate por menor Rd mínimo del tren — criterio confirmado con
+  // el usuario.
+  async resumenTrenesCriticos(fabricante?: ModeloTren) {
+    const evaluador = await this.reglas.obtenerEvaluador();
+    const discos = await this.prisma.brakeDisc.findMany({
+      where: {
+        activo: true,
+        stage: 'en_servicio',
+        wagonUnit: {
+          tren: {
+            numero: { in: TRENES_FLOTA },
+            ...(fabricante ? { modelo: fabricante } : {}),
+          },
+        },
+      },
+      select: {
+        bogieCodigo: true,
+        ejeNumero: true,
+        wagonUnit: {
+          select: { tipoCoche: true, tren: { select: { numero: true } } },
+        },
+        scanRecords: {
+          where: { file: { status: 'committed' } },
+          orderBy: [{ fecha: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
+          take: 1,
+          select: { rdValue: true, hValue: true },
+        },
+      },
+    });
+
+    type FilaTren = { critico: number; cambio: number; rdMin: number | null };
+    const porTren = new Map<number, FilaTren>();
+    let rdSuma = 0;
+    let rdConteo = 0;
+    let discoMenorRd: {
+      trenNumero: number;
+      codigoDisco: string | null;
+      rd: number;
+    } | null = null;
+
+    for (const disco of discos) {
+      const ultima = disco.scanRecords[0];
+      if (!ultima) continue;
+      const rd = numero(ultima.rdValue);
+      const h = numero(ultima.hValue);
+      if (rd === null || h === null) continue;
+      // wagonUnit no-null garantizado por el where (stage: 'en_servicio').
+      const tren = disco.wagonUnit!.tren.numero;
+
+      const estado = evaluador.clasificarEstadoConReperfilado(rd, h);
+      const fila = porTren.get(tren) ?? { critico: 0, cambio: 0, rdMin: null };
+      if (estado === 'CRITICO') fila.critico += 1;
+      if (estado === 'CAMBIO') fila.cambio += 1;
+      fila.rdMin = fila.rdMin === null ? rd : Math.min(fila.rdMin, rd);
+      porTren.set(tren, fila);
+
+      rdSuma += rd;
+      rdConteo += 1;
+
+      if (!discoMenorRd || rd < discoMenorRd.rd) {
+        discoMenorRd = {
+          trenNumero: tren,
+          rd,
+          codigoDisco: disco.wagonUnit
+            ? this.resolverCodigoDisco.resolver(
+                tren,
+                disco.wagonUnit.tipoCoche,
+                disco.bogieCodigo!,
+                disco.ejeNumero!,
+              )
+            : null,
+        };
+      }
+    }
+
+    const trenesConDiscosCriticos = [...porTren.values()].filter(
+      (f) => f.critico > 0 || f.cambio > 0,
+    ).length;
+    const discosCriticosTotales = [...porTren.values()].reduce(
+      (acc, f) => acc + f.critico + f.cambio,
+      0,
+    );
+
+    let trenMasCritico: {
+      trenNumero: number;
+      discosCriticos: number;
+      discosCambio: number;
+      rdMinimo: number | null;
+    } | null = null;
+    let mejorScore = 0;
+    for (const [tren, fila] of porTren) {
+      const score = fila.critico * 3 + fila.cambio;
+      if (score === 0) continue;
+      const empatado = score === mejorScore;
+      const desempatePorRd =
+        empatado &&
+        (fila.rdMin ?? Infinity) < (trenMasCritico?.rdMinimo ?? Infinity);
+      if (score > mejorScore || desempatePorRd) {
+        mejorScore = score;
+        trenMasCritico = {
+          trenNumero: tren,
+          discosCriticos: fila.critico,
+          discosCambio: fila.cambio,
+          rdMinimo: fila.rdMin,
+        };
+      }
+    }
+
+    return {
+      discosCriticosTotales,
+      trenesConDiscosCriticos,
+      trenMasCritico,
+      discoMenorRd,
+      rdPromedio: rdConteo ? rdSuma / rdConteo : null,
+    };
   }
 
   // Trenes con al menos un disco cuya medición confirmada más reciente

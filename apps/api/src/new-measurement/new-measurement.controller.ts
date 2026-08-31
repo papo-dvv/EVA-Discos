@@ -77,6 +77,16 @@ export class NewMeasurementController {
     return this.historyService.listar(query.limit, query.motivo);
   }
 
+  // Registrado junto a 'reference'/'historial' por el mismo motivo de orden
+  // de rutas (ver comentario de arriba).
+  @Get('subidas-recientes-count')
+  async subidasRecientesCount(@Query('dias') dias?: string) {
+    const total = await this.service.contarSubidasRecientes(
+      dias ? Number(dias) : undefined,
+    );
+    return { total };
+  }
+
   @Get('bogie-catalog')
   catalogoBogies() {
     return this.service.catalogoBogies();

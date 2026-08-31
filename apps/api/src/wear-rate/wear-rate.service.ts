@@ -14,6 +14,9 @@ import {
   paginarFiltrandoPorAccion,
   resolverAccionPorDiscId,
 } from '../scan-records/accion-recomendada.query';
+import { ConsensoConfigService } from '../traceability/consenso-config.service';
+import { TraceabilityStatsService } from '../traceability/traceability-stats.service';
+import { CONTEO_MINIMO } from '../traceability/traceability.service';
 import type { WearRateChartQueryDto } from './dto/wear-rate-chart-query.dto';
 import type { WearRatePairsQueryDto } from './dto/wear-rate-pairs-query.dto';
 import type { WearRateSummaryQueryDto } from './dto/wear-rate-summary-query.dto';
@@ -98,6 +101,8 @@ export class WearRateService {
     private readonly prisma: PrismaService,
     private readonly calculadora: WearRateCalculatorService,
     private readonly brakeDiscRules: BrakeDiscRulesService,
+    private readonly stats: TraceabilityStatsService,
+    private readonly consensoConfig: ConsensoConfigService,
   ) {}
 
   // --- Recálculo incremental (precomputado, ver WearRateCalculatorService) ---
@@ -321,9 +326,28 @@ export class WearRateService {
 
   // Serie mensual de tasa de desgaste promedio (solo pares válidos), más el
   // conteo de válidos/inválidos de cada mes para contexto en el gráfico.
+  //
+  // El mes calendario EN CURSO nunca entra (ver inicioMesActualUtc): todavía
+  // está acumulando pares, así que promediarlo mezclaría un dato parcial con
+  // meses ya cerrados — un mes recién empezado con 5-10 pares es una muestra
+  // chica donde un solo par ruidoso domina el promedio sin que el resto del
+  // mes lo compense (pedido del usuario 2026-08: la línea se disparaba en el
+  // mes en curso). Al excluirlo en la fuente, tanto este chart como el
+  // último punto de la serie (que usa InicioOperativo para el KPI "Tasa
+  // promedio por mes" vía .at(-1)) caen solos al último mes ya cerrado, sin
+  // lógica aparte en el frontend.
+  //
+  // Sin filtro de tren (fleet-wide): mismo criterio robusto que Proyección
+  // (mínimo de CONTEO_MINIMO pares + consenso Gauss∩Percentiles∩Tukey, ver
+  // promedioLimpio) para que un mes con pocos pares no salga con ruido. Con
+  // un tren puntual (modo "Por tren" de Tasa de Desgaste) la muestra mensual
+  // es chica por diseño — un tren tiene un solo disco de cada tipo — así que
+  // ahí se mantiene el promedio simple de siempre, sin el guard.
   async obtenerChart(q: WearRateChartQueryDto): Promise<PuntoChartWearRate[]> {
-    const where: Prisma.WearRatePairWhereInput =
-      q.tren !== undefined ? { trenNumero: q.tren } : {};
+    const where: Prisma.WearRatePairWhereInput = {
+      ...(q.tren !== undefined ? { trenNumero: q.tren } : {}),
+      fecha2: { lt: this.inicioMesActualUtc() },
+    };
 
     const pares = await this.prisma.wearRatePair.findMany({
       where,
@@ -333,25 +357,28 @@ export class WearRateService {
     const porMes = agruparPorMes(
       pares,
       (p) => p.fecha2,
-      () => ({ sumaTasaMensual: 0, paresValidos: 0, paresInvalidos: 0 }),
+      () => ({
+        validos: [] as { tasaMensual: Prisma.Decimal; fecha2: Date }[],
+        paresInvalidos: 0,
+      }),
       (acumulado, p) => {
-        if (p.esValido) {
-          acumulado.sumaTasaMensual += Number(p.tasaMensual);
-          acumulado.paresValidos += 1;
-        } else {
-          acumulado.paresInvalidos += 1;
-        }
+        if (p.esValido) acumulado.validos.push(p);
+        else acumulado.paresInvalidos += 1;
         return acumulado;
       },
     );
 
-    return ordenarPorMes(porMes).map(([mes, d]) => ({
-      mes,
-      tasaMensualPromedio:
-        d.paresValidos > 0 ? d.sumaTasaMensual / d.paresValidos : null,
-      paresValidos: d.paresValidos,
-      paresInvalidos: d.paresInvalidos,
-    }));
+    return Promise.all(
+      ordenarPorMes(porMes).map(async ([mes, d]) => ({
+        mes,
+        tasaMensualPromedio:
+          q.tren === undefined
+            ? await this.promedioSiSuficiente(d.validos)
+            : this.promedioSimple(d.validos),
+        paresValidos: d.validos.length,
+        paresInvalidos: d.paresInvalidos,
+      })),
+    );
   }
 
   // Misma serie mensual que obtenerChart(), pero desglosada por tipo de
@@ -363,7 +390,9 @@ export class WearRateService {
   // Acotado al AÑO CALENDARIO en curso (pedido explícito): sin este corte, un
   // solo par histórico con una tasa fuera de rango (dato viejo de meses sin
   // mediciones consecutivas reales) estira la escala Y del gráfico y aplana
-  // visualmente el resto de las series.
+  // visualmente el resto de las series. El mes en curso tampoco entra —
+  // mismo criterio y mismo guard de CONTEO_MINIMO + consenso que
+  // obtenerChart() fleet-wide (ver comentario ahí).
   async obtenerChartPorTipoCoche(): Promise<PuntoChartTasaPorCoche[]> {
     const anioActual = new Date().getUTCFullYear();
     const pares = await this.prisma.wearRatePair.findMany({
@@ -372,16 +401,22 @@ export class WearRateService {
         tipoCoche: { in: [...ORDEN_COCHE_FLOTA] },
         fecha2: {
           gte: new Date(Date.UTC(anioActual, 0, 1)),
-          lt: new Date(Date.UTC(anioActual + 1, 0, 1)),
+          lt: this.inicioMesActualUtc(),
         },
       },
       select: { fecha2: true, tasaMensual: true, tipoCoche: true },
     });
 
-    type Acumulado = Record<CocheFlota, { suma: number; cantidad: number }>;
+    type Acumulado = Record<
+      CocheFlota,
+      { tasaMensual: Prisma.Decimal; fecha2: Date }[]
+    >;
     const inicial = (): Acumulado =>
       Object.fromEntries(
-        ORDEN_COCHE_FLOTA.map((tipo) => [tipo, { suma: 0, cantidad: 0 }]),
+        ORDEN_COCHE_FLOTA.map(
+          (tipo) =>
+            [tipo, [] as Acumulado[CocheFlota]] as const,
+        ),
       ) as Acumulado;
 
     const porMes = agruparPorMes(
@@ -389,9 +424,7 @@ export class WearRateService {
       (p) => p.fecha2,
       inicial,
       (acumulado, p) => {
-        const balde = acumulado[p.tipoCoche as CocheFlota];
-        balde.suma += Number(p.tasaMensual);
-        balde.cantidad += 1;
+        acumulado[p.tipoCoche as CocheFlota].push(p);
         return acumulado;
       },
     );
@@ -399,16 +432,96 @@ export class WearRateService {
     // 12 filas SIEMPRE (enero a diciembre del año en curso), no solo los
     // meses con pares — el gráfico necesita arrancar en enero aunque las
     // primeras mediciones del año lleguen después (ver GraficoTasaPorCoche).
-    return Array.from({ length: 12 }, (_, i) => {
-      const mes = new Date(Date.UTC(anioActual, i, 1)).toISOString().slice(0, 7);
-      const acumulado = porMes.get(mes);
-      const fila = { mes } as PuntoChartTasaPorCoche;
-      for (const tipo of ORDEN_COCHE_FLOTA) {
-        const balde = acumulado?.[tipo];
-        fila[tipo] = balde && balde.cantidad > 0 ? balde.suma / balde.cantidad : null;
-      }
-      return fila;
-    });
+    return Promise.all(
+      Array.from({ length: 12 }, async (_, i) => {
+        const mes = new Date(Date.UTC(anioActual, i, 1))
+          .toISOString()
+          .slice(0, 7);
+        const acumulado = porMes.get(mes);
+        const fila = { mes } as PuntoChartTasaPorCoche;
+        await Promise.all(
+          ORDEN_COCHE_FLOTA.map(async (tipo) => {
+            fila[tipo] = await this.promedioSiSuficiente(
+              acumulado?.[tipo] ?? [],
+            );
+          }),
+        );
+        return fila;
+      }),
+    );
+  }
+
+  // Primer instante (UTC) del mes calendario en curso — cota superior
+  // compartida por obtenerChart() y obtenerChartPorTipoCoche() para excluir
+  // el mes todavía no cerrado (ver comentarios ahí).
+  private inicioMesActualUtc(): Date {
+    const ahora = new Date();
+    return new Date(Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth(), 1));
+  }
+
+  private promedioSimple(
+    pares: { tasaMensual: Prisma.Decimal }[],
+  ): number | null {
+    return pares.length > 0
+      ? pares.reduce((suma, p) => suma + Number(p.tasaMensual), 0) /
+          pares.length
+      : null;
+  }
+
+  // null si no hay al menos CONTEO_MINIMO pares en el balde (mes+tipo de
+  // coche, o mes fleet-wide) — no hay con qué calcular un consenso con
+  // sentido estadístico (mismo criterio que ProyeccionRateService).
+  private async promedioSiSuficiente(
+    pares: { tasaMensual: Prisma.Decimal; fecha2: Date }[],
+  ): Promise<number | null> {
+    if (pares.length < CONTEO_MINIMO) return null;
+    return this.promedioLimpio(pares);
+  }
+
+  // Mismo cálculo de "dato limpio" que ProyeccionRateService.promedioLimpio
+  // (consenso Gauss∩Percentiles∩Tukey -> recorte/exclusión de atípicos ->
+  // promedio de valorLimpio): un par con diferenciaKm chico (que infla
+  // tasaMensual) ya no puede dominar el promedio del balde sin que el resto
+  // de las mediciones lo compense.
+  private async promedioLimpio(
+    pares: { tasaMensual: Prisma.Decimal; fecha2: Date }[],
+  ): Promise<number | null> {
+    const [fracciones, epsilon] = await Promise.all([
+      this.consensoConfig.obtenerFracciones(),
+      this.consensoConfig.obtenerEpsilon(),
+    ]);
+
+    const valores = pares.map((p) => Number(p.tasaMensual));
+    const gauss = this.stats.calcularLimitesGauss(valores);
+    const percentiles = this.stats.calcularLimitesPercentiles(
+      valores,
+      fracciones,
+    );
+    const tukey = this.stats.calcularLimitesTukey(valores);
+    const consensoBruto = this.stats.calcularConsenso(
+      gauss,
+      percentiles,
+      tukey,
+    );
+    const consenso = this.stats.aplicarPisoExtremoInferior(
+      consensoBruto,
+      epsilon,
+    );
+
+    const clasificados = this.stats.clasificarYLimpiarSerie(
+      pares.map((p) => ({ fecha: p.fecha2, valor: Number(p.tasaMensual) })),
+      consenso.limiteConsenso,
+      consenso.extremoConsenso,
+    );
+    const limpios = clasificados
+      .map((c) => c.valorLimpio)
+      .filter((v): v is number => v !== null);
+
+    // Defensivo: los límites salen de estos mismos valores, así que al menos
+    // los centrales sobreviven — pero un 0/0 acá daría NaN en vez de fallar
+    // (mismo criterio que ProyeccionRateService.promedioLimpio).
+    if (limpios.length === 0) return null;
+    return limpios.reduce((s, v) => s + v, 0) / limpios.length;
   }
 
   async obtenerSummary(q: WearRateSummaryQueryDto): Promise<WearRateSummary> {

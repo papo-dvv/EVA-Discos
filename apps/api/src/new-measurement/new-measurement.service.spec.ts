@@ -283,3 +283,23 @@ describe('NewMeasurementService.subirCsv — detección de duplicado exacto', ()
     expect(fichasCreadas).toHaveLength(0);
   });
 });
+
+describe('NewMeasurementService.contarSubidasRecientes', () => {
+  it('cuenta solo fichas de medición confirmadas y filtra por rango de días', async () => {
+    const count = jest.fn().mockResolvedValue(3);
+    const servicio = crearServicio({ uploadedFile: { count } });
+
+    const total = await servicio.contarSubidasRecientes(30);
+
+    expect(total).toBe(3);
+    expect(count).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          tipoCarga: 'ficha_medicion_individual',
+          status: 'committed',
+          uploadedAt: expect.objectContaining({ gte: expect.any(Date) }),
+        }),
+      }),
+    );
+  });
+});

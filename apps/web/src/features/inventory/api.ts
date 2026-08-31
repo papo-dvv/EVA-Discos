@@ -5,6 +5,7 @@ import type {
   InventoryQuery,
   InventoryResult,
   InventoryStats,
+  PuntoCambiosRealesMes,
   PuntoRetirosMes,
   RegistrarEjeInput,
 } from './types'
@@ -26,6 +27,11 @@ export async function obtenerRetirosPorMes(): Promise<PuntoRetirosMes[]> {
 
 export async function obtenerCambiosDiscoAnio(): Promise<CambiosDiscoAnio> {
   const { data } = await apiClient.get<CambiosDiscoAnio>('/inventory/cambios-disco-anio')
+  return data
+}
+
+export async function obtenerCambiosRealesPorMes(): Promise<PuntoCambiosRealesMes[]> {
+  const { data } = await apiClient.get<PuntoCambiosRealesMes[]>('/inventory/cambios-reales-por-mes')
   return data
 }
 

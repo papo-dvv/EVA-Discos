@@ -3,6 +3,8 @@ import { BrakeDiscRulesEngine } from '../brake-disc-rules/brake-disc-rules.engin
 import type { BrakeDiscRulesService } from '../brake-disc-rules/brake-disc-rules.service';
 import { UMBRALES_POR_DEFECTO } from '../brake-disc-rules/umbrales';
 import { PrismaService } from '../prisma/prisma.service';
+import type { ConsensoConfigService } from '../traceability/consenso-config.service';
+import type { TraceabilityStatsService } from '../traceability/traceability-stats.service';
 import { WearRateChartQueryDto } from './dto/wear-rate-chart-query.dto';
 import { WearRatePairsQueryDto } from './dto/wear-rate-pairs-query.dto';
 import { WearRateSummaryQueryDto } from './dto/wear-rate-summary-query.dto';
@@ -148,6 +150,9 @@ function crearBrakeDiscRulesFake(
   } as unknown as BrakeDiscRulesService;
 }
 
+// Estos tests solo ejercitan buscarPares, que no toca stats/consensoConfig
+// (esos solo los usan obtenerChart/obtenerChartPorTipoCoche) — se pasan como
+// stubs vacíos únicamente para satisfacer la firma del constructor.
 function servicio(
   prisma: PrismaService,
   brakeDiscRules: BrakeDiscRulesService = crearBrakeDiscRulesFake(),
@@ -156,6 +161,8 @@ function servicio(
     prisma,
     new WearRateCalculatorService(),
     brakeDiscRules,
+    {} as TraceabilityStatsService,
+    {} as ConsensoConfigService,
   );
 }
 
@@ -429,7 +436,13 @@ describe('WearRateService.obtenerChart / obtenerSummary — ignoran filtros ajen
     await servicio(prisma).obtenerChart(q);
 
     const where = findManyMock.mock.calls[0][0].where;
-    expect(where).toEqual({ trenNumero: 6 });
+    // fecha2.lt: inicio del mes calendario en curso, siempre agregado por
+    // obtenerChart() (excluye el mes todavía sin cerrar — ver
+    // WearRateService.inicioMesActualUtc); no es un campo "ajeno" del query.
+    const inicioMesActual = new Date(
+      Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 1),
+    );
+    expect(where).toEqual({ trenNumero: 6, fecha2: { lt: inicioMesActual } });
   });
 
   // Regresión del refactor a agruparPorMes (apps/api/src/common/agrupar-por-mes.ts,
@@ -463,9 +476,14 @@ describe('WearRateService.obtenerChart / obtenerSummary — ignoran filtros ajen
       }),
     ]);
 
-    const resultado = await servicio(prisma).obtenerChart(
-      new WearRateChartQueryDto(),
-    );
+    // tren:6 (mismo trenNumero que fila() usa por defecto): sin filtro de
+    // tren, obtenerChart aplica el guard de CONTEO_MINIMO (ver
+    // WearRateService.promedioSiSuficiente) y estos 2-3 pares de prueba por
+    // mes no lo alcanzan — este test es sobre agruparPorMes/promedio simple,
+    // no sobre ese guard (que se prueba aparte).
+    const resultado = await servicio(prisma).obtenerChart({
+      tren: 6,
+    } as WearRateChartQueryDto);
 
     expect(resultado).toEqual([
       {
