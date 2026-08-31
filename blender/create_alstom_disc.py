@@ -137,5 +137,9 @@ scene.render.resolution_percentage = 100
 scene.render.filepath = os.path.abspath(os.path.join(SCRIPT_DIR, "alstom_disc_preview.png"))
 scene.world.color = (0.008, 0.012, 0.025)
 
-bpy.ops.export_scene.gltf(filepath=OUT, export_format="GLB", use_selection=False)
+bpy.ops.object.select_all(action="DESELECT")
+for obj in root.objects:
+    obj.select_set(True)
+bpy.context.view_layer.objects.active = next(iter(root.objects))
+bpy.ops.export_scene.gltf(filepath=OUT, export_format="GLB", use_selection=True)
 print(f"Modelo exportado en: {OUT}")
