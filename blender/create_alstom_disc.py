@@ -64,11 +64,8 @@ def torus(name, major, minor, x, mat):
     obj.data.materials.append(mat)
     return finish(obj, 0.012)
 
-# Eje escalonado y cubo central.
+# Cubo central. El visor de flota muestra el disco de freno, no el eje del bogie.
 for spec in [
-    ("Eje principal", 0.23, 4.8, 0, STEEL),
-    ("Eje extremo izquierdo", 0.30, 0.55, -2.45, STEEL),
-    ("Eje extremo derecho", 0.30, 0.55, 2.45, STEEL),
     ("Cubo izquierdo", 0.52, 0.42, -0.48, STEEL),
     ("Cubo derecho", 0.52, 0.42, 0.48, STEEL),
     ("Brida interior izquierda", 0.70, 0.18, -0.28, STEEL_DARK),
@@ -78,20 +75,20 @@ for spec in [
 
 # Las dos pistas son objetos independientes: el frontend puede cambiar su material.
 for name, x, mat in [("Pista izquierda", -0.24, LEFT), ("Pista derecha", 0.24, RIGHT)]:
-    cylinder(name, 1.42, 0.16, x, mat)
-    torus(name + " borde exterior", 1.24, 0.10, x, STEEL)
+    cylinder(name, 1.46, 0.16, x, mat)
+    torus(name + " borde exterior", 1.29, 0.10, x, STEEL)
     torus(name + " borde interior", 0.72, 0.07, x, STEEL_DARK)
 
-cylinder("Alma ventilada", 1.18, 0.38, 0, VENT)
+cylinder("Alma ventilada", 0.72, 0.38, 0, VENT)
 
-# 18 canales radiales con volumen real.
-for i in range(18):
-    angle = (2 * math.pi * i) / 18
-    y, z = math.cos(angle) * 1.03, math.sin(angle) * 1.03
+# 24 aletas entre las dos pistas: generan el relieve y la ventilación visibles.
+for i in range(24):
+    angle = (2 * math.pi * i) / 24
+    y, z = math.cos(angle) * 1.04, math.sin(angle) * 1.04
     bpy.ops.mesh.primitive_cube_add(location=(0, y, z))
     vent = bpy.context.object
     vent.name = f"Canal ventilacion {i + 1:02d}"
-    vent.dimensions = (0.30, 0.16, 0.30)
+    vent.dimensions = (0.32, 0.13, 0.38)
     vent.rotation_euler[0] = angle
     vent.data.materials.append(VENT)
     bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)

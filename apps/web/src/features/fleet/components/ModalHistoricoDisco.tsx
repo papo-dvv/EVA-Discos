@@ -155,6 +155,23 @@ function DiscoInteractivo3D({
         </div>
       </div>
 
+      {vista === '3d' && (
+        <div className="relative z-20 mt-3 flex items-center justify-center gap-2 text-xs font-semibold">
+          {(['izquierdo', 'derecho'] as const).map((lado) => (
+            <button
+              key={lado}
+              type="button"
+              aria-pressed={disco.lado === lado}
+              onClick={() => onSeleccionarLado(lado)}
+              className={`rounded-full border px-3 py-1.5 capitalize transition ${disco.lado === lado ? 'border-white bg-white text-slate-950 shadow-sm' : 'border-white/25 bg-slate-950/35 text-slate-200 hover:bg-white/15'}`}
+            >
+              {lado}
+            </button>
+          ))}
+          <span className="hidden text-slate-400 sm:inline">Arrastra para girar · pulsa una pista para seleccionar</span>
+        </div>
+      )}
+
       <div
         aria-label={`${vista === '3d' ? 'Modelo tridimensional' : 'Vista técnica bidimensional'} del disco; métrica activa ${metrica.etiqueta}`}
         className={`group relative z-10 mx-auto mt-4 h-52 w-full select-none ${vista === '3d' ? 'cursor-grab touch-none active:cursor-grabbing' : 'cursor-default'}`}

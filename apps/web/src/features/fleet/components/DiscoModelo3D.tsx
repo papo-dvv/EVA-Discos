@@ -32,7 +32,7 @@ export function DiscoModelo3D({ ladoSeleccionado, color, onSeleccionarLado }: Pr
     controls.minDistance = 3.3
     controls.maxDistance = 10
     controls.target.set(0, 0, 0)
-    camera.position.set(4.6, 2.1, 4.8)
+    camera.position.set(3.7, 1.65, 4.15)
     controls.update()
 
     scene.add(new THREE.HemisphereLight('#e6f6ff', '#071324', 2.4))
@@ -52,33 +52,30 @@ export function DiscoModelo3D({ ladoSeleccionado, color, onSeleccionarLado }: Pr
 
     let model: THREE.Group | null = null
     const nombrePista = ladoSeleccionado === 'izquierdo' ? 'Pista izquierda' : 'Pista derecha'
-    const selectedMaterial = new THREE.MeshStandardMaterial({ color, metalness: 0.78, roughness: 0.2, emissive: color, emissiveIntensity: 0.16 })
+    const selectedMaterial = new THREE.MeshStandardMaterial({ color, metalness: 0.72, roughness: 0.22, emissive: color, emissiveIntensity: 0.42 })
     new GLTFLoader().load('/models/alstom_disc.glb', (gltf) => {
       model = gltf.scene
       model.traverse((child) => {
         if (!(child instanceof THREE.Mesh)) return
         child.castShadow = true
         child.receiveShadow = true
-        if (child.name === nombrePista) child.material = selectedMaterial
+        if (child.name.startsWith(nombrePista)) child.material = selectedMaterial
       })
       scene.add(model)
     })
 
     const raycaster = new THREE.Raycaster()
     const pointer = new THREE.Vector2()
-    let startPoint: { x: number; y: number } | null = null
-    const onPointerDown = (event: PointerEvent) => { startPoint = { x: event.clientX, y: event.clientY } }
-    const onPointerUp = (event: PointerEvent) => {
-      if (!startPoint || Math.hypot(event.clientX - startPoint.x, event.clientY - startPoint.y) > 6 || !model) return
+    const onClick = (event: MouseEvent) => {
+      if (!model) return
       const rect = renderer.domElement.getBoundingClientRect()
       pointer.set(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1)
       raycaster.setFromCamera(pointer, camera)
-      const clicked = raycaster.intersectObjects(model.children, true).find((hit) => hit.object.name === 'Pista izquierda' || hit.object.name === 'Pista derecha')
-      if (clicked?.object.name === 'Pista izquierda') callbackRef.current('izquierdo')
-      if (clicked?.object.name === 'Pista derecha') callbackRef.current('derecho')
+      const clicked = raycaster.intersectObjects(model.children, true).find((hit) => hit.object.name.startsWith('Pista izquierda') || hit.object.name.startsWith('Pista derecha'))
+      if (clicked?.object.name.startsWith('Pista izquierda')) callbackRef.current('izquierdo')
+      if (clicked?.object.name.startsWith('Pista derecha')) callbackRef.current('derecho')
     }
-    renderer.domElement.addEventListener('pointerdown', onPointerDown)
-    renderer.domElement.addEventListener('pointerup', onPointerUp)
+    renderer.domElement.addEventListener('click', onClick)
 
     const resize = () => {
       const width = Math.max(host.clientWidth, 1)
@@ -101,8 +98,7 @@ export function DiscoModelo3D({ ladoSeleccionado, color, onSeleccionarLado }: Pr
     return () => {
       cancelAnimationFrame(frame)
       resizeObserver.disconnect()
-      renderer.domElement.removeEventListener('pointerdown', onPointerDown)
-      renderer.domElement.removeEventListener('pointerup', onPointerUp)
+      renderer.domElement.removeEventListener('click', onClick)
       controls.dispose()
       selectedMaterial.dispose()
       model?.traverse((child) => {
@@ -117,5 +113,5 @@ export function DiscoModelo3D({ ladoSeleccionado, color, onSeleccionarLado }: Pr
     }
   }, [color, ladoSeleccionado])
 
-  return <div ref={hostRef} className="h-full min-h-[220px] w-full touch-none" aria-label="Modelo 3D interactivo del disco de freno Alstom" />
+  return <div ref={hostRef} className="h-full min-h-[220px] w-full touch-none" aria-label="Modelo 3D interactivo del disco de freno Alstom. Arrastra para girar y pulsa una pista para seleccionarla." />
 }
