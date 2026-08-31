@@ -124,9 +124,17 @@ export function FlotaDetalle() {
 
       {detalle.data && (
         <ScrollArea ejes="x" viewportClassName="pb-3">
+          {/* "Bogie X de Y" ahora es la posición del bogie en TODO el tren
+              (24 en un Alstom de 6 coches x 4 bogies), no dentro de su
+              propio coche (que siempre daría "de 2") — se numera acá, antes
+              del map anidado, recorriendo los coches en su orden real. */}
+          {(() => {
+            let contadorBogieGlobal = 0
+            const totalBogiesTren = detalle.data.coches.reduce((acc, c) => acc + c.bogies.length, 0)
+            return (
           <div className="flex min-w-max items-start gap-4">
             {detalle.data.coches.map((coche, indice) => (
-              <GlassSurface fuerte key={coche.coche} className="w-[504px] shrink-0 overflow-hidden rounded-glass p-0">
+              <GlassSurface fuerte key={coche.numeroCoche ?? `${coche.coche}-${indice}`} className="w-[504px] shrink-0 overflow-hidden rounded-glass p-0">
                 <div className="flex items-center gap-3 border-b border-slate-200 bg-gradient-to-r from-white via-white to-emerald-50/40 px-4 py-3">
                   <img
                     src={`/images/${prefijoImagenCoche}${Math.min(indice + 1, 6)}.png`}
@@ -143,21 +151,26 @@ export function FlotaDetalle() {
                   </div>
                 </div>
                 <div className="space-y-4 p-4">
-                  {coche.bogies.map((bogie, idx) => (
-                    <div key={`${coche.coche}-${bogie.bogie}`}>
-                      <BogieVisualizer
-                        bogie={bogie}
-                        onSeleccionarDisco={setDiscoSeleccionado}
-                        posicion={idx + 1}
-                        total={coche.bogies.length}
-                      />
-                      {idx < coche.bogies.length - 1 && <div className="mt-4 border-t-2 border-slate-200" aria-hidden />}
-                    </div>
-                  ))}
+                  {coche.bogies.map((bogie, idx) => {
+                    contadorBogieGlobal += 1
+                    return (
+                      <div key={`${coche.numeroCoche ?? coche.coche}-${bogie.bogie}`}>
+                        <BogieVisualizer
+                          bogie={bogie}
+                          onSeleccionarDisco={setDiscoSeleccionado}
+                          posicion={contadorBogieGlobal}
+                          total={totalBogiesTren}
+                        />
+                        {idx < coche.bogies.length - 1 && <div className="mt-4 border-t-2 border-slate-200" aria-hidden />}
+                      </div>
+                    )
+                  })}
                 </div>
               </GlassSurface>
             ))}
           </div>
+            )
+          })()}
         </ScrollArea>
       )}
 

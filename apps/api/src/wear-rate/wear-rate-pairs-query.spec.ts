@@ -95,6 +95,12 @@ function crearPrismaConFixture(
         Promise.resolve(medicionesPorDisco[where.discId] ?? null),
       ),
     },
+    // obtenerChart() lee tasa_desgaste_km_maximo (ver
+    // obtenerDiferenciaKmMaximaVigente) — sin fila, cae al valor por defecto,
+    // que es lo que ejercitan los tests de este archivo.
+    systemParam: {
+      findUnique: jest.fn(() => Promise.resolve(null)),
+    },
     $transaction: jest.fn((arg: unknown) =>
       Array.isArray(arg) ? Promise.all(arg) : arg,
     ),

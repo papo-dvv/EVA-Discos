@@ -1,7 +1,7 @@
 import type { BrakeDiscRulesService } from '../brake-disc-rules/brake-disc-rules.service';
 import type { PrismaService } from '../prisma/prisma.service';
 import type { ConsensoConfigService } from '../traceability/consenso-config.service';
-import type { TraceabilityStatsService } from '../traceability/traceability-stats.service';
+import { TraceabilityStatsService } from '../traceability/traceability-stats.service';
 import { WearRateCalculatorService } from './wear-rate-calculator.service';
 import { WearRateService } from './wear-rate.service';
 
@@ -28,6 +28,11 @@ interface FakeWearRatePair {
   kmMensualUsado: number;
   esValido: boolean;
   comentario: string;
+  // Solo las usan las pruebas de obtenerChart/obtenerChartPorTipoCoche (ver
+  // wearRatePairFindMany) — opcionales para no tocar los pares ya existentes
+  // de las pruebas de recalcularParaDiscos, que no las necesitan.
+  diferenciaKm?: number;
+  tipoCoche?: string;
 }
 
 interface FakeBrakeDisc {
@@ -68,6 +73,7 @@ function crearPrismaFake(opciones: {
   scanRecords: FakeScanRecord[];
   wearRatePairs?: FakeWearRatePair[];
   kmMensual?: string | null;
+  tasaDesgasteKmMaximo?: string | null;
   discos?: Record<string, FakeBrakeDisc>;
 }) {
   const scanRecords = opciones.scanRecords;
@@ -76,6 +82,10 @@ function crearPrismaFake(opciones: {
     : [];
   const kmMensual =
     opciones.kmMensual === undefined ? '11300' : opciones.kmMensual;
+  const tasaDesgasteKmMaximo =
+    opciones.tasaDesgasteKmMaximo === undefined
+      ? null
+      : opciones.tasaDesgasteKmMaximo;
   const discos = opciones.discos ?? {};
   let idSeq = 0;
 
@@ -133,13 +143,74 @@ function crearPrismaFake(opciones: {
       if (where.clave === 'km_mensual' && kmMensual !== null) {
         return Promise.resolve({ clave: 'km_mensual', valor: kmMensual });
       }
+      if (
+        where.clave === 'tasa_desgaste_km_maximo' &&
+        tasaDesgasteKmMaximo !== null
+      ) {
+        return Promise.resolve({
+          clave: 'tasa_desgaste_km_maximo',
+          valor: tasaDesgasteKmMaximo,
+        });
+      }
       return Promise.resolve(null);
+    },
+  );
+
+  // findMany de wearRatePair: solo lo usan obtenerChart/obtenerChartPorTipoCoche
+  // (recalcularParaDiscos usa findFirst) — filtra por trenNumero/esValido/
+  // tipoCoche/fecha2, igual que haría Postgres. diferenciaKm.lte ya NO lo arma
+  // el servicio en el where (el filtro de km se aplica en JS vía
+  // elegirParaPromedio, con la salvaguarda de fallback) — se soporta acá solo
+  // por si algún test lo pasa explícito.
+  const wearRatePairFindMany = jest.fn(
+    ({
+      where,
+    }: {
+      where: {
+        trenNumero?: number;
+        esValido?: boolean;
+        diferenciaKm?: { lte: number };
+        tipoCoche?: { in: string[] };
+        fecha2?: { gte?: Date; lt?: Date };
+      };
+      select?: Record<string, boolean>;
+    }) => {
+      let filtrados = wearRatePairs;
+      if (where.trenNumero !== undefined) {
+        filtrados = filtrados.filter((p) => p.trenNumero === where.trenNumero);
+      }
+      if (where.esValido !== undefined) {
+        filtrados = filtrados.filter((p) => p.esValido === where.esValido);
+      }
+      if (where.diferenciaKm?.lte !== undefined) {
+        const tope = where.diferenciaKm.lte;
+        filtrados = filtrados.filter((p) => (p.diferenciaKm ?? 0) <= tope);
+      }
+      if (where.tipoCoche?.in !== undefined) {
+        const tipos = new Set(where.tipoCoche.in);
+        filtrados = filtrados.filter(
+          (p) => p.tipoCoche !== undefined && tipos.has(p.tipoCoche),
+        );
+      }
+      if (where.fecha2?.gte !== undefined) {
+        const desde = where.fecha2.gte;
+        filtrados = filtrados.filter((p) => p.fecha2 >= desde);
+      }
+      if (where.fecha2?.lt !== undefined) {
+        const hasta = where.fecha2.lt;
+        filtrados = filtrados.filter((p) => p.fecha2 < hasta);
+      }
+      return Promise.resolve(filtrados);
     },
   );
 
   return {
     prisma: {
-      wearRatePair: { findFirst, createMany },
+      wearRatePair: {
+        findFirst,
+        createMany,
+        findMany: wearRatePairFindMany,
+      },
       scanRecord: { findMany: scanRecordFindMany },
       systemParam: { findUnique: systemParamFindUnique },
       brakeDisc: { findUniqueOrThrow: brakeDiscFindUniqueOrThrow },
@@ -149,6 +220,7 @@ function crearPrismaFake(opciones: {
     findFirst,
     scanRecordFindMany,
     brakeDiscFindUniqueOrThrow,
+    wearRatePairFindMany,
   };
 }
 
@@ -177,6 +249,53 @@ function servicio(prisma: PrismaService) {
     {} as TraceabilityStatsService,
     {} as ConsensoConfigService,
   );
+}
+
+// Para obtenerChart()/obtenerChartPorTipoCoche() sí hace falta un consenso
+// real (calcularLimitesGauss/Percentiles/Tukey + fracciones por defecto
+// 25/75/10/90, ver ConsensoConfigService) — TraceabilityStatsService no tiene
+// dependencias propias, así que se instancia real tal cual; ConsensoConfigService
+// se reemplaza por un fake con los defaults del seed (ver system-params.config.ts).
+function servicioParaCharts(prisma: PrismaService) {
+  const consensoConfigFake = {
+    obtenerFracciones: jest.fn().mockResolvedValue({
+      limiteInferior: 0.25,
+      limiteSuperior: 0.75,
+      extremoInferior: 0.1,
+      extremoSuperior: 0.9,
+    }),
+    obtenerEpsilon: jest.fn().mockResolvedValue(0.001),
+  } as unknown as ConsensoConfigService;
+  return new WearRateService(
+    prisma,
+    new WearRateCalculatorService(),
+    {} as BrakeDiscRulesService,
+    new TraceabilityStatsService(),
+    consensoConfigFake,
+  );
+}
+
+// Par mínimo de wear_rate_pairs para las pruebas de obtenerChart*, con
+// esValido=true y un diferenciaKm configurable (lo único que ejercitan estas
+// pruebas) — fecha1/kmMensualUsado/comentario no le importan a estos 2
+// endpoints (solo leen fecha2, tasaMensual, esValido, diferenciaKm, tipoCoche).
+function parValido(
+  overrides: Partial<FakeWearRatePair> & { tasaMensual: number; fecha2: Date },
+): FakeWearRatePair {
+  return {
+    id: `par-${Math.random()}`,
+    discId: 'disco-1',
+    scanRecordId1: 's1',
+    scanRecordId2: 's2',
+    trenNumero: 6,
+    fecha1: new Date('2020-01-01'),
+    kmMensualUsado: 11_300,
+    esValido: true,
+    comentario: 'Válido',
+    tasa: 0,
+    diferenciaKm: 5_000,
+    ...overrides,
+  };
 }
 
 describe('WearRateService.recalcularParaDiscos', () => {
@@ -468,5 +587,84 @@ describe('WearRateService.recalcularParaDiscos', () => {
     await servicio(prisma).recalcularParaDiscos([]);
 
     expect(scanRecordFindMany).not.toHaveBeenCalled();
+  });
+});
+
+describe('WearRateService.obtenerChart — umbral configurable de diferenciaKm', () => {
+  it('obtenerChart (por tren) excluye del promedio los pares con diferenciaKm mayor al umbral, cuando sobrevive suficiente muestra', async () => {
+    // 25 pares "cortos" (0.1) + 5 "largos" (0.9): filtrar deja 25 de 30 —
+    // pasa la salvaguarda (>= CONTEO_MINIMO=20 y >= mitad del balde).
+    const cortos = Array.from({ length: 25 }, (_, i) =>
+      parValido({
+        id: `corto-${i}`,
+        fecha2: new Date('2024-01-15'),
+        diferenciaKm: 5_000,
+        tasaMensual: 0.1,
+      }),
+    );
+    const largos = Array.from({ length: 5 }, (_, i) =>
+      parValido({
+        id: `largo-${i}`,
+        fecha2: new Date('2024-01-20'),
+        diferenciaKm: 90_000,
+        tasaMensual: 0.9,
+      }),
+    );
+    const { prisma } = crearPrismaFake({
+      scanRecords: [],
+      wearRatePairs: [...cortos, ...largos],
+    });
+
+    const [punto] = await servicioParaCharts(prisma).obtenerChart({
+      tren: 6,
+      groupBy: 'month',
+    });
+
+    expect(punto.mes).toBe('2024-01');
+    expect(punto.paresValidos).toBe(25);
+    expect(punto.paresInvalidos).toBe(5);
+    expect(punto.tasaMensualPromedio).toBeCloseTo(0.1, 10);
+  });
+
+  // Bug real detectado tras un reset de base de datos (2026-08): si CASI
+  // TODO el balde tiene un diferenciaKm grande (ej. el primer par de cada
+  // disco recién importado), filtrar por el umbral lo arrasa y deja una
+  // muestra minúscula y sesgada — ver comentario de elegirParaPromedio() en
+  // wear-rate.service.ts. Acá 25 de 30 pares son "largos": filtrar dejaría
+  // solo 5, por debajo de CONTEO_MINIMO y de la mitad del balde -> se
+  // descarta el filtro y se usa el balde completo, sin sesgo.
+  it('obtenerChart NO filtra por km si hacerlo dejaría una muestra demasiado chica (fallback al balde completo)', async () => {
+    const cortos = Array.from({ length: 5 }, (_, i) =>
+      parValido({
+        id: `corto-${i}`,
+        fecha2: new Date('2024-01-15'),
+        diferenciaKm: 5_000,
+        tasaMensual: 0.1,
+      }),
+    );
+    const largos = Array.from({ length: 25 }, (_, i) =>
+      parValido({
+        id: `largo-${i}`,
+        fecha2: new Date('2024-01-20'),
+        diferenciaKm: 90_000,
+        tasaMensual: 0.9,
+      }),
+    );
+    const { prisma } = crearPrismaFake({
+      scanRecords: [],
+      wearRatePairs: [...cortos, ...largos],
+    });
+
+    const [punto] = await servicioParaCharts(prisma).obtenerChart({
+      tren: 6,
+      groupBy: 'month',
+    });
+
+    expect(punto.paresValidos).toBe(30);
+    expect(punto.paresInvalidos).toBe(0);
+    expect(punto.tasaMensualPromedio).toBeCloseTo(
+      (5 * 0.1 + 25 * 0.9) / 30,
+      10,
+    );
   });
 });

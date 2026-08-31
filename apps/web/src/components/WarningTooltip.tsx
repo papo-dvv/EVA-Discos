@@ -90,6 +90,14 @@ export function WarningTooltip({ texto, children, posicion = 'arriba', className
             overflowWrap: 'anywhere',
             transition:
               'opacity var(--duracion-rapida) var(--ease-apple), transform var(--duracion-rapida) var(--ease-apple)',
+            // La animación de entrada de .glass-surface--strong (tokens.css,
+            // eva-superficie-entrada) anima opacity/transform con
+            // fill-mode:both — sin este override, esos keyframes ganan sobre
+            // los inline de arriba (que son los que de verdad controlan
+            // mostrar/ocultar y posicionar el tooltip) y lo dejan SIEMPRE
+            // visible, clavado en left:0/top:0 (el valor inicial de coords,
+            // nunca recalculado porque `visible` nunca pasó a true).
+            animation: 'none',
           }}
         >
           {texto}

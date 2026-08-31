@@ -8,7 +8,6 @@ import {
 import { BrakeDiscRulesService } from '../brake-disc-rules/brake-disc-rules.service';
 import { agruparPorMes, ordenarPorMes } from '../common/agrupar-por-mes';
 import { calcularOrdenFisico } from '../common/orden-fisico';
-import { ORDEN_COCHE_FLOTA, type CocheFlota } from '../fleet/fleet.constants';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   paginarFiltrandoPorAccion,
@@ -27,6 +26,12 @@ import { construirWhereWearRate } from './wear-rate-pairs-query';
 // fila no existe todavía o su valor no es numérico — nunca revienta por un
 // parámetro no configurado (mismo patrón que UmbralesProviderService).
 const KM_MENSUAL_POR_DEFECTO = 11_300;
+
+// Mismo valor que el seed de system_params (clave tasa_desgaste_km_maximo):
+// fallback si la fila no existe todavía o su valor no es numérico. Ver
+// comentario de obtenerDiferenciaKmMaximaVigente() para el porqué de este
+// umbral.
+const DIFERENCIA_KM_MAXIMA_POR_DEFECTO = 50_000;
 
 export interface FilaWearRateApi {
   id: string;
@@ -84,16 +89,6 @@ export interface WearRateSummary {
   paresInvalidos: number;
   motivosFrecuentes: MotivoInvalidezFrecuencia[];
 }
-
-// mm/mes promedio por mes calendario, un campo por tipo de coche — Ansaldo
-// (M20/M21/M22) queda fuera a propósito, mismo criterio que
-// ProyeccionService.obtenerPromedioPorVagon (WearRatePair.tipoCoche solo
-// contribuye si está en ORDEN_COCHE_FLOTA). null cuando ese mes no tiene
-// ningún par válido de ese tipo de coche.
-export type PuntoChartTasaPorCoche = { mes: string } & Record<
-  CocheFlota,
-  number | null
->;
 
 @Injectable()
 export class WearRateService {
@@ -242,6 +237,64 @@ export class WearRateService {
     return Number.isFinite(valor) ? valor : KM_MENSUAL_POR_DEFECTO;
   }
 
+  // diferenciaKm (km2 - km1) que puede tener un par para entrar al promedio
+  // de tasa mensual FLEET-WIDE de obtenerChart() — configurable vía
+  // system_params (clave tasa_desgaste_km_maximo), con el mismo patrón de
+  // fallback que obtenerKmMensualVigente(). El desglose "por tipo de coche"
+  // ya no vive acá (ver TraceabilityService.obtenerSeriesPorTipoCoche), así
+  // que este umbral no le aplica.
+  //
+  // Un par con un salto de km enorme entre sus 2 mediciones (discos con
+  // historial disperso: a veces >90,000 km entre 2 confirmaciones) reparte
+  // TODO el desgaste acumulado de ese tramo como si fuera constante mes a
+  // mes (tasaMensual = diferenciaRd/diferenciaKm × kmMensual), inflando la
+  // tasa "mensual" muy por encima de lo real. Cuando esto le pasa a VARIOS
+  // discos del mismo tipo de coche en el mismo mes calendario (coincidencia
+  // de cuándo se confirmó su siguiente medición, no un evento real de
+  // desgaste), el propio consenso Gauss∩Percentiles∩Tukey de promedioLimpio
+  // no los filtra como atípicos: sus límites se calculan sobre esa misma
+  // muestra contaminada y terminan estirándose para "aceptarlos" (caso real:
+  // MB3 abril 2026, 64 de 148 pares con diferenciaKm de 70,000-107,000 y
+  // tasaMensual de 0.7-0.86, disparando el promedio del mes muy por encima
+  // de los meses vecinos). Este umbral corta el problema en la fuente, antes
+  // de que llegue al consenso.
+  private async obtenerDiferenciaKmMaximaVigente(): Promise<number> {
+    const param = await this.prisma.systemParam.findUnique({
+      where: { clave: 'tasa_desgaste_km_maximo' },
+    });
+    const valor = param ? Number(param.valor) : NaN;
+    return Number.isFinite(valor) ? valor : DIFERENCIA_KM_MAXIMA_POR_DEFECTO;
+  }
+
+  // Aplica el umbral de obtenerDiferenciaKmMaximaVigente() a un balde
+  // mensual (fleet-wide) con una salvaguarda: si filtrar deja MENOS de la
+  // mitad del balde original (o menos de CONTEO_MINIMO), se descarta el
+  // filtro y se usa el balde completo sin filtrar.
+  //
+  // Motivo (bug real, detectado tras un reset de base de datos 2026-08): el
+  // primer par de CADA disco recién importado enlaza su medición más antigua
+  // con la más reciente, así que en los primeros meses con datos suficientes
+  // TODO el balde puede tener un diferenciaKm igual de grande (ej. marzo 2026
+  // tras el reset: 708 de 708 pares entre 70,000-97,500 km) — filtrar ahí no
+  // corrige un dato contaminado, arrasa con el mes entero y deja una muestra
+  // minúscula (20 sobrevivientes) que el consenso ya no puede promediar de
+  // forma robusta (disparó tasaMensualPromedio a 0.82, muy por encima de los
+  // meses vecinos ~0.07-0.15). El caso que este umbral SÍ debe seguir
+  // corrigiendo (MB3 abril 2026: 64 de 148 pares "contaminados", con un
+  // salto igual de grande, MEZCLADOS con 84 pares normales de intervalo
+  // corto) queda intacto: ahí sobrevive más de la mitad del balde.
+  private elegirParaPromedio<T extends { diferenciaKm: Prisma.Decimal }>(
+    pares: T[],
+    diferenciaKmMaxima: number,
+  ): T[] {
+    const filtrados = pares.filter(
+      (p) => Number(p.diferenciaKm) <= diferenciaKmMaxima,
+    );
+    const usarFiltrados =
+      filtrados.length >= Math.max(CONTEO_MINIMO, pares.length / 2);
+    return usarFiltrados ? filtrados : pares;
+  }
+
   // --- Endpoints de consulta (solo leen la tabla precomputada) ---
 
   async buscarPares(q: WearRatePairsQueryDto): Promise<WearRatePairsResult> {
@@ -349,16 +402,28 @@ export class WearRateService {
       fecha2: { lt: this.inicioMesActualUtc() },
     };
 
-    const pares = await this.prisma.wearRatePair.findMany({
-      where,
-      select: { fecha2: true, tasaMensual: true, esValido: true },
-    });
+    const [diferenciaKmMaxima, pares] = await Promise.all([
+      this.obtenerDiferenciaKmMaximaVigente(),
+      this.prisma.wearRatePair.findMany({
+        where,
+        select: {
+          fecha2: true,
+          tasaMensual: true,
+          esValido: true,
+          diferenciaKm: true,
+        },
+      }),
+    ]);
 
     const porMes = agruparPorMes(
       pares,
       (p) => p.fecha2,
       () => ({
-        validos: [] as { tasaMensual: Prisma.Decimal; fecha2: Date }[],
+        validos: [] as {
+          tasaMensual: Prisma.Decimal;
+          fecha2: Date;
+          diferenciaKm: Prisma.Decimal;
+        }[],
         paresInvalidos: 0,
       }),
       (acumulado, p) => {
@@ -369,91 +434,34 @@ export class WearRateService {
     );
 
     return Promise.all(
-      ordenarPorMes(porMes).map(async ([mes, d]) => ({
-        mes,
-        tasaMensualPromedio:
-          q.tren === undefined
-            ? await this.promedioSiSuficiente(d.validos)
-            : this.promedioSimple(d.validos),
-        paresValidos: d.validos.length,
-        paresInvalidos: d.paresInvalidos,
-      })),
-    );
-  }
-
-  // Misma serie mensual que obtenerChart(), pero desglosada por tipo de
-  // coche en vez de agregada a toda la flota — usada por el gráfico de líneas
-  // "Tasa de desgaste mensual" del dashboard (una línea por MA1/MB1/MB3/REM/
-  // MB2/MA2). Siempre fleet-wide: no acepta filtro por tren porque un tren
-  // Alstom tiene exactamente 1 coche de cada tipo, así que ese filtro
-  // colapsaría cada serie a los mismos pares que ya devuelve obtenerChart().
-  // Acotado al AÑO CALENDARIO en curso (pedido explícito): sin este corte, un
-  // solo par histórico con una tasa fuera de rango (dato viejo de meses sin
-  // mediciones consecutivas reales) estira la escala Y del gráfico y aplana
-  // visualmente el resto de las series. El mes en curso tampoco entra —
-  // mismo criterio y mismo guard de CONTEO_MINIMO + consenso que
-  // obtenerChart() fleet-wide (ver comentario ahí).
-  async obtenerChartPorTipoCoche(): Promise<PuntoChartTasaPorCoche[]> {
-    const anioActual = new Date().getUTCFullYear();
-    const pares = await this.prisma.wearRatePair.findMany({
-      where: {
-        esValido: true,
-        tipoCoche: { in: [...ORDEN_COCHE_FLOTA] },
-        fecha2: {
-          gte: new Date(Date.UTC(anioActual, 0, 1)),
-          lt: this.inicioMesActualUtc(),
-        },
-      },
-      select: { fecha2: true, tasaMensual: true, tipoCoche: true },
-    });
-
-    type Acumulado = Record<
-      CocheFlota,
-      { tasaMensual: Prisma.Decimal; fecha2: Date }[]
-    >;
-    const inicial = (): Acumulado =>
-      Object.fromEntries(
-        ORDEN_COCHE_FLOTA.map(
-          (tipo) =>
-            [tipo, [] as Acumulado[CocheFlota]] as const,
-        ),
-      ) as Acumulado;
-
-    const porMes = agruparPorMes(
-      pares,
-      (p) => p.fecha2,
-      inicial,
-      (acumulado, p) => {
-        acumulado[p.tipoCoche as CocheFlota].push(p);
-        return acumulado;
-      },
-    );
-
-    // 12 filas SIEMPRE (enero a diciembre del año en curso), no solo los
-    // meses con pares — el gráfico necesita arrancar en enero aunque las
-    // primeras mediciones del año lleguen después (ver GraficoTasaPorCoche).
-    return Promise.all(
-      Array.from({ length: 12 }, async (_, i) => {
-        const mes = new Date(Date.UTC(anioActual, i, 1))
-          .toISOString()
-          .slice(0, 7);
-        const acumulado = porMes.get(mes);
-        const fila = { mes } as PuntoChartTasaPorCoche;
-        await Promise.all(
-          ORDEN_COCHE_FLOTA.map(async (tipo) => {
-            fila[tipo] = await this.promedioSiSuficiente(
-              acumulado?.[tipo] ?? [],
-            );
-          }),
-        );
-        return fila;
+      ordenarPorMes(porMes).map(async ([mes, d]) => {
+        // Ver comentario de elegirParaPromedio(): aplica el umbral de km
+        // salvo que dejaría el balde del mes con muy pocos pares (ahí se usa
+        // el balde completo, sin filtrar). Los descartados por km se suman a
+        // "inválidos" del tooltip: tampoco contribuyeron al promedio.
+        const elegidos = this.elegirParaPromedio(d.validos, diferenciaKmMaxima);
+        return {
+          mes,
+          tasaMensualPromedio:
+            q.tren === undefined
+              ? await this.promedioSiSuficiente(elegidos)
+              : this.promedioSimple(elegidos),
+          paresValidos: elegidos.length,
+          paresInvalidos:
+            d.paresInvalidos + (d.validos.length - elegidos.length),
+        };
       }),
     );
   }
 
-  // Primer instante (UTC) del mes calendario en curso — cota superior
-  // compartida por obtenerChart() y obtenerChartPorTipoCoche() para excluir
-  // el mes todavía no cerrado (ver comentarios ahí).
+  // Primer instante (UTC) del mes calendario en curso — cota superior de
+  // obtenerChart() para excluir el mes todavía no cerrado (ver comentario
+  // ahí). El desglose por tipo de coche ("Tasa de desgaste mensual por tipo
+  // de coche" del dashboard) ya NO vive acá — se movió a
+  // TraceabilityService.obtenerSeriesPorTipoCoche(), que reusa el consenso
+  // de Trazabilidad sobre el histórico completo de cada tipo en vez de
+  // recalcularlo por balde mes+tipo (más frágil ante un balde sesgado, ver
+  // el historial de parches que tenía esta clase antes de la migración).
   private inicioMesActualUtc(): Date {
     const ahora = new Date();
     return new Date(Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth(), 1));

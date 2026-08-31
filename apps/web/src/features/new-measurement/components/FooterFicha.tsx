@@ -44,6 +44,14 @@ function bloquePersonaIncompleto(persona: {
   return valores.some(Boolean) && valores.some((valor) => !valor)
 }
 
+// Cargo obligatorio en cuanto la fila tiene nombre y/o firma — a pedido
+// explícito del usuario, deja de ser un campo puramente informativo: mismo
+// criterio (`tecnicoSinCargo`) que usa Reperfilado.tsx para bloquear
+// Confirmar/Descargar PDF, acá solo para resaltar la celda visualmente.
+function cargoFaltante(tecnico: { cargo: string; nombre: string; firma: string }): boolean {
+  return tecnico.cargo.trim() === '' && (tecnico.nombre.trim() !== '' || !firmaVacia(tecnico.firma))
+}
+
 // Footer completo de la ficha (punto 3 del enunciado): instrumentos (3 filas
 // fijas), comentarios, técnicos (4 fijos, 2x2) y el bloque Ing. MR/Responsable
 // de Mantenimiento — este último es el ÚNICO campo obligatorio de toda la
@@ -191,43 +199,54 @@ function FilaFirmaTecnico({
 }) {
   const [cargo, setCargo] = useSyncedState(tecnico.cargo ?? '')
   const [nombre, setNombre] = useSyncedState(tecnico.nombre ?? '')
+  const faltaCargo = cargoFaltante({ cargo, nombre, firma: tecnico.firma ?? '' })
 
   function guardarCampo(campo: 'cargo' | 'nombre' | 'firma', valor: string) {
     onGuardar({ tecnicos: [{ posicion: tecnico.posicion, [campo]: valor }] })
   }
 
   return (
-    <tr className="border-b border-concreto/10 align-top">
-      <td className="px-1.5 py-1">
-        <input
-          className={CLASE_INPUT}
-          placeholder="Cargo"
-          aria-label={`Cargo fila ${tecnico.posicion}`}
-          value={cargo}
-          onChange={(e) => setCargo(e.target.value)}
-          onBlur={(e) => guardarCampo('cargo', e.target.value)}
-        />
-      </td>
-      <td className="px-1.5 py-1">
-        <input
-          className={CLASE_INPUT}
-          placeholder="Nombre"
-          aria-label={`Nombre fila ${tecnico.posicion}`}
-          value={nombre}
-          onChange={(e) => setNombre(e.target.value)}
-          onBlur={(e) => guardarCampo('nombre', e.target.value)}
-        />
-      </td>
-      <td className="px-1.5 py-1">
-        <div className="flex items-center gap-2">
-          <FirmaDigital
-            etiqueta={`Fila ${tecnico.posicion}`}
-            valor={tecnico.firma ?? ''}
-            onGuardar={(firma) => guardarCampo('firma', firma)}
+    <>
+      <tr className="border-b border-concreto/10 align-top">
+        <td className="px-1.5 py-1">
+          <input
+            className={`${CLASE_INPUT} ${faltaCargo ? 'ring-1 ring-[color:var(--color-estado-critico)]/50' : ''}`.trim()}
+            placeholder="Cargo"
+            aria-label={`Cargo fila ${tecnico.posicion}`}
+            aria-required={nombre.trim() !== '' || !firmaVacia(tecnico.firma)}
+            value={cargo}
+            onChange={(e) => setCargo(e.target.value)}
+            onBlur={(e) => guardarCampo('cargo', e.target.value)}
           />
-        </div>
-      </td>
-    </tr>
+        </td>
+        <td className="px-1.5 py-1">
+          <input
+            className={CLASE_INPUT}
+            placeholder="Nombre"
+            aria-label={`Nombre fila ${tecnico.posicion}`}
+            value={nombre}
+            onChange={(e) => setNombre(e.target.value)}
+            onBlur={(e) => guardarCampo('nombre', e.target.value)}
+          />
+        </td>
+        <td className="px-1.5 py-1">
+          <div className="flex items-center gap-2">
+            <FirmaDigital
+              etiqueta={`Fila ${tecnico.posicion}`}
+              valor={tecnico.firma ?? ''}
+              onGuardar={(firma) => guardarCampo('firma', firma)}
+            />
+          </div>
+        </td>
+      </tr>
+      {faltaCargo && (
+        <tr className="border-b border-concreto/10">
+          <td colSpan={3} className="px-1.5 pb-1.5 text-[0.625rem] text-[color:var(--color-estado-critico)]">
+            Completa el Cargo de esta fila para poder confirmar/descargar la ficha.
+          </td>
+        </tr>
+      )}
+    </>
   )
 }
 

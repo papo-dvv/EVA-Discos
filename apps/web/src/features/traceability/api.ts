@@ -2,6 +2,7 @@ import { apiClient } from '../../lib/apiClient'
 import type {
   PromedioPorTrenItem,
   PromedioPorTrenParams,
+  PuntoTasaPorTipoCoche,
   TraceabilityScopeParams,
   TraceabilitySeriesParams,
   TraceabilitySeriesResponse,
@@ -26,5 +27,10 @@ export async function obtenerPromedioPorTren(
   params: PromedioPorTrenParams,
 ): Promise<PromedioPorTrenItem[]> {
   const { data } = await apiClient.get<PromedioPorTrenItem[]>('/traceability/promedio-por-tren', { params })
+  return data
+}
+
+export async function obtenerTraceabilitySeriesPorTipoCoche(): Promise<PuntoTasaPorTipoCoche[]> {
+  const { data } = await apiClient.get<PuntoTasaPorTipoCoche[]>('/traceability/series-por-tipo-coche')
   return data
 }

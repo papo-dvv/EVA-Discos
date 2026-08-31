@@ -18,7 +18,7 @@ const GRUPOS: Record<ModuloParametros, Grupo> = {
     nombre: 'Mediciones',
     claves: ['rd_umbral_ok', 'rd_umbral_seguimiento', 'rd_umbral_critico', 'h_umbral_reperfilado', 'reperfilado_descuento_rd'],
   },
-  'tasa-desgaste': { nombre: 'Tasa de desgaste', claves: ['km_mensual'] },
+  'tasa-desgaste': { nombre: 'Tasa de desgaste', claves: ['km_mensual', 'tasa_desgaste_km_maximo'] },
   trazabilidad: {
     nombre: 'Trazabilidad',
     claves: ['percentil_limite_inferior', 'percentil_limite_superior', 'percentil_extremo_inferior', 'percentil_extremo_superior', 'consenso_extremo_epsilon', 'amplitud_maxima_extremo', 'asimetria_umbral_simetrica', 'outlier_parametro', 'proyeccion_km_rango_max', 'proyeccion_km_rango_min'],

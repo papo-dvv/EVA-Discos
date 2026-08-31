@@ -1,6 +1,5 @@
 import { apiClient } from '../../lib/apiClient'
 import type {
-  PuntoChartTasaPorCoche,
   PuntoChartWearRate,
   WearRatePairsParams,
   WearRatePairsResult,
@@ -18,11 +17,6 @@ export async function obtenerWearRateChart(tren?: number): Promise<PuntoChartWea
   const { data } = await apiClient.get<PuntoChartWearRate[]>('/wear-rate/chart', {
     params: { tren, groupBy: 'month' },
   })
-  return data
-}
-
-export async function obtenerWearRateChartPorCoche(): Promise<PuntoChartTasaPorCoche[]> {
-  const { data } = await apiClient.get<PuntoChartTasaPorCoche[]>('/wear-rate/chart-por-coche')
   return data
 }
 

@@ -2,12 +2,17 @@ import 'dotenv/config'
 import { randomBytes } from 'node:crypto'
 import bcrypt from 'bcrypt'
 import { PrismaPg } from '@prisma/adapter-pg'
-import { PrismaClient, type LadoDisco, type ModeloTren, type PosicionDisco, type TipoCoche } from '../generated/prisma'
+import { PrismaClient, type EstadoDisco, type LadoDisco, type ModeloTren, type PosicionDisco, type TipoCoche } from '../generated/prisma'
 
 const BCRYPT_ROUNDS = 12
 // Mismo UUID fijo que schema_eva.sql §7, para que el usuario "sistema" sea
 // reconocible y estable entre entornos (se referencia desde scan_edit_log).
 const SISTEMA_USER_ID = '00000000-0000-0000-0000-000000000001'
+// UUID fijo del UploadedFile "técnico" que agrupa los ScanRecord sintéticos
+// de seedInventarioPrueba() — ver comentario ahí. Fijo para que el seed sea
+// idempotente (upsert por id) y para poder borrar/recrear SOLO sus filas sin
+// tocar ScanRecord de otros archivos.
+const ARCHIVO_SEED_INVENTARIO_ID = '00000000-0000-0000-0000-0000000000f1'
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL })
 const prisma = new PrismaClient({ adapter })
@@ -55,6 +60,7 @@ async function seedSystemParams() {
     { clave: 'outlier_parametro', valor: '1.5', descripcion: 'Parámetro del método de outlier activo (ej. multiplicador IQR)' },
     { clave: 'dias_anticipacion_agenda', valor: '15', descripcion: 'Días de anticipación para sugerir agendar un cambio/reperfilado' },
     { clave: 'km_mensual', valor: '11300', descripcion: 'Kilometraje mensual estimado de la flota, usado para proyectar la tasa mensual de desgaste. Cambiarlo NO recalcula los pares ya existentes (quedan con el valor vigente al momento de su cálculo); solo afecta los cálculos nuevos de aquí en adelante.' },
+    { clave: 'tasa_desgaste_km_maximo', valor: '50000', descripcion: 'Diferencia de kilometraje máxima (km) que puede tener un par de mediciones para entrar al promedio de tasa mensual fleet-wide del dashboard (KPI "Tasa promedio por mes"). Pares con un salto mayor (discos con historial disperso) reparten todo su desgaste acumulado como si fuera constante mes a mes, inflando la tasa estimada.' },
     { clave: 'percentil_limite_inferior', valor: '25', descripcion: 'Percentil inferior (0-100) del límite de consenso de trazabilidad. Gauss y Tukey quedan fijos; este es uno de los 4 únicos parámetros configurables del cálculo de consenso.' },
     { clave: 'percentil_limite_superior', valor: '75', descripcion: 'Percentil superior (0-100) del límite de consenso de trazabilidad.' },
     { clave: 'percentil_extremo_inferior', valor: '10', descripcion: 'Percentil inferior (0-100) del extremo de consenso de trazabilidad.' },
@@ -311,8 +317,16 @@ async function seedFlotaAlstom() {
 // Catálogo de flota Ansaldo (wagon_units + brake_discs) — 5 trenes + 2 coches
 // de reserva bajo el pseudo-tren 0. Verificado contra el Excel real
 // (test-data/CONTROL TOP - copia ANSALDO.xlsm, hojas T01-T05/UDT RESERVA) y
-// espejo de flota.md (ver ahí la nota sobre Tren 5, que queda con un solo par
-// M20/M21 confirmado hasta poder verificar el segundo).
+// espejo de flota.md.
+//
+// Tren 5 (17, 18, 304, 310, 22, 21) confirmado completo 2026-08 — antes solo
+// tenía 4 coches (304, 310, 22, 21): los coches 17/18 habían quedado
+// registrados bajo el Tren 2 en el Excel histórico original (hoja "T02" de
+// 2025), un error de la planilla nunca detectado hasta cruzar la relación
+// Coche-N° real. Los scan_records ya confirmados de esos 2 coches se
+// corrigieron a mano (trenNumero 2 -> 5, con trenOriginalExcel/
+// corregidoPorHoja para auditoría) — este seed solo importa para
+// instalaciones nuevas desde cero.
 //
 // A diferencia de Alstom, los códigos de bogie (C1..C6) son fijos POR TIPO DE
 // COCHE (no por posición dentro del tren): toda unidad M20 usa C1/C2, toda
@@ -338,8 +352,8 @@ const COCHES_ANSALDO: ReadonlyArray<{
 }> = [
   { trenNumero: 1, numeroCoche: 1, tipoCoche: 'M20' },
   { trenNumero: 1, numeroCoche: 2, tipoCoche: 'M21' },
-  { trenNumero: 1, numeroCoche: 302, tipoCoche: 'M22' },
   { trenNumero: 1, numeroCoche: 301, tipoCoche: 'M22' },
+  { trenNumero: 1, numeroCoche: 302, tipoCoche: 'M22' },
   { trenNumero: 1, numeroCoche: 4, tipoCoche: 'M21' },
   { trenNumero: 1, numeroCoche: 3, tipoCoche: 'M20' },
   { trenNumero: 2, numeroCoche: 5, tipoCoche: 'M20' },
@@ -348,20 +362,22 @@ const COCHES_ANSALDO: ReadonlyArray<{
   { trenNumero: 2, numeroCoche: 305, tipoCoche: 'M22' },
   { trenNumero: 2, numeroCoche: 8, tipoCoche: 'M21' },
   { trenNumero: 2, numeroCoche: 7, tipoCoche: 'M20' },
-  { trenNumero: 3, numeroCoche: 11, tipoCoche: 'M20' },
-  { trenNumero: 3, numeroCoche: 12, tipoCoche: 'M21' },
-  { trenNumero: 3, numeroCoche: 307, tipoCoche: 'M22' },
-  { trenNumero: 3, numeroCoche: 306, tipoCoche: 'M22' },
-  { trenNumero: 3, numeroCoche: 10, tipoCoche: 'M21' },
   { trenNumero: 3, numeroCoche: 9, tipoCoche: 'M20' },
+  { trenNumero: 3, numeroCoche: 10, tipoCoche: 'M21' },
+  { trenNumero: 3, numeroCoche: 306, tipoCoche: 'M22' },
+  { trenNumero: 3, numeroCoche: 307, tipoCoche: 'M22' },
+  { trenNumero: 3, numeroCoche: 12, tipoCoche: 'M21' },
+  { trenNumero: 3, numeroCoche: 11, tipoCoche: 'M20' },
   { trenNumero: 4, numeroCoche: 13, tipoCoche: 'M20' },
   { trenNumero: 4, numeroCoche: 14, tipoCoche: 'M21' },
   { trenNumero: 4, numeroCoche: 308, tipoCoche: 'M22' },
   { trenNumero: 4, numeroCoche: 309, tipoCoche: 'M22' },
   { trenNumero: 4, numeroCoche: 16, tipoCoche: 'M21' },
   { trenNumero: 4, numeroCoche: 15, tipoCoche: 'M20' },
-  { trenNumero: 5, numeroCoche: 310, tipoCoche: 'M22' },
+  { trenNumero: 5, numeroCoche: 17, tipoCoche: 'M20' },
+  { trenNumero: 5, numeroCoche: 18, tipoCoche: 'M21' },
   { trenNumero: 5, numeroCoche: 304, tipoCoche: 'M22' },
+  { trenNumero: 5, numeroCoche: 310, tipoCoche: 'M22' },
   { trenNumero: 5, numeroCoche: 22, tipoCoche: 'M21' },
   { trenNumero: 5, numeroCoche: 21, tipoCoche: 'M20' },
   // Reserva (pseudo-tren 0).
@@ -511,6 +527,24 @@ async function seedInventarioPrueba() {
   const FABRICANTES = ['alstom_metropolis9000', 'ansaldo_mb300'] as const
   const LADOS = ['izquierdo', 'derecho'] as const satisfies readonly LadoDisco[]
 
+  // Última medición simulada de los 4 pares de Taller — a diferencia de
+  // Almacén (fase 'nueva': nunca se midieron, correcto que salgan en blanco
+  // en Inventario), estos simulan discos que "volvieron de servicio", así
+  // que SÍ deberían traer su último T/H/Rd/Estado conocido (igual que un
+  // disco real dado de baja vía Operaciones → Cambio de disco, que conserva
+  // su historial de scan_records al pasar de stage — ver
+  // operations-cambio-disco.service.ts). Sin esto, la tabla de Taller
+  // mostraba "—" en todas las columnas de Disco pese a estar en fase
+  // 'usada' (reportado por el usuario 2026-08: parecía un bug, era falta de
+  // este dato en el seed). 4 estados distintos a propósito, para poder ver
+  // los 4 colores de estado en la demo.
+  const MEDICION_TALLER: Record<string, { tValue: number; hValue: number; estadoCalculado: EstadoDisco; kilometraje: number; fecha: string }> = {
+    'DF-0007': { tValue: 4.3, hValue: 3.1, estadoCalculado: 'OK', kilometraje: 812_400, fecha: '2026-07-02' },
+    'DF-0008': { tValue: 3.6, hValue: 2.85, estadoCalculado: 'SEGUIMIENTO', kilometraje: 940_100, fecha: '2026-07-10' },
+    'DF-0009': { tValue: 3.0, hValue: 2.72, estadoCalculado: 'CAMBIO', kilometraje: 1_015_600, fecha: '2026-07-18' },
+    'DF-0010': { tValue: 2.75, hValue: 2.85, estadoCalculado: 'CRITICO', kilometraje: 1_082_900, fecha: '2026-07-25' },
+  }
+
   const pares = [
     ...Array.from({ length: 6 }, (_, i) => ({
       serie: `DF-${String(i + 1).padStart(4, '0')}`,
@@ -543,9 +577,10 @@ async function seedInventarioPrueba() {
   if (eliminados > 0) console.log(`brake_discs: ${eliminados} discos sueltos de prueba (versión vieja del seeder) eliminados`)
 
   let discos = 0
+  const discoIdsPorSerie = new Map<string, string[]>()
   for (const par of pares) {
     for (const lado of LADOS) {
-      await prisma.brakeDisc.upsert({
+      const disco = await prisma.brakeDisc.upsert({
         where: { serie_lado_posicion: { serie: par.serie, lado, posicion: 'unica' } },
         update: {
           stage: par.stage,
@@ -562,11 +597,51 @@ async function seedInventarioPrueba() {
         },
         create: { ...par, lado },
       })
+      discoIdsPorSerie.set(par.serie, [...(discoIdsPorSerie.get(par.serie) ?? []), disco.id])
       discos++
     }
   }
 
-  console.log(`brake_discs: ${pares.length} ejes de prueba / ${discos} discos (6 pares almacén, 4 pares taller)`)
+  // ScanRecord sintéticos de los 4 pares de Taller (ver MEDICION_TALLER) —
+  // agrupados bajo un único UploadedFile "técnico" fijo (ARCHIVO_SEED_INVENTARIO_ID),
+  // igual patrón que MeasurementSheet para fichas manuales. Se borran y
+  // recrean en cada corrida (no hay una clave natural para upsert acá) —
+  // acotado a ESTE fileId, nunca toca ScanRecord de archivos reales.
+  await prisma.uploadedFile.upsert({
+    where: { id: ARCHIVO_SEED_INVENTARIO_ID },
+    update: {},
+    create: {
+      id: ARCHIVO_SEED_INVENTARIO_ID,
+      filename: 'seed-inventario-prueba.csv',
+      tipoCarga: 'csv_individual',
+      uploadedBy: SISTEMA_USER_ID,
+      status: 'committed',
+    },
+  })
+  await prisma.scanRecord.deleteMany({ where: { fileId: ARCHIVO_SEED_INVENTARIO_ID } })
+  const nuevosScanRecords = Object.entries(MEDICION_TALLER).flatMap(([serie, m]) =>
+    (discoIdsPorSerie.get(serie) ?? []).map((discId) => ({
+      fileId: ARCHIVO_SEED_INVENTARIO_ID,
+      discId,
+      responsableNombre: 'Sistema EVA',
+      trenNumero: 0, // pseudo-tren Reserva: disco suelto, sin tren asignado.
+      kilometraje: m.kilometraje,
+      fecha: new Date(m.fecha),
+      motivo: 'Medición',
+      tValue: m.tValue,
+      hValue: m.hValue,
+      rdValue: Number((m.tValue - m.hValue).toFixed(3)),
+      estadoCalculado: m.estadoCalculado,
+    })),
+  )
+  if (nuevosScanRecords.length > 0) {
+    await prisma.scanRecord.createMany({ data: nuevosScanRecords })
+  }
+
+  console.log(
+    `brake_discs: ${pares.length} ejes de prueba / ${discos} discos (6 pares almacén, 4 pares taller) — ` +
+      `scan_records: ${nuevosScanRecords.length} mediciones sintéticas de los pares de taller`,
+  )
 }
 
 async function main() {

@@ -8,7 +8,6 @@ import { CardsTrenesCriticos } from '../features/dashboard/components/CardsTrene
 import { DonutTrenesCriticos } from '../features/dashboard/components/DonutTrenesCriticos'
 import { GraficoConsumoDiscos } from '../features/dashboard/components/GraficoConsumoDiscos'
 import { GraficoConsumoDiscosAcumulado } from '../features/dashboard/components/GraficoConsumoDiscosAcumulado'
-import { GraficoFlujoMensualDiscos } from '../features/dashboard/components/GraficoFlujoMensualDiscos'
 import { GraficoTasaPorCoche } from '../features/dashboard/components/GraficoTasaPorCoche'
 import { FABRICANTE_TREN_A_MODELO, type FabricanteTren } from '../features/fleet/components/fabricante'
 import { useResumenTrenesCriticos } from '../features/fleet/queries'
@@ -16,7 +15,8 @@ import { useCambiosRealesPorMes, useRetirosPorMes, useStatsInventario } from '..
 import { useSubidasRecientesCount } from '../features/new-measurement/queries'
 import { useProyeccionDiscos, usePronostico } from '../features/projection/queries'
 import type { PronosticoMes } from '../features/projection/types'
-import { useWearRateChart, useWearRateChartPorCoche, useWearRatePairs } from '../features/wear-rate/queries'
+import { useTraceabilitySeriesPorTipoCoche } from '../features/traceability/queries'
+import { useWearRateChart, useWearRatePairs } from '../features/wear-rate/queries'
 import './inicio.css'
 
 const OPCIONES_FABRICANTE: { valor: FabricanteTren; etiqueta: string }[] = [
@@ -60,7 +60,7 @@ export function InicioOperativo() {
   const pronostico = usePronostico(undefined, 12)
   const cambiosReales = useCambiosRealesPorMes()
   const statsInventario = useStatsInventario()
-  const tasaPorCoche = useWearRateChartPorCoche()
+  const tasaPorCoche = useTraceabilitySeriesPorTipoCoche()
   const retiros = useRetirosPorMes()
   const resumenTrenesCriticos = useResumenTrenesCriticos(FABRICANTE_TREN_A_MODELO[fabricante])
   const subidasRecientes = useSubidasRecientesCount()
@@ -105,11 +105,9 @@ export function InicioOperativo() {
   const stockAlmacen = statsInventario.data?.almacen ?? 0
   const stockTaller = statsInventario.data?.taller ?? 0
   // mes[0] del pronóstico es siempre el mes en curso (ver
-  // generarMesesForecast) — mismo mes "pivote" que empalma con el último
-  // punto de useRetirosPorMes en GraficoFlujoMensualDiscos, y la misma
-  // fuente que ya usa CardCritico en Proyección para "ahora" (desde el fix
-  // de agregarMes: CRITICO ahí SÍ refleja el estado real, no interpolado).
-  const mesPivote = meses[0]?.mes ?? base
+  // generarMesesForecast) — misma fuente que ya usa CardCritico en
+  // Proyección para "ahora" (desde el fix de agregarMes: CRITICO ahí SÍ
+  // refleja el estado real, no interpolado).
   const criticoAhora = meses[0]?.desgloseEstado.critico ?? 0
   const cambioAhora = meses[0]?.desgloseEstado.cambio ?? 0
 
@@ -120,7 +118,8 @@ export function InicioOperativo() {
         <div className="inicio-card__encabezado"><span><TrendingDown size={16} /> Tasa promedio por mes</span></div>
         <div className="inicio-card__foto">
           <img src={imagenes.tasaMensual} alt="" aria-hidden="true" className="inicio-card__foto-img" />
-          <div className="inicio-card__foto-valor left-[61%] top-[54%]">
+          <p className="inicio-card__foto-titulo left-[61%] top-[26%]">Tasa promedio por mes</p>
+          <div className="inicio-card__foto-valor left-[61%] top-[60%]">
             <AnimatedNumber valor={tasaActual} decimales={3} sufijo=" mm" />
             <IndicadorVariacion porcentaje={deltaTasa} sentido="subirEsMalo" />
           </div>
@@ -130,14 +129,16 @@ export function InicioOperativo() {
         <div className="inicio-card__encabezado"><span><Gauge size={16} /> Km de vida útil por disco</span></div>
         <div className="inicio-card__foto">
           <img src={imagenes.kmProyectado} alt="" aria-hidden="true" className="inicio-card__foto-img" />
-          <div className="inicio-card__foto-valor left-[61%] top-[54%]"><AnimatedNumber valor={kmPorDisco} sufijo=" km" /></div>
+          <p className="inicio-card__foto-titulo left-[61%] top-[26%]">Km de vida útil por disco</p>
+          <div className="inicio-card__foto-valor left-[61%] top-[60%]"><AnimatedNumber valor={kmPorDisco} sufijo=" km" /></div>
         </div>
       </article>
       <article className="inicio-card inicio-card--foto [container-type:inline-size]">
         <div className="inicio-card__encabezado"><span><Disc3 size={16} /> Cambio real vs. proyectado</span><span className="inicio-card__periodo">{mesActivo ? FORMATO_MES.format(fechaMes(mesActivo.mes)) : 'sin periodo'}</span></div>
         <div className="inicio-card__foto">
           <img src={imagenes.cambioReal} alt="" aria-hidden="true" className="inicio-card__foto-img" />
-          <div className={`inicio-card__foto-valor top-[54%] ${fabricante === 'ALSTOM' ? 'left-[61%]' : 'left-[55%]'}`}>
+          <p className={`inicio-card__foto-titulo top-[26%] ${fabricante === 'ALSTOM' ? 'left-[61%]' : 'left-[55%]'}`}>Cambio real vs. proyectado</p>
+          <div className={`inicio-card__foto-valor top-[60%] ${fabricante === 'ALSTOM' ? 'left-[61%]' : 'left-[55%]'}`}>
             {pctCambioMes === null ? '—' : <AnimatedNumber valor={pctCambioMes} sufijo="%" />}
             <IndicadorVariacion porcentaje={deltaCambio} sentido="subirEsBueno" />
           </div>
@@ -151,20 +152,6 @@ export function InicioOperativo() {
 
     <section className="mt-6 space-y-4" aria-label="Gráficos del dashboard">
       <GraficoTasaPorCoche puntos={tasaPorCoche.data ?? []} promedioFlota={tasaMensual.data ?? []} cargando={tasaPorCoche.isLoading} />
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
-        <DonutTrenesCriticos critico={criticoAhora} cambio={cambioAhora} cargando={pronostico.isLoading} />
-        <CardsTrenesCriticos
-          resumen={resumenTrenesCriticos.data}
-          subidasRecientes={subidasRecientes.data}
-          cargando={resumenTrenesCriticos.isLoading}
-        />
-      </div>
-      <GraficoFlujoMensualDiscos
-        pasado={retiros.data}
-        futuro={meses}
-        cargando={retiros.isLoading || pronostico.isLoading}
-        mesActual={mesPivote}
-      />
       <GraficoConsumoDiscos
         retirados={retiros.data}
         reales={cambiosReales.data}
@@ -177,6 +164,14 @@ export function InicioOperativo() {
         proyeccion={meses}
         cargando={retiros.isLoading || cambiosReales.isLoading || pronostico.isLoading}
       />
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+        <DonutTrenesCriticos critico={criticoAhora} cambio={cambioAhora} cargando={pronostico.isLoading} />
+        <CardsTrenesCriticos
+          resumen={resumenTrenesCriticos.data}
+          subidasRecientes={subidasRecientes.data}
+          cargando={resumenTrenesCriticos.isLoading}
+        />
+      </div>
     </section>
   </div></main>
 }

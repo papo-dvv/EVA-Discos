@@ -12,12 +12,22 @@ type Props = {
 }
 
 // Geometría del disco: óvalo real (media elipse por lado), no la "pastilla"
-// rect+arco de antes — un disco combinado mide RX*2 x RY*2 (≈84x100,
-// aspecto ≈1.2:1), bastante más redondo que el 180x68 (≈2.65:1) original.
-const RX = 42
-const RY = 50
-const RADIO_RUEDA = 30
-const FILA_ALTO = 150
+// rect+arco de antes — un disco combinado mide RX*2 x RY*2 (≈116x136,
+// aspecto ≈1.17:1). Agrandado (antes 42x50) al quitar las ruedas de los
+// extremos del eje: sin ellas compitiendo por espacio, el disco (lo único
+// que de verdad importa acá) puede ser más grande y legible.
+const RX = 58
+const RY = 68
+// Antes "4": el disco arrancaba pegado al título del eje, sin lugar para
+// nada más arriba. Con H y el lado (Izquierda/Derecha) agregados encima del
+// disco, hace falta este colchón — DISCO_TOP es la distancia desde el
+// arranque de la fila (`y`) hasta el borde superior del disco.
+const DISCO_TOP = 52
+// +90 sobre el valor anterior (150): con DISCO_TOP más grande y las 2 líneas
+// de texto nuevas arriba del disco, las filas quedaban demasiado pegadas
+// (disco 1 vs disco 2 del mismo bogie) y el Rd de abajo invadía la fila
+// siguiente — ver comentario de discoAbajoY.
+const FILA_ALTO = 240
 const FILA_Y_INICIAL = 40
 
 // T de un disco nuevo (ver operations-cambio-disco.service.ts: el placeholder
@@ -159,18 +169,12 @@ export function BogieVisualizer({ bogie, onSeleccionarDisco, posicion, total }: 
           <filter id={`shadow-${bogie.bogie}`} x="-20%" y="-20%" width="140%" height="140%">
             <feDropShadow dx="0" dy="8" stdDeviation="8" floodOpacity="0.12" />
           </filter>
-          <radialGradient id={`metal-${bogie.bogie}`} cx="38%" cy="28%" r="70%">
-            <stop offset="0%" stopColor="#f8fafc" />
-            <stop offset="35%" stopColor="#94a3b8" />
-            <stop offset="72%" stopColor="#334155" />
-            <stop offset="100%" stopColor="#0f172a" />
-          </radialGradient>
         </defs>
 
         {ejes.map((eje, idx) => {
           const y = FILA_Y_INICIAL + idx * FILA_ALTO
-          const discoCentroY = y + 4 + RY
-          const discoAbajoY = y + 4 + RY * 2
+          const discoCentroY = y + DISCO_TOP + RY
+          const discoAbajoY = y + DISCO_TOP + RY * 2
 
           if (esEjeAnsaldo(eje.discos)) {
             const izqExt = eje.discos.find((d) => d.lado === 'izquierdo' && d.posicion === 'exterior') ?? null
@@ -182,8 +186,6 @@ export function BogieVisualizer({ bogie, onSeleccionarDisco, posicion, total }: 
             return (
               <g key={eje.eje}>
                 <line x1="78" y1={discoCentroY} x2="482" y2={discoCentroY} stroke="rgba(31,41,55,0.18)" strokeWidth="8" strokeLinecap="round" />
-                <circle cx="58" cy={discoCentroY} r={RADIO_RUEDA} fill={`url(#metal-${bogie.bogie})`} stroke="#cbd5e1" strokeWidth="2" />
-                <circle cx="502" cy={discoCentroY} r={RADIO_RUEDA} fill={`url(#metal-${bogie.bogie})`} stroke="#cbd5e1" strokeWidth="2" />
                 <text x="280" y={y - 6} textAnchor="middle" className="fill-concreto font-body text-[12px] font-semibold">
                   Eje {eje.eje}: {codigoRef ? `Disco ${codigoRef}` : 'Disco sin código'}
                 </text>
@@ -193,17 +195,17 @@ export function BogieVisualizer({ bogie, onSeleccionarDisco, posicion, total }: 
                 <CuartoDisco x={280} y={y} lado="derecho" posicion="interior" disco={derInt} activo={false} onSeleccionarDisco={seleccionar} />
                 <CuartoDisco x={280} y={y} lado="derecho" posicion="exterior" disco={derExt} activo={false} onSeleccionarDisco={seleccionar} />
 
-                <line x1="280" y1={y + 4} x2="280" y2={discoAbajoY} stroke="rgba(255,255,255,0.8)" strokeWidth="2" />
-                <text x={280 - RX - 40} y={y + 4 + RY / 2} textAnchor="end" dominantBaseline="middle" className="fill-concreto-oscuro font-data text-[11px]">
+                <line x1="280" y1={y + DISCO_TOP} x2="280" y2={discoAbajoY} stroke="rgba(255,255,255,0.8)" strokeWidth="2" />
+                <text x={280 - RX - 40} y={y + DISCO_TOP + RY / 2} textAnchor="end" dominantBaseline="middle" className="fill-concreto-oscuro font-data text-[11px]">
                   {formatoRd(izqExt?.rd ?? null)}
                 </text>
-                <text x={280 - RX - 40} y={y + 4 + RY * 1.5} textAnchor="end" dominantBaseline="middle" className="fill-concreto-oscuro font-data text-[11px]">
+                <text x={280 - RX - 40} y={y + DISCO_TOP + RY * 1.5} textAnchor="end" dominantBaseline="middle" className="fill-concreto-oscuro font-data text-[11px]">
                   {formatoRd(izqInt?.rd ?? null)}
                 </text>
-                <text x={280 + RX + 40} y={y + 4 + RY / 2} dominantBaseline="middle" className="fill-concreto-oscuro font-data text-[11px]">
+                <text x={280 + RX + 40} y={y + DISCO_TOP + RY / 2} dominantBaseline="middle" className="fill-concreto-oscuro font-data text-[11px]">
                   {formatoRd(derInt?.rd ?? null)}
                 </text>
-                <text x={280 + RX + 40} y={y + 4 + RY * 1.5} dominantBaseline="middle" className="fill-concreto-oscuro font-data text-[11px]">
+                <text x={280 + RX + 40} y={y + DISCO_TOP + RY * 1.5} dominantBaseline="middle" className="fill-concreto-oscuro font-data text-[11px]">
                   {formatoRd(derExt?.rd ?? null)}
                 </text>
               </g>
@@ -218,10 +220,24 @@ export function BogieVisualizer({ bogie, onSeleccionarDisco, posicion, total }: 
               <line x1="92" y1={discoCentroY} x2="468" y2={discoCentroY} stroke="#64748b" strokeWidth="12" strokeLinecap="round" opacity="0.75" />
               <circle cx="280" cy={discoCentroY} r="25" fill="#cbd5e1" stroke="#475569" strokeWidth="3" />
               <circle cx="280" cy={discoCentroY} r="13" fill="#334155" stroke="#e2e8f0" strokeWidth="3" />
-              <circle cx="58" cy={discoCentroY} r={RADIO_RUEDA} fill={`url(#metal-${bogie.bogie})`} stroke="#cbd5e1" strokeWidth="2" />
-              <circle cx="502" cy={discoCentroY} r={RADIO_RUEDA} fill={`url(#metal-${bogie.bogie})`} stroke="#cbd5e1" strokeWidth="2" />
-              <text x="280" y={y - 6} textAnchor="middle" className="fill-concreto font-body text-[12px] font-semibold">
+              <text x="280" y={y + 8} textAnchor="middle" className="fill-concreto font-body text-[12px] font-semibold">
                 Eje {eje.eje}: {izquierdo?.codigoDisco ?? derecho?.codigoDisco ? `Disco ${izquierdo?.codigoDisco ?? derecho?.codigoDisco}` : 'Disco sin código'}
+              </text>
+              {/* Lado, primero (justo debajo del título del eje). */}
+              <text x={280 - RX / 2} y={y + 27} textAnchor="middle" className="fill-concreto font-body text-[10px] font-semibold uppercase tracking-wide">
+                Izquierda
+              </text>
+              <text x={280 + RX / 2} y={y + 27} textAnchor="middle" className="fill-concreto font-body text-[10px] font-semibold uppercase tracking-wide">
+                Derecha
+              </text>
+              {/* H después, pegado al disco — misma distancia lateral (RX+30)
+                  que el Rd de abajo, para que ambos queden alineados en
+                  columna aunque estén en lados opuestos. */}
+              <text x={280 - RX - 30} y={y + 44} textAnchor="middle" className="fill-concreto-oscuro font-data text-[12px]">
+                H {formatoNumero(izquierdo?.h ?? null)}
+              </text>
+              <text x={280 + RX + 30} y={y + 44} textAnchor="middle" className="fill-concreto-oscuro font-data text-[12px]">
+                H {formatoNumero(derecho?.h ?? null)}
               </text>
 
               <MitadDisco x={190} y={y} disco={izquierdo} lado="izquierdo" activo={discoActivo === izquierdo} onSeleccionarDisco={seleccionar} />
@@ -229,7 +245,7 @@ export function BogieVisualizer({ bogie, onSeleccionarDisco, posicion, total }: 
               <circle cx="280" cy={discoCentroY} r="16" fill="#475569" stroke="#f8fafc" strokeWidth="3" pointerEvents="none" />
               <circle cx="280" cy={discoCentroY} r="7" fill="#0f172a" stroke="#94a3b8" strokeWidth="2" pointerEvents="none" />
 
-              <line x1="280" y1={y + 4} x2="280" y2={discoAbajoY} stroke="rgba(255,255,255,0.8)" strokeWidth="2" />
+              <line x1="280" y1={y + DISCO_TOP} x2="280" y2={discoAbajoY} stroke="rgba(255,255,255,0.8)" strokeWidth="2" />
               <text x={280 - RX - 30} y={discoAbajoY + 18} textAnchor="middle" className="fill-concreto-oscuro font-data text-[14px]">
                 {formatoRd(izquierdo?.rd ?? null)}
               </text>
@@ -254,12 +270,17 @@ type MitadDiscoProps = {
 }
 
 function MitadDisco({ x, y, lado, disco, activo, onSeleccionarDisco }: MitadDiscoProps) {
-  const disponible = Boolean(disco?.codigoDisco && disco.estadoCalculado)
+  // codigoDisco puede faltar por un catálogo de bogies incompleto (ver
+  // ResolverCodigoDiscoService) aunque el disco SÍ tenga una medición real —
+  // eso ya no debe bloquear el click: ModalHistoricoDisco sabe mostrar el
+  // estado actual sin código (ver EstadoActualSinCodigo), solo se queda sin
+  // histórico ni gemelo digital.
+  const disponible = Boolean(disco?.estadoCalculado)
   const color = disco?.estadoCalculado ? colorEstado(disco.estadoCalculado) : '#cbd5e1'
   const etiqueta = disco ? `${lado}: ${textoEstado(disco)} · ${formatoRd(disco.rd)}` : `${lado}: Sin datos`
   const cx = lado === 'izquierdo' ? x + 90 : x
-  const arriba = y + 4
-  const abajo = y + 4 + RY * 2
+  const arriba = y + DISCO_TOP
+  const abajo = y + DISCO_TOP + RY * 2
   const sweep = lado === 'izquierdo' ? 0 : 1
   const path = `M ${cx} ${arriba} A ${RX} ${RY} 0 0 ${sweep} ${cx} ${abajo} Z`
   const tooltip = useTooltipHover()
@@ -317,7 +338,8 @@ type CuartoDiscoProps = {
 // (exterior arriba, interior abajo) para representar los 2 discos por lado —
 // cada cuarto es una media elipse de la mitad de alto (RY/2).
 function CuartoDisco({ x, y, lado, posicion, disco, activo, onSeleccionarDisco }: CuartoDiscoProps) {
-  const disponible = Boolean(disco?.codigoDisco && disco.estadoCalculado)
+  // Ver comentario homólogo en MitadDisco.
+  const disponible = Boolean(disco?.estadoCalculado)
   const color = disco?.estadoCalculado
     ? colorEstado(disco.estadoCalculado)
     : posicion === 'exterior'
@@ -327,8 +349,8 @@ function CuartoDisco({ x, y, lado, posicion, disco, activo, onSeleccionarDisco }
     ? `${lado} ${posicion}: ${textoEstado(disco)} · ${formatoRd(disco.rd)}`
     : `${lado} ${posicion}: Sin datos`
   const cx = lado === 'izquierdo' ? x + 90 : x
-  const yTop = posicion === 'exterior' ? y + 4 : y + 4 + RY
-  const yBottom = posicion === 'exterior' ? y + 4 + RY : y + 4 + RY * 2
+  const yTop = posicion === 'exterior' ? y + DISCO_TOP : y + DISCO_TOP + RY
+  const yBottom = posicion === 'exterior' ? y + DISCO_TOP + RY : y + DISCO_TOP + RY * 2
   const sweep = lado === 'izquierdo' ? 0 : 1
   const path = `M ${cx} ${yTop} A ${RX} ${RY / 2} 0 0 ${sweep} ${cx} ${yBottom} Z`
   const tooltip = useTooltipHover()

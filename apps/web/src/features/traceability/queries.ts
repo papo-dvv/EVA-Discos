@@ -1,11 +1,17 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import { obtenerPromedioPorTren, obtenerTraceabilitySeries, obtenerTraceabilitySummary } from './api'
+import {
+  obtenerPromedioPorTren,
+  obtenerTraceabilitySeries,
+  obtenerTraceabilitySeriesPorTipoCoche,
+  obtenerTraceabilitySummary,
+} from './api'
 import type { PromedioPorTrenParams, TraceabilityScopeParams, TraceabilitySeriesParams } from './types'
 
 const claves = {
   summary: (scope: TraceabilityScopeParams) => ['traceability', 'summary', scope] as const,
   series: (params: TraceabilitySeriesParams) => ['traceability', 'series', params] as const,
   promedioPorTren: (params: PromedioPorTrenParams) => ['traceability', 'promedio-por-tren', params] as const,
+  seriesPorTipoCoche: () => ['traceability', 'series-por-tipo-coche'] as const,
 }
 
 // El scope (tren/tipoCoche/bogieCodigo) SÍ recalcula todo en el backend
@@ -42,5 +48,15 @@ export function usePromedioPorTren(params: PromedioPorTrenParams) {
   return useQuery({
     queryKey: claves.promedioPorTren(params),
     queryFn: () => obtenerPromedioPorTren(params),
+  })
+}
+
+// Alimenta GraficoTasaPorCoche.tsx (dashboard) — sin parámetros, siempre
+// fleet-wide y acotado al año en curso (ver
+// TraceabilityService.obtenerSeriesPorTipoCoche en el backend).
+export function useTraceabilitySeriesPorTipoCoche() {
+  return useQuery({
+    queryKey: claves.seriesPorTipoCoche(),
+    queryFn: obtenerTraceabilitySeriesPorTipoCoche,
   })
 }

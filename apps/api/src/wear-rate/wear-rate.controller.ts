@@ -25,11 +25,6 @@ export class WearRateController {
     return this.wearRate.obtenerChart(query);
   }
 
-  @Get('chart-por-coche')
-  chartPorCoche() {
-    return this.wearRate.obtenerChartPorTipoCoche();
-  }
-
   @Get('summary')
   summary(@Query() query: WearRateSummaryQueryDto) {
     return this.wearRate.obtenerSummary(query);

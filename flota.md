@@ -4,8 +4,8 @@
 |---|---|---|---|
 | ANSALDO | Tren 1 | ML1-001 | M20 |
 | ANSALDO | Tren 1 | ML1-002 | M21 |
-| ANSALDO | Tren 1 | ML1-302 | M22 |
 | ANSALDO | Tren 1 | ML1-301 | M22 |
+| ANSALDO | Tren 1 | ML1-302 | M22 |
 | ANSALDO | Tren 1 | ML1-004 | M21 |
 | ANSALDO | Tren 1 | ML1-003 | M20 |
 | ANSALDO | Tren 2 | ML1-005 | M20 |
@@ -14,20 +14,22 @@
 | ANSALDO | Tren 2 | ML1-305 | M22 |
 | ANSALDO | Tren 2 | ML1-008 | M21 |
 | ANSALDO | Tren 2 | ML1-007 | M20 |
-| ANSALDO | Tren 3 | ML1-011 | M20 |
-| ANSALDO | Tren 3 | ML1-012 | M21 |
-| ANSALDO | Tren 3 | ML1-307 | M22 |
-| ANSALDO | Tren 3 | ML1-306 | M22 |
-| ANSALDO | Tren 3 | ML1-010 | M21 |
 | ANSALDO | Tren 3 | ML1-009 | M20 |
+| ANSALDO | Tren 3 | ML1-010 | M21 |
+| ANSALDO | Tren 3 | ML1-306 | M22 |
+| ANSALDO | Tren 3 | ML1-307 | M22 |
+| ANSALDO | Tren 3 | ML1-012 | M21 |
+| ANSALDO | Tren 3 | ML1-011 | M20 |
 | ANSALDO | Tren 4 | ML1-013 | M20 |
 | ANSALDO | Tren 4 | ML1-014 | M21 |
 | ANSALDO | Tren 4 | ML1-308 | M22 |
 | ANSALDO | Tren 4 | ML1-309 | M22 |
 | ANSALDO | Tren 4 | ML1-016 | M21 |
 | ANSALDO | Tren 4 | ML1-015 | M20 |
-| ANSALDO | Tren 5 | ML1-310 | M22 |
+| ANSALDO | Tren 5 | ML1-017 | M20 |
+| ANSALDO | Tren 5 | ML1-018 | M21 |
 | ANSALDO | Tren 5 | ML1-304 | M22 |
+| ANSALDO | Tren 5 | ML1-310 | M22 |
 | ANSALDO | Tren 5 | ML1-022 | M21 |
 | ANSALDO | Tren 5 | ML1-021 | M20 |
 | ANSALDO | Reserva | ML1-020 | M20 |
@@ -271,8 +273,9 @@
 
 - **Total coches ALSTOM:** 234 (195 motorizados y 39 remolques)
 - **Total trenes ALSTOM:** 39
-- **Total coches ANSALDO:** 31 (Tren 5 queda con un solo par M20/M21 verificado —
-  ML1-019/ML1-020 resultaron ser Reserva, no Tren 5; falta confirmar el segundo
-  par M20/M21 real de Tren 5 contra el histórico oficial)
+- **Total coches ANSALDO:** 32 (Tren 5 confirmado completo con sus 6 coches:
+  ML1-017/ML1-018 son el par M20/M21 real, no ML1-019/ML1-020 que son Reserva.
+  Los scan_records históricos de ML1-017/ML1-018 habían quedado mal
+  etiquetados bajo Tren 2 desde el Excel original — corregidos 2026-08)
 - **Total trenes ANSALDO:** 5 + 2 (reserva)
 - **Flota total:** 44 trenes ANSALDO y ALSTOM

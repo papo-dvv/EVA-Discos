@@ -140,6 +140,12 @@ export function GlassModal({
           opacity: visible ? 1 : 0,
           transform: visible ? 'scale(1) translateY(0)' : 'scale(0.96) translateY(8px)',
           transition: 'opacity var(--duracion-base) var(--ease-apple), transform var(--duracion-base) var(--ease-apple)',
+          // Ver comentario homólogo en WarningTooltip.tsx: .glass-surface--strong
+          // trae su propia animación de entrada (eva-superficie-entrada,
+          // tokens.css) que anima opacity/transform con fill-mode:both — sin
+          // este override gana sobre los inline de arriba, que son los que
+          // controlan la apertura/cierre real del modal.
+          animation: 'none',
         }}
       >
         {titulo && (

@@ -21,6 +21,17 @@ export const PARAMS_EDITABLES: Record<string, ReglaParam> = {
   outlier_parametro: { tipo: 'numero', min: 0 },
   dias_anticipacion_agenda: { tipo: 'numero', entero: true, min: 0 },
   km_mensual: { tipo: 'numero', min: 0 },
+  // Diferencia de km máxima que puede tener un wear_rate_pair para entrar al
+  // promedio de tasa mensual fleet-wide de WearRateService.obtenerChart() —
+  // ver descripción completa en el seed y en obtenerDiferenciaKmMaximaVigente()
+  // (wear-rate.service.ts). El desglose "por tipo de coche" del dashboard ya
+  // NO usa este parámetro: se movió a TraceabilityService.obtenerSeriesPorTipoCoche(),
+  // que resuelve el mismo problema (un balde sesgado) con el consenso de
+  // Trazabilidad sobre el histórico completo, en vez de un umbral fijo de km.
+  // Propio de Tasa de Desgaste, distinto de proyeccion_km_rango_max (mismo
+  // criterio de separación por módulo que proyeccion_h_umbral_reperfilado vs.
+  // h_umbral_reperfilado).
+  tasa_desgaste_km_maximo: { tipo: 'numero', min: 0 },
   outlier_metodo: {
     tipo: 'enum',
     valores: ['desviacion_estandar', 'iqr', 'umbral_fijo'],
@@ -112,6 +123,11 @@ export const PARAMS_INICIALES_FALTANTES: Record<
     valor: '0.8',
     descripcion:
       'Descuento Rd tras un reperfilado, usado exclusivamente por Proyección (mm)',
+  },
+  tasa_desgaste_km_maximo: {
+    valor: '50000',
+    descripcion:
+      'Diferencia de kilometraje máxima (km) que puede tener un par de mediciones para entrar al promedio de tasa mensual fleet-wide del dashboard (KPI "Tasa promedio por mes"). Pares con un salto mayor (discos con historial disperso) reparten todo su desgaste acumulado como si fuera constante mes a mes, inflando la tasa estimada.',
   },
 };
 

@@ -58,12 +58,12 @@ export class InventoryService {
 
   // Serie mensual de discos retirados de Almacén (Almacén -> Taller, ver
   // OperationsRetiroMasivoService — un InventoryMovement con
-  // tipo='retiro_masivo' es siempre 1 disco físico, no un par), usada por el
-  // gráfico "Flujo mensual de discos" del dashboard. Siempre los 12 meses del
-  // AÑO CALENDARIO en curso (enero a diciembre, pedido explícito — mismo
-  // criterio que WearRateService.obtenerChartPorTipoCoche), con 0 explícito
-  // en los meses sin ningún retiro (incluidos los futuros, todavía sin
-  // ocurrir) — "sin retiros" es un dato real, no la ausencia de dato.
+  // tipo='retiro_masivo' es siempre 1 disco físico, no un par). Alimenta a
+  // GraficoConsumoDiscos/GraficoConsumoDiscosAcumulado del dashboard. Siempre
+  // los 12 meses del AÑO CALENDARIO en curso (enero a diciembre, pedido
+  // explícito — mismo criterio que TraceabilityService.obtenerSeriesPorTipoCoche),
+  // con 0 explícito en los meses sin ningún retiro (incluidos los futuros,
+  // todavía sin ocurrir) — "sin retiros" es un dato real, no la ausencia de dato.
   async obtenerRetirosPorMes(): Promise<PuntoRetirosMes[]> {
     const anioActual = new Date().getUTCFullYear();
 
