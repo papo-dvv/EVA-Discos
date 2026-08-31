@@ -34,12 +34,24 @@ function progresoDias(dias: number | null, umbrales: UmbralesSemaforoMediciones)
   return Math.min(100, Math.max(0, (dias / umbrales.prioridad) * 100))
 }
 
+function mensajeSemaforo(tren: SemaforoTrenMediciones, umbrales: UmbralesSemaforoMediciones): string {
+  if (tren.diasSinMedir === null) return 'Sin medición: atención prioritaria.'
+  if (tren.estadoSemaforo === 'PRIORIDAD') return `Excede el umbral prioritario por ${tren.diasSinMedir - umbrales.prioridad + 1} día(s).`
+  if (tren.estadoSemaforo === 'CRITICO') return `A ${umbrales.prioridad - tren.diasSinMedir} día(s) de prioridad.`
+  if (tren.estadoSemaforo === 'ALERTA') return `A ${umbrales.critico - tren.diasSinMedir} día(s) de estado crítico.`
+  return `${umbrales.alerta - tren.diasSinMedir} día(s) para pasar a alerta.`
+}
+
 export function TrenSemaforoCard({ tren, umbrales, onAbrirCarga }: Props) {
   const meta = SEMAFORO_MEDICIONES_META[tren.estadoSemaforo]
   const fabricante = fabricanteDeTren(tren.tren)
   const esAnsaldo = fabricante === 'ANSALDO'
   const progreso = progresoDias(tren.diasSinMedir, umbrales)
   const diasTexto = tren.diasSinMedir === null ? 'Sin registro' : `${tren.diasSinMedir} días`
+  const mensaje = mensajeSemaforo(tren, umbrales)
+  const anchoNormal = (umbrales.alerta / umbrales.prioridad) * 100
+  const anchoAlerta = ((umbrales.critico - umbrales.alerta) / umbrales.prioridad) * 100
+  const anchoCritico = ((umbrales.prioridad - umbrales.critico) / umbrales.prioridad) * 100
 
   return (
     <GlassSurface
@@ -76,15 +88,19 @@ export function TrenSemaforoCard({ tren, umbrales, onAbrirCarga }: Props) {
             </div>
             <span className="font-data text-xl font-bold leading-none text-concreto-oscuro">{tren.diasSinMedir ?? '—'}<span className="ml-0.5 text-xs text-concreto">{tren.diasSinMedir === null ? '' : 'd'}</span></span>
           </div>
-          <div className="relative mt-3 h-2 overflow-hidden rounded-full bg-slate-200" aria-label={`${diasTexto} desde la última medición`}>
-            <span className="absolute inset-y-0 left-0 rounded-full transition-[width] duration-500" style={{ width: `${progreso}%`, backgroundColor: meta.cssVar }} />
-            {[umbrales.alerta, umbrales.critico, umbrales.prioridad].map((umbral) => (
-              <span key={umbral} className="absolute top-1/2 z-10 h-3 w-px -translate-y-1/2 bg-white/90" style={{ left: `${Math.min(100, (umbral / umbrales.prioridad) * 100)}%` }} />
-            ))}
+          <div className="relative mt-3 h-2.5 overflow-visible rounded-full" aria-label={`${diasTexto} desde la última medición`}>
+            <div className="flex h-full overflow-hidden rounded-full">
+              <span style={{ width: `${anchoNormal}%`, backgroundColor: 'var(--color-estado-ok)' }} />
+              <span style={{ width: `${anchoAlerta}%`, backgroundColor: 'var(--color-estado-seguimiento)' }} />
+              <span style={{ width: `${anchoCritico}%`, backgroundColor: 'var(--color-estado-cambio)' }} />
+              <span className="flex-1" style={{ backgroundColor: 'var(--color-estado-critico)' }} />
+            </div>
+            <span className="absolute top-1/2 z-10 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-white bg-concreto-oscuro shadow-md transition-[left] duration-500" style={{ left: `${progreso}%` }} title={diasTexto} />
           </div>
           <div className="mt-1.5 flex justify-between font-data text-[9px] text-concreto">
             <span>0d</span><span>{umbrales.alerta}d</span><span>{umbrales.critico}d</span><span>{umbrales.prioridad}d+</span>
           </div>
+          <p className="mt-2 border-t border-slate-200/80 pt-2 font-body text-[0.68rem] font-medium" style={{ color: meta.cssVar }}>{mensaje}</p>
         </div>
 
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-arena pt-3">

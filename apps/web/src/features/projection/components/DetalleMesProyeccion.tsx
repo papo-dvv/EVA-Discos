@@ -24,6 +24,15 @@ type TrenGrupo = {
   coches: CocheGrupo[]
 }
 
+function resumenTren(tren: TrenGrupo) {
+  const reperfilados = tren.coches.reduce((total, coche) => total + coche.reperfilados.length, 0)
+  const cambios = tren.coches.reduce((total, coche) => total + coche.cambios.length, 0)
+  const diasMasProximos = Math.min(
+    ...tren.coches.flatMap((coche) => [...coche.reperfilados, ...coche.cambios].map((evento) => evento.diasHastaEvento)),
+  )
+  return { reperfilados, cambios, diasMasProximos }
+}
+
 function agruparPorTrenYCoche(reperfilados: EventoPronostico[], cambios: EventoPronostico[]): TrenGrupo[] {
   const porTren = new Map<number, Map<number, CocheGrupo>>()
 
@@ -53,7 +62,16 @@ function agruparPorTrenYCoche(reperfilados: EventoPronostico[], cambios: EventoP
       trenNumero,
       coches: Array.from(porCoche.values()).sort((a, b) => a.numeroCoche - b.numeroCoche),
     }))
-    .sort((a, b) => a.trenNumero - b.trenNumero)
+    // Orden operativo: cambios primero, luego volumen de reperfilados y al
+    // final la fecha más próxima. Así cada mes abre los trenes críticos arriba.
+    .sort((a, b) => {
+      const resumenA = resumenTren(a)
+      const resumenB = resumenTren(b)
+      if (resumenA.cambios !== resumenB.cambios) return resumenB.cambios - resumenA.cambios
+      if (resumenA.reperfilados !== resumenB.reperfilados) return resumenB.reperfilados - resumenA.reperfilados
+      if (resumenA.diasMasProximos !== resumenB.diasMasProximos) return resumenA.diasMasProximos - resumenB.diasMasProximos
+      return a.trenNumero - b.trenNumero
+    })
 }
 
 function TablaEventos({ titulo, eventos }: { titulo: string; eventos: EventoPronostico[] }) {
@@ -125,13 +143,23 @@ function DetalleMesContenido({ periodo }: { periodo: string }) {
 
   return (
     <div className="space-y-3 px-3 pb-3">
-      {trenes.map((tren) => (
+      <div className="rounded-lg border border-concreto/15 bg-white/45 px-3 py-2">
+        <p className="font-body text-[0.68rem] font-bold uppercase tracking-[0.12em] text-concreto">Orden de atención</p>
+        <p className="mt-0.5 font-body text-xs text-concreto">Cambios primero; luego reperfilados y fecha más próxima.</p>
+      </div>
+      {trenes.map((tren) => {
+        const resumen = resumenTren(tren)
+        const esPrioridad = resumen.cambios > 0
+        return (
         <details key={tren.trenNumero} className="rounded-lg border border-concreto/15 bg-white/30">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2 [&::-webkit-details-marker]:hidden">
-            <span className="font-body text-sm font-semibold text-concreto-oscuro">Tren {tren.trenNumero}</span>
-            <span className="font-body text-xs text-concreto">
-              {tren.coches.length} {tren.coches.length === 1 ? 'coche' : 'coches'}
+            <span className="flex items-center gap-2">
+              <span className="font-body text-sm font-semibold text-concreto-oscuro">Tren {tren.trenNumero}</span>
+              <span className={`rounded-full px-2 py-0.5 font-body text-[0.65rem] font-bold ${esPrioridad ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                {esPrioridad ? 'Prioridad · cambio' : 'Seguimiento · reperfilado'}
+              </span>
             </span>
+            <span className="font-body text-xs text-concreto">{resumen.cambios} cambios · {resumen.reperfilados} reperfilados · {tren.coches.length} coches</span>
           </summary>
           <div className="space-y-2 px-2 pb-2">
             {tren.coches.map((coche) => (
@@ -155,7 +183,8 @@ function DetalleMesContenido({ periodo }: { periodo: string }) {
             ))}
           </div>
         </details>
-      ))}
+        )
+      })}
     </div>
   )
 }

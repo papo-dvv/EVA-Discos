@@ -19,6 +19,15 @@ function numero(v: number | null): string {
   return v === null ? '—' : v.toFixed(2)
 }
 
+function hCentral(row: InventoryRow): string {
+  const izquierda = row.izquierdo?.hValue ?? null
+  const derecha = row.derecho?.hValue ?? null
+  if (izquierda === null && derecha === null) return '—'
+  if (izquierda === null) return numero(derecha)
+  if (derecha === null || izquierda === derecha) return numero(izquierda)
+  return `${numero(izquierda)} | ${numero(derecha)}`
+}
+
 function EstadoChip({ estado }: { estado: string | null }) {
   return estado ? <span className={`tabla-chip tabla-chip--pequeno ${CLASE_CHIP_ESTADO[estado]}`}>{estado}</span> : <span>—</span>
 }
@@ -113,7 +122,7 @@ export function TablaInventario({
   onEliminar: (row: InventoryRow) => void
 }) {
   const columnasExtra = COLUMNAS_EXTRA[stage]
-  const totalCeldas = (seleccionables ? 1 : 0) + 1 + 8 + columnasExtra.length + 1
+  const totalCeldas = (seleccionables ? 1 : 0) + 1 + 7 + columnasExtra.length + 1
 
   return (
     <div className="w-full overflow-x-auto">
@@ -122,22 +131,21 @@ export function TablaInventario({
           <tr className="border-b border-concreto/10">
             {seleccionables && <th rowSpan={3} className="w-8 px-2 py-2.5" />}
             <th rowSpan={3} className="px-3 py-2.5 text-left align-bottom">Serie</th>
-            <th colSpan={8} className="px-2 py-1.5 text-center border-b border-concreto/10">Disco</th>
+            <th colSpan={7} className="px-2 py-1.5 text-center border-b border-concreto/10">Disco</th>
             {columnasExtra.map((c) => (
               <th key={c} rowSpan={3} className="px-3 py-2.5 text-left align-bottom">{ETIQUETA_COLUMNA[c]}</th>
             ))}
             <th rowSpan={3} className="px-3 py-2.5 text-center align-bottom">Acciones</th>
           </tr>
           <tr className="border-b border-concreto/20">
-            <th colSpan={4} className="px-1.5 py-1 text-center text-[0.65rem] uppercase tracking-[0.12em] text-concreto">Izquierda</th>
-            <th colSpan={4} className="px-1.5 py-1 text-center text-[0.65rem] uppercase tracking-[0.12em] text-concreto">Derecha</th>
+            <th colSpan={3} className="px-1.5 py-1 text-center text-[0.65rem] uppercase tracking-[0.12em] text-concreto">Izquierda</th>
+            <th rowSpan={2} className="px-1.5 py-1 text-center align-bottom text-[0.65rem] uppercase tracking-[0.12em] text-concreto">H</th>
+            <th colSpan={3} className="px-1.5 py-1 text-center text-[0.65rem] uppercase tracking-[0.12em] text-concreto">Derecha</th>
           </tr>
           <tr className="border-b border-concreto/20">
             <th className="px-1.5 py-1.5 text-center">Estado</th>
             <th className="px-1.5 py-1.5 text-right">Rd</th>
             <th className="px-1.5 py-1.5 text-right">T</th>
-            <th className="px-1.5 py-1.5 text-right">H</th>
-            <th className="px-1.5 py-1.5 text-right">H</th>
             <th className="px-1.5 py-1.5 text-right">T</th>
             <th className="px-1.5 py-1.5 text-right">Rd</th>
             <th className="px-1.5 py-1.5 text-center">Estado</th>
@@ -163,9 +171,8 @@ export function TablaInventario({
               <td className="px-1.5 py-2 text-center">{r.izquierdo ? <EstadoChip estado={r.izquierdo.estadoCalculado} /> : '—'}</td>
               <td className="px-1.5 py-2 text-right font-data">{r.izquierdo ? numero(r.izquierdo.rdValue) : '—'}</td>
               <td className="px-1.5 py-2 text-right font-data">{r.izquierdo ? numero(r.izquierdo.tValue) : '—'}</td>
-              <td className="px-1.5 py-2 text-right font-data">{r.izquierdo ? numero(r.izquierdo.hValue) : '—'}</td>
-              {/* Derecho en espejo: H queda junto al H izquierdo, al centro. */}
-              <td className="px-1.5 py-2 text-right font-data">{r.derecho ? numero(r.derecho.hValue) : '—'}</td>
+              <td className="px-1.5 py-2 text-center font-data" title="H izquierda | H derecha">{hCentral(r)}</td>
+              {/* Derecho en espejo; H compartida se muestra una sola vez al centro. */}
               <td className="px-1.5 py-2 text-right font-data">{r.derecho ? numero(r.derecho.tValue) : '—'}</td>
               <td className="px-1.5 py-2 text-right font-data">{r.derecho ? numero(r.derecho.rdValue) : '—'}</td>
               <td className="px-1.5 py-2 text-center">{r.derecho ? <EstadoChip estado={r.derecho.estadoCalculado} /> : '—'}</td>
