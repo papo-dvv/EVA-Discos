@@ -1,7 +1,6 @@
 import { Check, MousePointerClick } from 'lucide-react'
-import { useState } from 'react'
 import type { EstadoDisco } from '../../scan-records/types'
-import type { FleetCocheDetalle, FleetDiscoDetalle } from '../../fleet/types'
+import type { FleetCocheDetalle } from '../../fleet/types'
 
 const COLOR_ESTADO: Record<EstadoDisco, string> = {
   OK: '#15a36d',
@@ -11,28 +10,11 @@ const COLOR_ESTADO: Record<EstadoDisco, string> = {
   REPERFILADO: '#7656d6',
 }
 
-function DiscoVisual({ disco, lado, vista }: { disco?: FleetDiscoDetalle; lado: 'Izq.' | 'Der.'; vista: '2d' | '3d' }) {
-  const color = disco?.estadoCalculado ? COLOR_ESTADO[disco.estadoCalculado] : '#94a3b8'
-  return (
-    <div className="flex min-w-20 flex-col items-center gap-1">
-      <div
-        className={`${vista === '3d' ? 'relative h-16 w-8 rounded-[50%] border border-white/80 shadow-[7px_9px_15px_rgba(15,23,42,0.22),inset_-5px_-4px_8px_rgba(0,0,0,0.28),inset_4px_3px_7px_rgba(255,255,255,0.5)]' : 'relative h-14 w-14 rounded-full border-4 border-slate-200 shadow-md'} eva-disco-anim`}
-        style={{ background: vista === '3d' ? `linear-gradient(105deg, ${color}, color-mix(in_srgb, ${color} 48%, #172033))` : `radial-gradient(circle, #0f172a 0 22%, ${color} 24% 43%, #e2e8f0 45% 58%, ${color} 60% 66%, #334155 68%)` }}
-      >
-        {vista === '3d' && <><span className="absolute left-1/2 top-1/2 h-5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-[50%] bg-slate-800/75 shadow-inner" /><span className="absolute inset-y-1.5 left-1 w-1 rounded-full bg-white/35" /></>}
-      </div>
-      <span className="text-[0.6rem] font-bold uppercase tracking-wider text-slate-500">{lado}</span>
-      <span className="max-w-24 truncate font-data text-[0.62rem] text-slate-700">{disco?.codigoDisco ?? 'Sin código'}</span>
-    </div>
-  )
-}
-
 export function BogieEjeVisual({ coche, asignados, onClickEje }: {
   coche: FleetCocheDetalle
   asignados: Set<string>
   onClickEje: (bogieCodigo: string, ejeNumero: number) => void
 }) {
-  const [vista, setVista] = useState<'2d' | '3d'>('3d')
   return (
     <div className="flex flex-col gap-4">
       {coche.bogies.map((bogie, indice) => {
@@ -46,9 +28,6 @@ export function BogieEjeVisual({ coche, asignados, onClickEje }: {
               </div>
               <div className="flex items-center gap-2">
                 {seleccionados > 0 && <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[0.65rem] font-bold text-emerald-700">{seleccionados} asignado(s)</span>}
-                <div className="flex rounded-full bg-slate-800 p-0.5 text-[0.6rem] font-bold uppercase tracking-wider text-white">
-                  {(['3d', '2d'] as const).map((opcion) => <button key={opcion} type="button" aria-pressed={vista === opcion} onClick={() => setVista(opcion)} className={`rounded-full px-2 py-1 transition ${vista === opcion ? 'bg-white text-slate-800' : 'text-slate-300'}`}>{opcion}</button>)}
-                </div>
               </div>
             </header>
 
@@ -58,26 +37,31 @@ export function BogieEjeVisual({ coche, asignados, onClickEje }: {
                 const asignado = asignados.has(key)
                 const izquierdo = eje.discos.find((disco) => disco.lado === 'izquierdo')
                 const derecho = eje.discos.find((disco) => disco.lado === 'derecho')
+                const colorIzq = izquierdo?.estadoCalculado ? COLOR_ESTADO[izquierdo.estadoCalculado] : '#94a3b8'
+                const colorDer = derecho?.estadoCalculado ? COLOR_ESTADO[derecho.estadoCalculado] : '#94a3b8'
                 return (
                   <button
                     key={key}
                     type="button"
                     onClick={() => onClickEje(bogie.bogie, eje.eje)}
                     aria-pressed={asignado}
-                    className={`group relative grid min-h-32 w-full grid-cols-[1fr_auto] items-center gap-3 overflow-hidden rounded-2xl border p-3 text-left transition-all duration-200 sm:grid-cols-[95px_1fr_115px] ${asignado ? 'border-emerald-500 bg-emerald-50/90 shadow-[0_10px_24px_rgba(16,163,111,0.17)] ring-2 ring-emerald-500/15' : 'border-slate-200 bg-white/85 hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-lg'}`}
+                    className={`group relative grid min-h-32 w-full grid-cols-[1fr_auto] items-center gap-3 overflow-hidden rounded-2xl border p-3 text-left transition-all duration-200 sm:grid-cols-[95px_minmax(19rem,1fr)_115px] ${asignado ? 'border-emerald-500 bg-emerald-50/90 shadow-[0_10px_24px_rgba(16,163,111,0.17)] ring-2 ring-emerald-500/15' : 'border-slate-200 bg-white/85 hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-lg'}`}
                   >
                     <div className="hidden sm:block">
                       <p className="text-[0.6rem] font-bold uppercase tracking-widest text-slate-400">Posición</p>
                       <p className="mt-1 font-display text-lg font-bold text-slate-800">Eje {eje.eje}</p>
                       <p className="mt-0.5 text-[0.68rem] text-slate-500">{bogie.bogie}</p>
                     </div>
-                    <div className="flex min-w-0 items-center justify-center gap-1 py-2 [perspective:700px]">
-                      <DiscoVisual disco={izquierdo} lado="Izq." vista={vista} />
-                      <div className={`relative h-6 min-w-14 flex-1 max-w-40 rounded-md bg-gradient-to-b from-slate-300 via-slate-600 to-slate-900 shadow-[0_9px_12px_rgba(15,23,42,0.3)] ${vista === '3d' ? '-skew-y-2' : ''}`}>
-                        <span className="absolute inset-x-3 top-1 h-1 rounded-full bg-white/30" />
-                        <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-md bg-slate-950 px-2 py-1 text-[0.58rem] font-bold text-white">EJE {eje.eje}</span>
+                    <div className="min-w-0 py-3">
+                      <div className="relative mx-auto flex h-[5.7rem] w-full min-w-56 max-w-[26rem] items-center justify-center">
+                        <span className="absolute inset-x-0 h-3 rounded-full bg-gradient-to-b from-slate-300 via-slate-500 to-slate-700 shadow-[0_3px_7px_rgba(15,23,42,0.26)]" />
+                        <span className="absolute inset-x-3 top-[calc(50%-0.25rem)] h-px rounded-full bg-white/55" />
+                        <span className="relative z-10 grid h-[4.45rem] w-[4.45rem] place-items-center rounded-full border-4 border-white shadow-[0_8px_16px_rgba(15,23,42,0.22)]" style={{ background: `conic-gradient(${colorIzq} 0deg 180deg, ${colorDer} 180deg 360deg)` }}>
+                          <span className="grid h-8 w-8 place-items-center rounded-full border-[3px] border-slate-100 bg-slate-700 shadow-inner"><span className="h-3 w-3 rounded-full border-2 border-slate-400 bg-slate-950" /></span>
+                        </span>
+                        <span className="absolute left-1/2 top-1/2 z-20 -translate-x-1/2 translate-y-[3.1rem] whitespace-nowrap rounded-full bg-slate-950 px-3 py-1 text-[0.62rem] font-bold text-white shadow-md">EJE {eje.eje}</span>
                       </div>
-                      <DiscoVisual disco={derecho} lado="Der." vista={vista} />
+                      <div className="mx-auto mt-1 flex w-full max-w-[26rem] justify-between gap-3 font-data text-[0.62rem] text-slate-600"><span className="min-w-0 truncate">IZQ. {izquierdo?.codigoDisco ?? 'Sin código'}</span><span className="min-w-0 truncate text-right">DER. {derecho?.codigoDisco ?? 'Sin código'}</span></div>
                     </div>
                     <div className={`flex items-center justify-end gap-2 text-xs font-semibold ${asignado ? 'text-emerald-700' : 'text-slate-500'}`}>
                       {asignado ? <Check size={18} className="rounded-full bg-emerald-600 p-0.5 text-white" /> : <MousePointerClick size={17} />}

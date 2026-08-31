@@ -188,24 +188,12 @@ export function BogieVisualizer({ bogie, onSeleccionarDisco, posicion, total }: 
                   Eje {eje.eje}: {codigoRef ? `Disco ${codigoRef}` : 'Disco sin código'}
                 </text>
 
-                <CuartoDisco x={190} y={y} lado="izquierdo" posicion="exterior" disco={izqExt} activo={false} onSeleccionarDisco={seleccionar} />
-                <CuartoDisco x={190} y={y} lado="izquierdo" posicion="interior" disco={izqInt} activo={false} onSeleccionarDisco={seleccionar} />
-                <CuartoDisco x={280} y={y} lado="derecho" posicion="interior" disco={derInt} activo={false} onSeleccionarDisco={seleccionar} />
-                <CuartoDisco x={280} y={y} lado="derecho" posicion="exterior" disco={derExt} activo={false} onSeleccionarDisco={seleccionar} />
-
-                <line x1="280" y1={y + 4} x2="280" y2={discoAbajoY} stroke="rgba(255,255,255,0.8)" strokeWidth="2" />
-                <text x={280 - RX - 40} y={y + 4 + RY / 2} textAnchor="end" dominantBaseline="middle" className="fill-concreto-oscuro font-data text-[11px]">
-                  {formatoRd(izqExt?.rd ?? null)}
-                </text>
-                <text x={280 - RX - 40} y={y + 4 + RY * 1.5} textAnchor="end" dominantBaseline="middle" className="fill-concreto-oscuro font-data text-[11px]">
-                  {formatoRd(izqInt?.rd ?? null)}
-                </text>
-                <text x={280 + RX + 40} y={y + 4 + RY / 2} dominantBaseline="middle" className="fill-concreto-oscuro font-data text-[11px]">
-                  {formatoRd(derInt?.rd ?? null)}
-                </text>
-                <text x={280 + RX + 40} y={y + 4 + RY * 1.5} dominantBaseline="middle" className="fill-concreto-oscuro font-data text-[11px]">
-                  {formatoRd(derExt?.rd ?? null)}
-                </text>
+                {/* Ansaldo tiene dos discos por lado. Se distribuyen sobre un
+                    solo eje horizontal, en vez de apilarlos verticalmente. */}
+                <DiscoAnsaldoHorizontal x={202} y={discoCentroY} lado="izquierdo" posicion="exterior" disco={izqExt} activo={discoActivo === izqExt} onSeleccionarDisco={seleccionar} />
+                <DiscoAnsaldoHorizontal x={246} y={discoCentroY} lado="izquierdo" posicion="interior" disco={izqInt} activo={discoActivo === izqInt} onSeleccionarDisco={seleccionar} />
+                <DiscoAnsaldoHorizontal x={314} y={discoCentroY} lado="derecho" posicion="interior" disco={derInt} activo={discoActivo === derInt} onSeleccionarDisco={seleccionar} />
+                <DiscoAnsaldoHorizontal x={358} y={discoCentroY} lado="derecho" posicion="exterior" disco={derExt} activo={discoActivo === derExt} onSeleccionarDisco={seleccionar} />
               </g>
             )
           }
@@ -303,7 +291,7 @@ function MitadDisco({ x, y, lado, disco, activo, onSeleccionarDisco }: MitadDisc
   )
 }
 
-type CuartoDiscoProps = {
+type DiscoAnsaldoHorizontalProps = {
   x: number
   y: number
   lado: 'izquierdo' | 'derecho'
@@ -313,10 +301,9 @@ type CuartoDiscoProps = {
   onSeleccionarDisco: (disco: FleetDiscoDetalle) => void
 }
 
-// Ansaldo: mismo "medio disco" que MitadDisco, pero partido además en altura
-// (exterior arriba, interior abajo) para representar los 2 discos por lado —
-// cada cuarto es una media elipse de la mitad de alto (RY/2).
-function CuartoDisco({ x, y, lado, posicion, disco, activo, onSeleccionarDisco }: CuartoDiscoProps) {
+// Ansaldo: los dos discos de cada lado comparten una misma línea de eje;
+// se dibujan como cuatro discos completos y pequeños, en orden horizontal.
+function DiscoAnsaldoHorizontal({ x, y, lado, posicion, disco, activo, onSeleccionarDisco }: DiscoAnsaldoHorizontalProps) {
   const disponible = Boolean(disco?.codigoDisco && disco.estadoCalculado)
   const color = disco?.estadoCalculado
     ? colorEstado(disco.estadoCalculado)
@@ -326,11 +313,6 @@ function CuartoDisco({ x, y, lado, posicion, disco, activo, onSeleccionarDisco }
   const etiqueta = disco
     ? `${lado} ${posicion}: ${textoEstado(disco)} · ${formatoRd(disco.rd)}`
     : `${lado} ${posicion}: Sin datos`
-  const cx = lado === 'izquierdo' ? x + 90 : x
-  const yTop = posicion === 'exterior' ? y + 4 : y + 4 + RY
-  const yBottom = posicion === 'exterior' ? y + 4 + RY : y + 4 + RY * 2
-  const sweep = lado === 'izquierdo' ? 0 : 1
-  const path = `M ${cx} ${yTop} A ${RX} ${RY / 2} 0 0 ${sweep} ${cx} ${yBottom} Z`
   const tooltip = useTooltipHover()
 
   return (
@@ -357,9 +339,12 @@ function CuartoDisco({ x, y, lado, posicion, disco, activo, onSeleccionarDisco }
         className={disponible ? 'cursor-pointer outline-none' : 'cursor-default'}
       >
         <title>{etiqueta}</title>
-        <path
+        <ellipse
           className={activo ? 'eva-disco-seleccionado' : undefined}
-          d={path}
+          cx={x}
+          cy={y}
+          rx="20"
+          ry="29"
           fill={color}
           opacity={1}
           stroke={disco?.estadoCalculado ? '#ffffff' : '#64748b'}
@@ -367,6 +352,10 @@ function CuartoDisco({ x, y, lado, posicion, disco, activo, onSeleccionarDisco }
           strokeWidth="2"
           style={{ filter: activo ? 'drop-shadow(0 0 10px rgba(16,185,129,0.95))' : 'drop-shadow(0 6px 6px rgba(15,23,42,0.1))' }}
         />
+        <circle cx={x} cy={y} r="8" fill="#475569" stroke="#f8fafc" strokeWidth="2" pointerEvents="none" />
+        <text x={x} y={y + 43} textAnchor="middle" className="fill-concreto font-data text-[9px]">
+          {posicion === 'exterior' ? 'EXT.' : 'INT.'}
+        </text>
       </g>
       {tooltip.visible && disco && (
         <TooltipDiscoContenido disco={disco} lado={lado} posicion={posicion} coords={tooltip.coords} />
