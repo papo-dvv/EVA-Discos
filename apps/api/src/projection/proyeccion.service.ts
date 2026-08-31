@@ -674,10 +674,11 @@ export class ProyeccionService {
       // ahora), no algo que tenga sentido proyectar a futuro como Reperfilado
       // o Cambio — un disco que se prevé crítico en un mes venidero ya
       // aparece ahí como evento de Cambio (ver esPendiente/resolverEventos-
-      // Pronostico). Sin este corte, el mes en curso también arrastraba
-      // discos interpolados hasta SU ÚLTIMO día (mes.fechaReferencia), de
-      // modo que el conteo "Crítico ahora" del pronóstico no coincidía con
-      // el estado real actual (/projection/discos?estado=CRITICO).
+      // Pronostico). Este corte solo aplica a meses FUTUROS (el mes en curso
+      // ya devuelve el estado real sin interpolar, ver estadoProyectadoEnMes):
+      // sin él, un disco cuya interpolación cruza a CRITICO en un mes
+      // venidero inflaría el desglose de ESE mes con un estado que no tiene
+      // sentido "proyectar" hacia adelante.
       if (estado === 'CRITICO' && !fechaCaeEnMes(hoy, mes)) continue;
       conteo[estado] += 1;
     }
@@ -708,28 +709,27 @@ export class ProyeccionService {
   ): EstadoDiscoAmpliado {
     if (!disco.proyectable || disco.tasaMensual === null) return disco.estado;
 
-    // proyectarCiclos asume que el reperfilado ocurre INSTANTÁNEAMENTE apenas
-    // H cruza el umbral (sin tiempo de permanencia) — para un disco que YA
-    // está sobre el umbral en su última medición real, esto colapsa su
-    // primer ciclo al día mismo de esa medición, así que interpolarEnFecha
-    // jamás devuelve REPERFILADO, ni siquiera para el mes en curso: el disco
-    // "ya fue reperfilado" en el modelo antes de que el pronóstico arranque.
-    // En el mes en curso (el que contiene "hoy") sí hay un dato real y no
-    // solo interpolado: si el disco está en REPERFILADO ahora mismo (según
-    // su última medición), todavía no fue atendido en la realidad, así que
-    // se prioriza ese estado real por sobre el interpolado. Los meses
-    // futuros siguen sin poder representar el tiempo de permanencia en
-    // REPERFILADO — limitación del motor de proyección, no de este parche.
-    if (disco.estado === 'REPERFILADO' && fechaCaeEnMes(hoy, mes)) {
-      return 'REPERFILADO';
-    }
-    // Mismo criterio que el override de REPERFILADO de arriba: en el mes en
-    // curso hay un dato real (la última medición) que no debería perderse
-    // frente a la interpolación a fin de mes — un disco YA crítico ahora
-    // sigue siéndolo, sin esperar a que mes.fechaReferencia (fin de mes) lo
-    // "confirme" con unos días más de desgaste interpolado.
-    if (disco.estado === 'CRITICO' && fechaCaeEnMes(hoy, mes)) {
-      return 'CRITICO';
+    // El mes en curso (el que contiene "hoy") tiene un dato REAL — la última
+    // medición confirmada — que nunca debe perderse frente a la interpolación
+    // a fin de mes: SIEMPRE se prioriza disco.estado tal cual sobre
+    // interpolarEnFecha, sin importar cuál de los 5 estados sea. Antes este
+    // override solo cubría REPERFILADO y CRITICO (ver historial), así que
+    // cualquier disco actualmente OK/SEGUIMIENTO/CAMBIO que la interpolación
+    // proyectara cruzando un umbral ANTES de fin del mes en curso ya
+    // aparecía en el desglose de ese mes con un estado que todavía no tiene
+    // en la realidad (ej. "14 críticos" en el dashboard cuando en vivo
+    // /fleet/summary solo cuenta 5 discos realmente en CRITICO hoy — el resto
+    // eran discos en CAMBIO/SEGUIMIENTO que la interpolación proyectaba
+    // cruzando a CRITICO antes de fin de mes). proyectarCiclos además asume
+    // que el reperfilado ocurre INSTANTÁNEAMENTE apenas H cruza el umbral
+    // (sin tiempo de permanencia), así que interpolarEnFecha jamás devuelve
+    // REPERFILADO por sí sola — sin este override el disco "ya fue
+    // reperfilado" en el modelo antes de que el pronóstico arranque. Los
+    // meses FUTUROS (fuera de este `if`) siguen interpolando como siempre —
+    // ahí SÍ tiene sentido proyectar hacia adelante; solo el mes en curso
+    // representa "ahora", no una proyección.
+    if (fechaCaeEnMes(hoy, mes)) {
+      return disco.estado;
     }
 
     const punto = interpolarEnFecha(

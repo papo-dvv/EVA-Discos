@@ -1,17 +1,20 @@
 import { useMemo } from 'react'
+import { fabricanteDeTren } from '../../fleet/components/fabricante'
 import { getEstadoDominanteTren } from '../../fleet/components/semaforoTren'
 import { useFleetSummary } from '../../fleet/queries'
 import { TrenCriticoCardProyeccion } from './TrenCriticoCardProyeccion'
 
-// Lista fleet-wide de trenes con estado dominante Crítico o Cambio, ordenada
-// por severidad — réplica adaptada de la pestaña "Trenes Críticos" de
-// EVA-Aldy, pero usando getEstadoDominanteTren (ya existente en Flota) en vez
-// de recalcular un semáforo propio.
+// Lista de trenes con estado dominante Crítico o Cambio, ordenada por
+// severidad — réplica adaptada de la pestaña "Trenes Críticos" de EVA-Aldy,
+// pero usando getEstadoDominanteTren (ya existente en Flota) en vez de
+// recalcular un semáforo propio. Solo Alstom (ver ResumenAnalisisProyeccion):
+// useFleetSummary() es fleet-wide, pero Proyección no soporta Ansaldo.
 export function TrenesCriticosProyeccion() {
   const fleet = useFleetSummary()
 
   const trenes = useMemo(() => {
     return (fleet.data ?? [])
+      .filter((t) => fabricanteDeTren(t.tren) === 'ALSTOM')
       .filter((t) => t.conteoEstado.critico > 0 || t.conteoEstado.cambio > 0)
       .sort((a, b) => {
         const estadoA = getEstadoDominanteTren(a.conteoEstado)
