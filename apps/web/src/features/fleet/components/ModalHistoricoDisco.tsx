@@ -139,7 +139,7 @@ function DiscoInteractivo3D({
   ]
 
   return (
-    <section className="relative isolate min-h-[290px] overflow-hidden rounded-[1.8rem] border border-emerald-200/80 bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 p-5 text-white shadow-xl shadow-emerald-950/15">
+    <section className="relative isolate min-h-[340px] overflow-hidden rounded-[1.8rem] border border-emerald-200/80 bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 p-5 text-white shadow-xl shadow-emerald-950/15">
       <div className="absolute -right-16 -top-16 h-52 w-52 rounded-full bg-emerald-400/20 blur-3xl" />
       <div className="absolute -bottom-20 -left-16 h-52 w-52 rounded-full bg-cyan-400/10 blur-3xl" />
       <div className="relative z-20 flex items-start justify-between gap-4">
@@ -168,13 +168,16 @@ function DiscoInteractivo3D({
               {lado}
             </button>
           ))}
+          <span className="hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-[0.66rem] uppercase tracking-wide sm:inline-flex" style={{ borderColor: `${metrica.color}99`, color: metrica.color, backgroundColor: `${metrica.color}18` }}>
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full" style={{ backgroundColor: metrica.color }} /> pista activa: {disco.lado}
+          </span>
           <span className="hidden text-slate-400 sm:inline">Arrastra para girar · pulsa una pista para seleccionar</span>
         </div>
       )}
 
       <div
         aria-label={`${vista === '3d' ? 'Modelo tridimensional' : 'Vista técnica bidimensional'} del disco; métrica activa ${metrica.etiqueta}`}
-        className={`group relative z-10 mx-auto mt-4 h-52 w-full select-none ${vista === '3d' ? 'cursor-grab touch-none active:cursor-grabbing' : 'cursor-default'}`}
+        className={`group relative z-10 mx-auto mt-4 h-60 w-full select-none sm:h-64 ${vista === '3d' ? 'cursor-grab touch-none active:cursor-grabbing' : 'cursor-default'}`}
       >
         {vista === '3d' ? (
           <div className="h-full w-full">
@@ -192,7 +195,7 @@ function DiscoInteractivo3D({
         )}
       </div>
 
-      <div className="relative z-10 mx-auto -mt-2 grid w-full max-w-sm grid-cols-3 gap-2" aria-label="Métricas del disco">
+      <div className="relative z-10 mx-auto mt-1 grid w-full max-w-sm grid-cols-3 gap-2" aria-label="Métricas del disco">
         {metricas.map((item) => {
           const activa = item.key === metricaActiva
           return (

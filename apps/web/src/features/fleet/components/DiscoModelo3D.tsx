@@ -33,9 +33,9 @@ export function DiscoModelo3D({ ladoSeleccionado, color, onSeleccionarLado }: Pr
     controls.minDistance = 3.3
     controls.maxDistance = 10
     controls.target.set(0, 0, 0)
-    // Vista oblicua: permite ver las dos pistas y el canal de ventilación,
-    // sin ocultar la cara del disco detrás de un eje.
-    camera.position.set(2.5, 1.8, 4.05)
+    // Vista oblicua completa: muestra ambas pistas y el canal ventilado sin
+    // recortar el diámetro exterior dentro del visor.
+    camera.position.set(3.15, 2.15, 4.85)
     controls.update()
 
     scene.add(new THREE.HemisphereLight('#e6f6ff', '#071324', 2.4))
@@ -56,6 +56,12 @@ export function DiscoModelo3D({ ladoSeleccionado, color, onSeleccionarLado }: Pr
     let model: THREE.Group | null = null
     const nombrePista = ladoSeleccionado === 'izquierdo' ? 'Pista izquierda' : 'Pista derecha'
     const selectedMaterial = new THREE.MeshStandardMaterial({ color, metalness: 0.72, roughness: 0.2, emissive: color, emissiveIntensity: 0.62 })
+    const haloMaterial = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.84, side: THREE.DoubleSide, depthWrite: false })
+    const halo = new THREE.Mesh(new THREE.TorusGeometry(1.49, 0.035, 10, 128), haloMaterial)
+    halo.rotation.y = Math.PI / 2
+    halo.position.x = ladoSeleccionado === 'izquierdo' ? -0.43 : 0.43
+    halo.renderOrder = 3
+    scene.add(halo)
     new GLTFLoader().load('/models/alstom_disc.glb', (gltf) => {
       model = gltf.scene
       model.traverse((child) => {
@@ -89,8 +95,7 @@ export function DiscoModelo3D({ ladoSeleccionado, color, onSeleccionarLado }: Pr
       else if (clicked?.object.name.startsWith('Pista derecha')) callbackRef.current('derecho')
       // Los pernos y aletas cubren zonas de la pista. Cuando se pulsa uno de
       // esos detalles, conservamos una selección directa e intuitiva por mitad.
-      else if (intersections.length > 0) callbackRef.current(event.clientX - rect.left < rect.width / 2 ? 'izquierdo' : 'derecho')
-      else return
+      else callbackRef.current(event.clientX - rect.left < rect.width / 2 ? 'izquierdo' : 'derecho')
       lastSelectionAt = performance.now()
     }
     renderer.domElement.addEventListener('pointerdown', onPointerDown, true)
@@ -123,6 +128,8 @@ export function DiscoModelo3D({ ladoSeleccionado, color, onSeleccionarLado }: Pr
       renderer.domElement.removeEventListener('click', onPointerUp, true)
       controls.dispose()
       selectedMaterial.dispose()
+      halo.geometry.dispose()
+      haloMaterial.dispose()
       model?.traverse((child) => {
         if (child instanceof THREE.Mesh) {
           child.geometry.dispose()
