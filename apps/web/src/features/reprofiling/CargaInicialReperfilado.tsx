@@ -202,7 +202,8 @@ export function CargaInicialReperfilado({ onCreada, trenInicial }: Props) {
           ocr.responsableMantenimiento?.firma ?? undefined,
       })
       for (const fila of ocr.filas) {
-        const { confianza: _confianza, tAntes, hAntes, ...medicion } = fila
+        const { confianza, tAntes, hAntes, ...medicion } = fila
+        void confianza
         await agregarFilaFicha(ficha.fichaId, {
           ...medicion,
           reperfiladoTAntes: tAntes,

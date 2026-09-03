@@ -1,5 +1,5 @@
 import { Activity, CalendarDays, Disc3, Rotate3D } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { GlassModal } from '../../../components/GlassModal'
 import { ScrollArea } from '../../../components/ScrollArea'
 import { useFleetHistorico } from '../queries'
@@ -22,7 +22,6 @@ export function ModalHistoricoDisco({ disco, onCerrar }: Props) {
   const [ladoActivo, setLadoActivo] = useState(disco.lado)
   const historico = useFleetHistorico(disco.codigoDisco, ladoActivo)
   const [metricaActiva, setMetricaActiva] = useState<Metrica>('rd')
-  useEffect(() => setLadoActivo(disco.lado), [disco.lado])
 
   // Sin código resuelto (catálogo de bogies incompleto, ver
   // ResolverCodigoDiscoService) — useFleetHistorico nunca se dispara

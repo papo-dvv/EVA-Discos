@@ -62,6 +62,8 @@ export function TablaWearRate({ rows, sorting, onSortingChange, mostrarColumnaTr
     [identidadAbierta],
   )
 
+  // TanStack Table administra su propia memoización; React Compiler omite este hook de forma segura.
+  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data: rows,
     columns,

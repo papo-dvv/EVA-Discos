@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { AlertTriangle } from 'lucide-react'
 import { GlassSurface } from '../../../components/GlassSurface'
 import { DetalleMesProyeccion } from './DetalleMesProyeccion'
-import { datosMensuales, GraficoBarrasPronostico, type VistaBarras } from './GraficoBarrasPronostico'
+import { GraficoBarrasPronostico } from './GraficoBarrasPronostico'
+import { datosMensuales, type VistaBarras } from '../lib/pronosticoBarras'
 import { useProyeccionDiscos, usePronostico } from '../queries'
 
 const ANIO_INICIAL = 2026

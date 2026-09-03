@@ -60,6 +60,8 @@ export function TablaScanRecords({
     [onEditar, onEliminar, accionesDeshabilitadas, compacta],
   )
 
+  // TanStack Table administra su propia memoización; React Compiler omite este hook de forma segura.
+  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data: rows,
     columns,

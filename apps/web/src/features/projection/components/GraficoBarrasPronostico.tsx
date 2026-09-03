@@ -2,6 +2,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { SegmentedControl } from '../../../components/SegmentedControl'
 import { WarningTooltip } from '../../../components/WarningTooltip'
 import type { PronosticoMes, TipoEventoPronostico } from '../types'
+import { datosMensuales, type DatoBarra, type VistaBarras } from '../lib/pronosticoBarras'
 
 const ANIO_INICIAL = 2026
 const ANIO_FINAL = 2032
@@ -9,15 +10,6 @@ const ANCHO = 900
 const ALTO = 320
 const MARGEN = { top: 28, right: 28, bottom: 54, left: 56 }
 const MOSTRAR_REPERFILADOS = true
-
-export type VistaBarras = 'anio' | 'mes'
-export type DatoBarra = {
-  periodo: string
-  etiqueta: string
-  reperfilados: number
-  cambios: number
-  criticos: number
-}
 
 type Props = {
   meses: PronosticoMes[]
@@ -43,20 +35,6 @@ function datosAnuales(meses: PronosticoMes[]): DatoBarra[] {
       )
     return { periodo: anio, etiqueta: anio, ...acumulado }
   })
-}
-
-export function datosMensuales(meses: PronosticoMes[], anio: number): DatoBarra[] {
-  return meses
-    .filter((mes) => mes.mes.startsWith(String(anio)))
-    .map((mes) => ({
-      periodo: mes.mes,
-      etiqueta: new Intl.DateTimeFormat('es-PE', { month: 'short' }).format(
-        new Date(anio, Number(mes.mes.slice(5, 7)) - 1, 1),
-      ),
-      reperfilados: mes.reperfilados,
-      cambios: mes.cambios,
-      criticos: mes.desgloseEstado.critico,
-    }))
 }
 
 function BotonNavegacion({

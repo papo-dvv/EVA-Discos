@@ -10,25 +10,25 @@ import { useStatsInventario } from '../features/inventory/queries'
 
 type TipoTren = 'ALSTOM' | 'ANSALDO'
 
+function leerPreseleccion(params: URLSearchParams): { tren: number; coche: number } | null {
+  const tren = Number(params.get('tren'))
+  const coche = Number(params.get('coche'))
+  return Number.isFinite(tren) && Number.isFinite(coche) && params.has('tren') && params.has('coche')
+    ? { tren, coche }
+    : null
+}
+
 export function Operaciones() {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [preseleccion, setPreseleccion] = useState(() => leerPreseleccion(searchParams))
   const [tipoTren, setTipoTren] = useState<TipoTren>('ALSTOM')
   const [retiroAbierto, setRetiroAbierto] = useState(false)
-  const [cambioAbierto, setCambioAbierto] = useState(false)
+  const [cambioAbierto, setCambioAbierto] = useState(() => preseleccion !== null)
   const [reperfiladoAbierto, setReperfiladoAbierto] = useState(false)
-  const [preseleccion, setPreseleccion] = useState<{ tren: number; coche: number } | null>(null)
-  const [searchParams, setSearchParams] = useSearchParams()
   const stats = useStatsInventario()
 
   useEffect(() => {
-    const trenStr = searchParams.get('tren')
-    const cocheStr = searchParams.get('coche')
-    if (trenStr && cocheStr) {
-      const tren = Number(trenStr)
-      const coche = Number(cocheStr)
-      if (!Number.isNaN(tren) && !Number.isNaN(coche)) {
-        setPreseleccion({ tren, coche })
-        setCambioAbierto(true)
-      }
+    if (searchParams.has('tren') || searchParams.has('coche')) {
       const next = new URLSearchParams(searchParams)
       next.delete('tren')
       next.delete('coche')

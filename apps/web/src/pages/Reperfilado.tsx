@@ -172,7 +172,7 @@ export function Reperfilado({
   const [resultado, setResultado] = useState<ResumenVerificacion | null>(null)
   const [modalAbierto, setModalAbierto] = useState(false)
   const [descargandoPdf, setDescargandoPdf] = useState(false)
-  const [nombrePdf, setNombrePdf] = useState('')
+  const [nombrePdfPersonalizado, setNombrePdf] = useState<string | null>(null)
   const [errorAccion, setErrorAccion] = useState<string | null>(null)
   const verificarCardRef = useRef<HTMLDivElement>(null)
   const [verificarFlotante, setVerificarFlotante] = useState(false)
@@ -184,6 +184,7 @@ export function Reperfilado({
   const confirmar = useConfirmarFicha(fichaId ?? '')
   const cancelar = useCancelarFicha(fichaId ?? '')
   const ficha = preview.data?.ficha
+  const nombrePdf = nombrePdfPersonalizado ?? (ficha ? `UT-UF-MTO-FR-414 - Tren ${ficha.trenNumero}` : '')
   const rows = preview.data?.rows ?? []
   const tablaBloqueada = ficha?.tablaBloqueada ?? false
   const responsableVacio = !ficha?.responsableMantenimientoNombre?.trim()
@@ -224,12 +225,6 @@ export function Reperfilado({
     limpiarFichaActiva('reperfilado')
     navigate('/nuevas-mediciones', { replace: true })
   }, [fichaId, navigate, preview.error, preview.isError])
-
-  useEffect(() => {
-    if (ficha && !nombrePdf) {
-      setNombrePdf(`UT-UF-MTO-FR-414 - Tren ${ficha.trenNumero}`)
-    }
-  }, [ficha, nombrePdf])
 
   useEffect(() => {
     const card = verificarCardRef.current

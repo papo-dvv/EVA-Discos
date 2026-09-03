@@ -39,7 +39,7 @@ export function RelacionBogies() {
   const [filaEliminar, setFilaEliminar] = useState<RelacionBogieCatalogo | null>(null)
   const [bogieEnVista, setBogieEnVista] = useState<RelacionBogieCatalogo | null>(null)
 
-  const filas = catalogo.data ?? []
+  const filas = useMemo(() => catalogo.data ?? [], [catalogo.data])
   const trenes = useMemo(
     () =>
       [...new Set(filas.map((fila) => fila.trenNumero))]

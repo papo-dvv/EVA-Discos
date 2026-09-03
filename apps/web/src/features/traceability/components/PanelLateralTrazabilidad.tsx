@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { GlassSurface } from '../../../components/GlassSurface'
 import { SegmentedControl } from '../../../components/SegmentedControl'
 import type {
@@ -77,17 +77,16 @@ export function PanelLateralTrazabilidad({
   const [vista, setVista] = useState<Vista>('metodos')
   const [haVisitadoTren, setHaVisitadoTren] = useState(false)
 
-  useEffect(() => {
-    if (vista === 'tren') setHaVisitadoTren(true)
-  }, [vista])
-
   return (
     <GlassSurface fuerte className="rounded-glass p-4">
       <SegmentedControl
         ariaLabel="Vista: métodos y límites, estadísticas generales o promedio por tren"
         opciones={OPCIONES_VISTA}
         valor={vista}
-        onCambiar={setVista}
+        onCambiar={(nuevaVista) => {
+          setVista(nuevaVista)
+          if (nuevaVista === 'tren') setHaVisitadoTren(true)
+        }}
         className="mb-4"
       />
 
