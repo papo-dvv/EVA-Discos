@@ -1,5 +1,8 @@
+import { CircleHelp } from 'lucide-react'
+import { useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { CampanitaNotificaciones } from '../features/notifications/components/CampanitaNotificaciones'
+import { AyudaPaginaModal } from './AyudaPaginaModal'
 import { SECCIONES_SIDEBAR } from './sidebarItems'
 
 // Etiquetas de rutas que no viven en el nav de la sidebar (home, catálogo,
@@ -26,6 +29,7 @@ function etiquetaDeRuta(pathname: string): string {
 // El logout ya vive en el footer de la Sidebar, así que acá no se repite.
 export function TopBar() {
   const { pathname } = useLocation()
+  const [ayudaAbierta, setAyudaAbierta] = useState(false)
 
   return (
     <header className="flex h-14 shrink-0 items-center justify-between border-b border-arena bg-white px-3 sm:h-16 sm:px-6">
@@ -34,7 +38,19 @@ export function TopBar() {
         <span className="mx-1.5 text-concreto/50">›</span>
         <span className="font-semibold text-concreto-oscuro">{etiquetaDeRuta(pathname)}</span>
       </p>
-      <CampanitaNotificaciones />
+      <div className="flex items-center gap-1.5">
+        <button
+          type="button"
+          onClick={() => setAyudaAbierta(true)}
+          className="grid h-9 w-9 place-items-center rounded-full text-concreto transition hover:bg-arena hover:text-verde-oscuro focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-verde-claro"
+          aria-label={`Ayuda sobre ${etiquetaDeRuta(pathname)}`}
+          title="Ayuda de esta pestaña"
+        >
+          <CircleHelp size={19} aria-hidden />
+        </button>
+        <CampanitaNotificaciones />
+      </div>
+      {ayudaAbierta && <AyudaPaginaModal pathname={pathname} onCerrar={() => setAyudaAbierta(false)} />}
     </header>
   )
 }
