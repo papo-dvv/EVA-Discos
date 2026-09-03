@@ -30,6 +30,10 @@ export interface LadoInventario {
   hValue: number | null
   rdValue: number | null
   estadoCalculado: EstadoDisco | null
+  // true cuando T/H/Rd/Estado son el placeholder de "disco nuevo sin medir"
+  // (T=7.00/H=0), no una medición real — ver PlaceholderDiscoNuevo en
+  // apps/api/src/inventory/inventory-query.ts.
+  esSupuesto: boolean
 }
 
 export interface PosicionInventario {

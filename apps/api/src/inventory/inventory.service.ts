@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import type { LadoDisco } from '../../generated/prisma';
 import { agruparPorMes } from '../common/agrupar-por-mes';
+import { BrakeDiscRulesService } from '../brake-disc-rules/brake-disc-rules.service';
 import { PrismaService } from '../prisma/prisma.service';
 import type { DevolverAlmacenDto } from './dto/devolver-almacen.dto';
 import type { EditarEjeDto } from './dto/editar-eje.dto';
@@ -16,6 +17,7 @@ import {
   obtenerStatsInventory,
   type InventoryResult,
   type InventoryStats,
+  type PlaceholderDiscoNuevo,
 } from './inventory-query';
 
 const LADOS = ['izquierdo', 'derecho'] as const satisfies readonly LadoDisco[];
@@ -46,10 +48,31 @@ function esViolacionUnicidad(err: unknown): boolean {
 
 @Injectable()
 export class InventoryService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly reglas: BrakeDiscRulesService,
+  ) {}
 
   async listar(query: InventoryQueryDto): Promise<InventoryResult> {
-    return buscarInventarioPaginado(this.prisma, query);
+    return buscarInventarioPaginado(
+      this.prisma,
+      query,
+      await this.obtenerPlaceholderDiscoNuevo(),
+    );
+  }
+
+  // T=7.00/H=0 (ver PlaceholderDiscoNuevo, inventory-query.ts) — Rd y Estado
+  // SIEMPRE salen del mismo motor de reglas que usa el resto de la app
+  // (BrakeDiscRulesService), nunca hardcodeados: si algún día cambia la
+  // fórmula de Rd o los umbrales de clasificación, este placeholder se
+  // actualiza solo, igual que cualquier medición real.
+  private async obtenerPlaceholderDiscoNuevo(): Promise<PlaceholderDiscoNuevo> {
+    const evaluador = await this.reglas.obtenerEvaluador();
+    const rdValue = evaluador.calcularRd(7, 0);
+    return {
+      rdValue,
+      estadoCalculado: evaluador.clasificarEstadoConReperfilado(rdValue, 0),
+    };
   }
 
   async obtenerStats(): Promise<InventoryStats> {

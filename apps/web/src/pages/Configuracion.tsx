@@ -1,4 +1,4 @@
-import { ClipboardList, Database, FolderUp, Table2 } from 'lucide-react'
+import { ClipboardList, Database, FolderUp, Gauge, Table2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { GlassSurface } from '../components/GlassSurface'
 import { PanelParametros } from '../features/system-params/components/PanelParametros'
@@ -21,10 +21,10 @@ export function Configuracion() {
       {/* Herramientas que antes tenían ítem/vista propia en el sidebar — se
           mudaron acá para no saturar el nav, no porque hayan pasado a ser
           "parámetros"; por eso van en tarjetas de acceso, separadas del
-          panel de PanelParametros de abajo. Relación de bogies/Migración
-          tenían ítem propio; las tablas de Proyección/Mediciones eran una
-          vista dentro de sus páginas (toggle Gráfico/Tabla y Tarjetas/Tabla
-          respectivamente). */}
+          panel de PanelParametros de abajo. Relación de bogies/Migración/
+          Tasa de desgaste tenían ítem propio en el sidebar; las tablas de
+          Proyección/Mediciones eran una vista dentro de sus páginas (toggle
+          Gráfico/Tabla y Tarjetas/Tabla respectivamente). */}
       <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Link to="/relacion-bogies" className="block">
           <GlassSurface fuerte elevar className="flex items-start gap-3 rounded-glass p-4 transition-transform hover:-translate-y-0.5">
@@ -45,6 +45,17 @@ export function Configuracion() {
             <div>
               <p className="font-display text-sm font-semibold text-concreto-oscuro">Migración</p>
               <p className="mt-0.5 font-body text-xs text-concreto">Carga masiva del histórico de mediciones desde Excel.</p>
+            </div>
+          </GlassSurface>
+        </Link>
+        <Link to="/tasa-desgaste" className="block">
+          <GlassSurface fuerte elevar className="flex items-start gap-3 rounded-glass p-4 transition-transform hover:-translate-y-0.5">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-verde-institucional to-verde-institucional/70 text-white">
+              <Gauge size={18} aria-hidden />
+            </span>
+            <div>
+              <p className="font-display text-sm font-semibold text-concreto-oscuro">Tasa de desgaste</p>
+              <p className="mt-0.5 font-body text-xs text-concreto">Pares de tasa de desgaste por disco y tipo de coche.</p>
             </div>
           </GlassSurface>
         </Link>

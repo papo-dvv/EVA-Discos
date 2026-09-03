@@ -1,5 +1,10 @@
+import type { BrakeDiscRulesService } from '../brake-disc-rules/brake-disc-rules.service';
 import type { PrismaService } from '../prisma/prisma.service';
 import { InventoryService } from './inventory.service';
+
+// obtenerCambiosRealesPorMes no toca el motor de reglas — fake sin
+// implementación real, solo para satisfacer el constructor.
+const reglasFake = {} as BrakeDiscRulesService;
 
 interface FakeMovimiento {
   fecha: Date;
@@ -37,7 +42,7 @@ describe('InventoryService.obtenerCambiosRealesPorMes', () => {
       movimiento(),
     ]);
 
-    const resultado = await new InventoryService(prisma).obtenerCambiosRealesPorMes();
+    const resultado = await new InventoryService(prisma, reglasFake).obtenerCambiosRealesPorMes();
 
     const marzo = resultado.find((p) => p.mes.endsWith('-03'));
     expect(marzo?.cambiosReales).toBe(1);
@@ -51,7 +56,7 @@ describe('InventoryService.obtenerCambiosRealesPorMes', () => {
       movimiento({ brakeDisc: { wagonUnitId: 'wagon-1', bogieCodigo: 'PB2', ejeNumero: 2 } }),
     ]);
 
-    const resultado = await new InventoryService(prisma).obtenerCambiosRealesPorMes();
+    const resultado = await new InventoryService(prisma, reglasFake).obtenerCambiosRealesPorMes();
 
     const marzo = resultado.find((p) => p.mes.endsWith('-03'));
     expect(marzo?.cambiosReales).toBe(2);
@@ -60,7 +65,7 @@ describe('InventoryService.obtenerCambiosRealesPorMes', () => {
   it('meses sin ningún cambio devuelven 0 explícito (12 filas siempre)', async () => {
     const { prisma } = crearPrismaFake([]);
 
-    const resultado = await new InventoryService(prisma).obtenerCambiosRealesPorMes();
+    const resultado = await new InventoryService(prisma, reglasFake).obtenerCambiosRealesPorMes();
 
     expect(resultado).toHaveLength(12);
     expect(resultado.every((p) => p.cambiosReales === 0)).toBe(true);
