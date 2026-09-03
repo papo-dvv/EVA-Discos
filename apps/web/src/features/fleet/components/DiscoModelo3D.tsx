@@ -10,7 +10,10 @@ type Props = { ladoSeleccionado: Lado; color: string; onSeleccionarLado: (lado: 
 export function DiscoModelo3D({ ladoSeleccionado, color, onSeleccionarLado }: Props) {
   const hostRef = useRef<HTMLDivElement>(null)
   const callbackRef = useRef(onSeleccionarLado)
-  callbackRef.current = onSeleccionarLado
+
+  useEffect(() => {
+    callbackRef.current = onSeleccionarLado
+  }, [onSeleccionarLado])
 
   useEffect(() => {
     const host = hostRef.current

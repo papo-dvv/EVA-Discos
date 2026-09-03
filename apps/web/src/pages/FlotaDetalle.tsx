@@ -180,7 +180,7 @@ export function FlotaDetalle() {
         </div>
       )}
 
-      {discoSeleccionado && <ModalHistoricoDisco disco={discoSeleccionado} onCerrar={() => setDiscoSeleccionado(null)} />}
+      {discoSeleccionado && <ModalHistoricoDisco key={`${discoSeleccionado.codigoDisco}-${discoSeleccionado.lado}-${discoSeleccionado.posicion}`} disco={discoSeleccionado} onCerrar={() => setDiscoSeleccionado(null)} />}
     </div>
   )
 }

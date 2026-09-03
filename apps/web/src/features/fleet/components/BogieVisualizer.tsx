@@ -1,4 +1,5 @@
-import { useRef, useState } from 'react'
+/* eslint-disable react-hooks/refs -- El analizador marca todo el objeto devuelto por el hook como ref; el hook expone estado y callbacks, nunca lee ref.current durante render. */
+import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { GlassSurface } from '../../../components/GlassSurface'
 import type { FleetBogieDetalle, FleetDiscoDetalle } from '../types'
@@ -87,12 +88,12 @@ function esEjeAnsaldo(discos: FleetDiscoDetalle[]): boolean {
 // que WarningTooltip.tsx pero disparado desde un <g> en vez de un <span> (no
 // se puede envolver contenido SVG en ese componente compartido).
 function useTooltipHover() {
-  const ref = useRef<SVGGElement>(null)
+  const [elemento, setElemento] = useState<SVGGElement | null>(null)
   const [visible, setVisible] = useState(false)
   const [coords, setCoords] = useState({ left: 0, top: 0 })
 
   function mostrar() {
-    const rect = ref.current?.getBoundingClientRect()
+    const rect = elemento?.getBoundingClientRect()
     if (rect) setCoords({ left: rect.left + rect.width / 2, top: rect.top })
     setVisible(true)
   }
@@ -100,7 +101,7 @@ function useTooltipHover() {
     setVisible(false)
   }
 
-  return { ref, visible, coords, mostrar, ocultar }
+  return { setElemento, visible, coords, mostrar, ocultar }
 }
 
 function FilaTooltip({ etiqueta, valor }: { etiqueta: string; valor: string }) {
@@ -350,7 +351,7 @@ function MitadDisco({ x, y, lado, disco, activo, onSeleccionarDisco }: MitadDisc
   return (
     <>
       <g
-        ref={tooltip.ref}
+        ref={tooltip.setElemento}
         role={disponible ? 'button' : 'img'}
         tabIndex={disponible ? 0 : undefined}
         aria-label={etiqueta}
@@ -426,7 +427,7 @@ function DiscoAnsaldoDoble({ x, y, lado, exterior, interior, activo, onSeleccion
   return (
     <>
       <g
-        ref={tooltipExterior.ref}
+        ref={tooltipExterior.setElemento}
         role={disponibleExterior ? 'button' : 'img'}
         tabIndex={disponibleExterior ? 0 : undefined}
         aria-label={exterior ? `${lado} exterior: ${textoEstado(exterior)} · ${formatoRd(exterior.rd)}` : `${lado} exterior: Sin datos`}
@@ -449,7 +450,7 @@ function DiscoAnsaldoDoble({ x, y, lado, exterior, interior, activo, onSeleccion
         <path className={activo === exterior ? 'eva-disco-seleccionado' : undefined} d={pathExterior} fill={colorExterior} stroke="#ffffff" strokeWidth="2" style={{ filter: 'drop-shadow(0 7px 7px rgba(15,23,42,0.12))' }} />
       </g>
       <g
-        ref={tooltipInterior.ref}
+        ref={tooltipInterior.setElemento}
         role={disponibleInterior ? 'button' : 'img'}
         tabIndex={disponibleInterior ? 0 : undefined}
         aria-label={interior ? `${lado} interior: ${textoEstado(interior)} · ${formatoRd(interior.rd)}` : `${lado} interior: Sin datos`}

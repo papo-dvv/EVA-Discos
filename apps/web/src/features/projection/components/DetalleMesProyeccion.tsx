@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { GlassSurface } from '../../../components/GlassSurface'
 import { useDetallePronostico } from '../queries'
 import type { EventoPronostico } from '../types'
-import type { DatoBarra } from './GraficoBarrasPronostico'
+import type { DatoBarra } from '../lib/pronosticoBarras'
 
 // Detalle por mes, fleet-wide (sin `tren` — la pestaña Gráfico de Barras no
 // tiene alcance por tren, ver Proyeccion.tsx). Adaptado del patrón
